@@ -75,7 +75,7 @@ function SoundCloudWidget({ url, onBack }: { url: string; onBack: () => void }) 
     parent.replaceChildren()
     const iframe = document.createElement("iframe")
     ;(iframe as HTMLIFrameElement & { credentialless?: boolean }).credentialless = true
-    iframe.title = "SoundCloud player"
+    iframe.title = "Embedded player"
     iframe.width = "100%"
     iframe.height = "100%"
     iframe.frameBorder = "0"
@@ -99,7 +99,7 @@ function SoundCloudWidget({ url, onBack }: { url: string; onBack: () => void }) 
       <div className="flex h-12 shrink-0 items-center gap-3 border-b border-white/10 px-4">
         <button onClick={onBack} className="rounded-lg p-2 text-white/55 hover:bg-white/10 hover:text-white" aria-label="Back to Music"><ArrowLeft className="h-4 w-4" /></button>
         <Music2 className="h-4 w-4" />
-        <span className="text-sm font-medium">SoundCloud</span>
+        <span className="text-sm font-medium">Embedded player</span>
       </div>
       <div ref={host} className="min-h-0 flex-1 bg-black" />
     </div>
@@ -163,10 +163,10 @@ export function MusicPanel() {
     try {
       const response = await fetch("/api/music/audius/discover", { credentials: "include" })
       const body = await response.json().catch(() => ({})) as { tracks?: MusicTrack[]; error?: string }
-      if (!response.ok) throw new Error(body.error || "Audius could not load")
+      if (!response.ok) throw new Error(body.error || "Music could not load")
       setTracks(Array.isArray(body.tracks) ? body.tracks : [])
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Audius could not load")
+      setError(reason instanceof Error ? reason.message : "Music could not load")
     } finally {
       setLoading(false)
     }
@@ -353,7 +353,7 @@ export function MusicPanel() {
       setSoundCloudUrl(parsed.toString())
       setError("")
     } catch {
-      setError("Paste a valid soundcloud.com track, playlist, or artist URL")
+      setError("Paste a valid supported music URL")
     }
   }
 
@@ -369,7 +369,7 @@ export function MusicPanel() {
         body: JSON.stringify({ url: cobaltInput.trim() }),
       })
       const body = await response.json().catch(() => ({})) as { url?: string; error?: string }
-      if (!response.ok || !body.url) throw new Error(body.error || "Cobalt could not resolve that URL")
+      if (!response.ok || !body.url) throw new Error(body.error || "Music import could not resolve that URL")
       const synthetic: MusicTrack = {
         id: `cobalt-${Date.now()}`,
         provider: "cobalt",
@@ -381,7 +381,7 @@ export function MusicPanel() {
       }
       playTrack(synthetic, [synthetic])
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Cobalt could not resolve that URL")
+      setError(reason instanceof Error ? reason.message : "Music import could not resolve that URL")
     } finally {
       setLoading(false)
     }
@@ -404,10 +404,10 @@ export function MusicPanel() {
             <div className="mt-1 flex items-center gap-2"><Waves className="h-5 w-5" /><h1 className="text-xl font-semibold">Listen without leaving Synnical</h1></div>
           </div>
           <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-white/10 bg-black p-1">
-            <SourceButton active={source === "audius"} onClick={() => { setStoredSource("audius"); void loadAudius() }} icon={Waves} label="Audius" />
-            <SourceButton active={source === "bridge"} onClick={() => setStoredSource("bridge")} icon={Server} label="YouTube bridge" disabled={!bridgeAvailable} />
-            <SourceButton active={source === "soundcloud"} onClick={() => setStoredSource("soundcloud")} icon={Music2} label="SoundCloud" />
-            <SourceButton active={source === "cobalt"} onClick={() => setStoredSource("cobalt")} icon={ExternalLink} label="Cobalt" disabled={!status.cobalt.available} />
+            <SourceButton active={source === "audius"} onClick={() => { setStoredSource("audius"); void loadAudius() }} icon={Waves} label="Home" />
+            <SourceButton active={source === "bridge"} onClick={() => setStoredSource("bridge")} icon={Server} label="Search" disabled={!bridgeAvailable} />
+            <SourceButton active={source === "soundcloud"} onClick={() => setStoredSource("soundcloud")} icon={Music2} label="Import" />
+            <SourceButton active={source === "cobalt"} onClick={() => setStoredSource("cobalt")} icon={ExternalLink} label="Link" disabled={!status.cobalt.available} />
             <SourceButton active={source === "radio"} onClick={() => setStoredSource("radio")} icon={Radio} label="Radio" />
             <SourceButton active={source === "social"} onClick={() => setStoredSource("social")} icon={Trophy} label="Social" />
           </div>
@@ -432,20 +432,20 @@ export function MusicPanel() {
           <div className="mx-auto max-w-6xl p-5 pb-32">
             <form data-synnical-music-search onSubmit={(event) => { event.preventDefault(); void search() }} className="mb-5 flex items-center gap-2 rounded-xl border border-white/10 bg-[#080808] p-2">
               <Search className="ml-2 h-4 w-4 text-white/35" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm outline-none" placeholder={source === "audius" ? "Search Audius tracks and artists" : "Search your configured Piped / Invidious music backend"} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm outline-none" placeholder={source === "audius" ? "Search music and artists" : "Search imported music"} />
               <button type="submit" disabled={loading} className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-40">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}</button>
               {source === "audius" ? <button type="button" onClick={() => void loadAudius()} className="rounded-lg p-2 text-white/45 hover:bg-white/10 hover:text-white" aria-label="Refresh trending"><RefreshCw className="h-4 w-4" /></button> : null}
             </form>
 
             {source === "bridge" && !bridgeAvailable ? (
-              <ProviderSetup title="YouTube bridge is ready but not configured" detail="Set PIPED_API_BASE or INVIDIOUS_API_BASE to your own trusted/self-hosted instance. Synnical will then search it and proxy the selected audio stream through the same player." />
+              <ProviderSetup title="Search source is not configured" detail="This music source is unavailable in the current build." />
             ) : loading && tracks.length === 0 ? (
               <div className="grid min-h-[320px] place-items-center text-white/40"><Loader2 className="h-6 w-6 animate-spin" /></div>
             ) : tracks.length === 0 ? (
               <div className="grid min-h-[320px] place-items-center text-sm text-white/35">No tracks to show.</div>
             ) : (
               <>
-                <div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/35">{source === "audius" && !query.trim() ? "Trending now" : "Results"}</p><h2 className="mt-1 text-lg font-semibold">{source === "audius" ? "Audius" : "YouTube bridge"}</h2></div>{source === "audius" ? <span className="text-[10px] text-white/30">{status.audius.authenticated ? "API credentials enabled" : "Public read-only mode"}</span> : null}</div>
+                <div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/35">{source === "audius" && !query.trim() ? "Featured" : "Results"}</p><h2 className="mt-1 text-lg font-semibold">{source === "audius" ? "Home" : "Search"}</h2></div>{source === "audius" ? <span className="text-[10px] text-white/30">{status.audius.authenticated ? "Enhanced access enabled" : "Public catalog"}</span> : null}</div>
                 <div className="overflow-hidden rounded-xl border border-white/10 bg-[#050505]">
                   {tracks.map((track, index) => <TrackRow key={trackKey(track)} track={track} index={index} active={Boolean(current && trackKey(current) === trackKey(track))} favorite={favorites.has(trackKey(track))} onPlay={() => playTrack(track, tracks)} onFavorite={() => toggleFavorite(track)} />)}
                 </div>
@@ -458,9 +458,9 @@ export function MusicPanel() {
           <div className="mx-auto max-w-3xl p-6 pb-32">
             <div className="rounded-2xl border border-white/10 bg-[#070707] p-6">
               <Music2 className="h-7 w-7 text-orange-300" />
-              <h2 className="mt-4 text-xl font-semibold">SoundCloud official player</h2>
-              <p className="mt-2 text-sm leading-6 text-white/45">Paste a SoundCloud track, playlist, or artist URL. Synnical uses SoundCloud&apos;s official widget instead of pushing you through the proxy browser.</p>
-              <div className="mt-5 flex gap-2 rounded-xl border border-white/10 bg-black p-2"><input value={soundCloudInput} onChange={(event) => setSoundCloudInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") openSoundCloud() }} placeholder="https://soundcloud.com/artist/track" className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none" /><button onClick={openSoundCloud} className="rounded-lg bg-orange-300/15 px-4 py-2 text-sm text-orange-100 hover:bg-orange-300/25">Open player</button></div>
+              <h2 className="mt-4 text-xl font-semibold">Link player</h2>
+              <p className="mt-2 text-sm leading-6 text-white/45">Paste a track, playlist, or artist URL from a supported music service. Synnical opens the official embed instead of routing it through the browser.</p>
+              <div className="mt-5 flex gap-2 rounded-xl border border-white/10 bg-black p-2"><input value={soundCloudInput} onChange={(event) => setSoundCloudInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") openSoundCloud() }} placeholder="https://..." className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none" /><button onClick={openSoundCloud} className="rounded-lg bg-orange-300/15 px-4 py-2 text-sm text-orange-100 hover:bg-orange-300/25">Open player</button></div>
             </div>
           </div>
         )}
@@ -468,8 +468,8 @@ export function MusicPanel() {
         {source === "cobalt" && (
           <div className="mx-auto max-w-3xl p-6 pb-32">
             {status.cobalt.available ? (
-              <div className="rounded-2xl border border-white/10 bg-[#070707] p-6"><ExternalLink className="h-7 w-7" /><h2 className="mt-4 text-xl font-semibold">Self-hosted Cobalt audio resolver</h2><p className="mt-2 text-sm leading-6 text-white/45">Paste a media URL. Synnical asks your configured Cobalt instance for an audio result and hands it to the normal music player.</p><div className="mt-5 flex gap-2 rounded-xl border border-white/10 bg-black p-2"><input value={cobaltInput} onChange={(event) => setCobaltInput(event.target.value)} placeholder="Paste a supported media URL" className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none" /><button onClick={() => void resolveCobalt()} disabled={loading} className="rounded-lg bg-white px-4 py-2 text-sm text-black disabled:opacity-40">Resolve audio</button></div></div>
-            ) : <ProviderSetup title="Cobalt adapter is installed but disabled" detail="Cobalt's project does not provide a public hosted API for third-party apps. Set COBALT_API_BASE to your own instance; COBALT_API_KEY is supported when your instance requires it." />}
+              <div className="rounded-2xl border border-white/10 bg-[#070707] p-6"><ExternalLink className="h-7 w-7" /><h2 className="mt-4 text-xl font-semibold">Direct link import</h2><p className="mt-2 text-sm leading-6 text-white/45">Paste a supported media URL and Synnical will resolve it into the player.</p><div className="mt-5 flex gap-2 rounded-xl border border-white/10 bg-black p-2"><input value={cobaltInput} onChange={(event) => setCobaltInput(event.target.value)} placeholder="Paste a supported media URL" className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none" /><button onClick={() => void resolveCobalt()} disabled={loading} className="rounded-lg bg-white px-4 py-2 text-sm text-black disabled:opacity-40">Resolve audio</button></div></div>
+            ) : <ProviderSetup title="Import source is not configured" detail="This music source is unavailable in the current build." />}
           </div>
         )}
 
@@ -501,7 +501,7 @@ export function MusicPanel() {
 
           <div className="hidden w-[180px] items-center justify-end gap-2 sm:flex"><Volume2 className="h-4 w-4 text-white/45" /><input type="range" min={0} max={100} value={volume} onChange={(event) => setVolume(Number(event.target.value))} className="w-24 accent-white" aria-label="Music volume" /><button type="button" onClick={() => setQueueOpen((value) => !value)} className="rounded p-1 text-white/45 hover:text-white" aria-label="Open queue"><ListMusic className="h-4 w-4" /></button></div>
         </div>
-        <audio ref={audioRef} src={currentStream} preload="metadata" onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)} onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : current?.duration || 0)} onEnded={() => stepQueue(1)} onError={() => { if (current) setError("That audio source could not be played. Try another track or provider."); setIsPlaying(false) }} className="hidden" />
+        <audio ref={audioRef} src={currentStream} preload="metadata" onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)} onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : current?.duration || 0)} onEnded={() => stepQueue(1)} onError={() => { if (current) setError("That audio source could not be played. Try another track or source."); setIsPlaying(false) }} className="hidden" />
       </div>
     </section>
   )
@@ -516,5 +516,5 @@ function TrackRow({ track, index, active, favorite, onPlay, onFavorite }: { trac
 }
 
 function ProviderSetup({ title, detail }: { title: string; detail: string }) {
-  return <div className="rounded-2xl border border-white/10 bg-[#070707] p-6"><Server className="h-7 w-7 text-white/60" /><h2 className="mt-4 text-lg font-semibold">{title}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">{detail}</p><p className="mt-4 rounded-lg border border-white/8 bg-black p-3 font-mono text-[11px] leading-5 text-white/45">PIPED_API_BASE=https://your-instance.example<br />INVIDIOUS_API_BASE=https://your-instance.example<br />COBALT_API_BASE=https://your-cobalt.example</p></div>
+  return <div className="rounded-2xl border border-white/10 bg-[#070707] p-6"><Server className="h-7 w-7 text-white/60" /><h2 className="mt-4 text-lg font-semibold">{title}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">{detail}</p></div>
 }
