@@ -1,0 +1,153 @@
+# Synnical — Nginx reverse proxy config for synnical.co.uk
+# Place at /etc/nginx/sites-available/synnical
+# Then: ln -s /etc/nginx/sites-available/synnical /etc/nginx/sites-enabled/synnical
+#
+# SSL setup:
+#   1. Install certbot: apt install certbot python3-certbot-nginx
+#   2. Get certificate: certbot --nginx -d synnical.co.uk -d www.synnical.co.uk
+#   3. Certbot will automatically modify this config to add SSL
+#   4. Or run: bash setup-ssl.sh
+
+server {
+    listen 80;
+    server_name synnical.co.uk www.synnical.co.uk;
+
+    # Redirect to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name synnical.co.uk www.synnical.co.uk;
+
+    # SSL certificates (use certbot/Let's Encrypt)
+    # Run: certbot --nginx -d synnical.co.uk -d www.synnical.co.uk
+    ssl_certificate /etc/letsencrypt/live/synnical.co.uk/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/synnical.co.uk/privkey.pem;
+
+    # SSL settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # Next.js app
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Socket.IO — MUST have WebSocket support.
+    # The path here has to match NEXT_PUBLIC_SOCKET_URL and the `path` option
+    # passed to io() on the client.
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Static files (let Nginx serve directly for performance)
+    location /_next/static/ {
+        alias /var/www/synnical/.next/static/;
+        expires 365d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /games/ {
+        alias /var/www/synnical/public/games/;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # Scramjet proxy browser static assets
+    location /scramjet/ {
+        alias /var/www/synnical/public/scramjet/;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    location /controller/ {
+        alias /var/www/synnical/public/controller/;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # Uploads (avatars, banners, voice notes).
+    # NOTE: no `expires` here. The app appends a ?v=<timestamp> cache-buster to
+    # every avatar URL and sets its own immutable Cache-Control. An `expires 1h`
+    # directive here overrides that and is exactly why a freshly uploaded pfp
+    # kept showing the old image for an hour.
+    location /api/uploads/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;          # required, or large files stall
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;             # stream GIFs/audio straight through
+    }
+
+    # Wisp proxy WebSocket — used by the Scramjet browser panel.
+    # Must support WebSocket upgrades and long-lived connections.
+    location /wisp/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 7d;
+        proxy_send_timeout 7d;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Stratus cloud-gaming API.
+    # NDJSON streaming (createSession) and WebSocket signaling both need
+    # buffering disabled and a long read timeout.
+    location /api/games/cloud/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 7d;
+        proxy_send_timeout 7d;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Gzip
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
+    gzip_min_length 1000;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # File upload size (pfp / banner / voice notes).
+    # Keep this >= the app's own limit or uploads fail with a bare nginx 413.
+    client_max_body_size 12M;
+
+    # Socket.IO connections are long-lived; don't cut them off mid-session.
+    proxy_send_timeout 7d;
+    proxy_read_timeout 7d;
+}

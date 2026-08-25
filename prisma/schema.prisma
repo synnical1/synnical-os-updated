@@ -1,0 +1,1503 @@
+// Synnical — full schema with persistent message replies
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                       String    @id @default(cuid())
+  username                 String    @unique
+  passwordHash             String
+  lockPinHash              String?
+  securityQuestion         String?
+  securityAnswerHash       String?
+  securitySetupCompletedAt DateTime?
+  passwordChangedAt        DateTime?
+  displayName              String
+  bio                      String    @default("")
+  status                   String    @default("")
+  pfpUrl                   String?
+  bannerUrl                String?
+  pfpIsGif                 Boolean   @default(false)
+  bannerIsGif              Boolean   @default(false)
+  avatarDeco               String?
+  profileEffect            String?
+  profileThemePrimary      String    @default("#111111")
+  profileThemeAccent       String    @default("#2b2b2b")
+  profileThemeStyle        String    @default("solid")
+  role                     String    @default("MEMBER")
+  tags                     String    @default("[]")
+  muted                    Boolean   @default(false)
+  mutedUntil               DateTime?
+  warnCount                Int       @default(0)
+  messageCount             Int       @default(0)
+  coins                    Int       @default(0)
+  lastDailyClaim           DateTime?
+  statusExpiresAt          DateTime?
+  birthday                 String?
+  birthdayVisibility       String    @default("friends")
+  pronouns                 String    @default("")
+  pronounsVisibility       String    @default("everyone")
+  visitorVisibility        String    @default("private")
+  profileAccentGradient    String    @default("")
+  bannerPositionX          Int       @default(50)
+  bannerPositionY          Int       @default(50)
+  profileMusic             String    @default("")
+  gameStatus               String    @default("")
+  gameStatusGameId         String?
+  gameStatusSessionId      String?
+  connectionsJson          String    @default("[]")
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  sessions            Session[]
+  messages            Message[]
+  memberships         Membership[]
+  sentRequests        Friendship[]          @relation("FriendRequester")
+  receivedRequests    Friendship[]          @relation("FriendReceiver")
+  infractionsIssued   Infraction[]          @relation("InfractionIssuer")
+  infractionsReceived Infraction[]          @relation("InfractionTarget")
+  blocksInitiated     Block[]               @relation("Blocker")
+  blocksReceived      Block[]               @relation("Blocked")
+  gameFavorites       GameFavorite[]
+  gameHistory         GameHistory[]
+  quotesSaved         Quote[]               @relation("QuoteSaver")
+  inventory           UserInventory[]
+  transactions        CurrencyTransaction[]
+  messageReactions    MessageReaction[]
+  privacyRulesOwned   PrivacyRule[]         @relation("PrivacyOwner")
+  privacyRulesViewer  PrivacyRule[]         @relation("PrivacyViewer")
+  recoveryCodes       RecoveryCode[]
+  securityEvents      SecurityEvent[]
+  labEnrollments      LabEnrollment[]
+  labFeedback         LabFeedback[]
+}
+
+model Session {
+  id           String    @id @default(cuid())
+  token        String    @unique
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceName   String    @default("")
+  userAgent    String    @default("")
+  trustedAt    DateTime?
+  trustedUntil DateTime?
+  lastSeenAt   DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+
+  @@index([token])
+  @@index([userId, lastSeenAt])
+}
+
+model Channel {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  isDM            Boolean  @default(false)
+  isGroup         Boolean  @default(false)
+  isAnnouncement  Boolean  @default(false)
+  allowedRoles    String   @default("[\"OWNER\",\"HEAD_ADMIN\",\"ADMIN\",\"MOD\",\"MEMBER\"]")
+  creatorId       String?
+  slowModeSeconds Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  messages    Message[]
+  memberships Membership[]
+}
+
+model Message {
+  id               String    @id @default(cuid())
+  channelId        String
+  channel          Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  username         String
+  content          String
+  deleted          Boolean   @default(false)
+  edited           Boolean   @default(false)
+  editedAt         DateTime?
+  gifUrl           String?
+  imageUrl         String?
+  voiceUrl         String?
+  voiceTranscript  String?
+  messageType      String    @default("text")
+  threadRootId     String?
+  replyToId        String?
+  replyToName      String?
+  replyToContent   String?
+  spoilerMediaType String?
+  spoilerMediaId   String?
+  spoilerTitle     String?
+  spoilerSeason    Int?
+  spoilerEpisode   Int?
+  spoilerUntil     DateTime?
+  createdAt        DateTime  @default(now())
+
+  reactions MessageReaction[]
+
+  @@index([channelId, createdAt])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, channelId])
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  receiverId  String
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  requester   User     @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver    User     @relation("FriendReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+  @@index([receiverId, status])
+}
+
+model Infraction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("InfractionTarget", fields: [userId], references: [id], onDelete: Cascade)
+  issuerId  String
+  issuer    User     @relation("InfractionIssuer", fields: [issuerId], references: [id], onDelete: Cascade)
+  type      String
+  reason    String
+  duration  Int?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Block {
+  id        String    @id @default(cuid())
+  blockerId String
+  blockedId String
+  blocker   User      @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User      @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  source    String    @default("manual")
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId, expiresAt])
+}
+
+model GameFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, gameId])
+}
+
+model GameHistory {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId   String
+  playedAt DateTime @default(now())
+
+  @@index([userId, playedAt])
+}
+
+model Quote {
+  id         String   @id @default(cuid())
+  saverId    String
+  saver      User     @relation("QuoteSaver", fields: [saverId], references: [id], onDelete: Cascade)
+  authorName String
+  authorPfp  String?
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([saverId])
+}
+
+model UserInventory {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemType    String
+  itemId      String
+  itemName    String
+  price       Int
+  purchasedAt DateTime @default(now())
+
+  @@unique([userId, itemType, itemId])
+  @@index([userId])
+}
+
+model CurrencyTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Int
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// Snapshot-only reports deliberately avoid foreign keys so evidence survives
+// later deletion of the message, channel, reporter, or reported account.
+model Report {
+  id                     String    @id @default(cuid())
+  reporterIdSnapshot     String
+  reporterUsername       String
+  targetUserIdSnapshot   String?
+  targetUsername         String
+  category               String
+  reason                 String
+  priority               Int       @default(0)
+  status                 String    @default("OPEN")
+  messageIdSnapshot      String?
+  channelIdSnapshot      String?
+  channelNameSnapshot    String?
+  messageContentSnapshot String
+  messageGifSnapshot     String?
+  contextSnapshot        String
+  createdAt              DateTime  @default(now())
+  reviewedAt             DateTime?
+  reviewerIdSnapshot     String?
+  reviewerUsername       String?
+
+  @@index([status, priority, createdAt])
+  @@index([targetUserIdSnapshot, createdAt])
+}
+
+model IdentityObservation {
+  id          String   @id @default(cuid())
+  userId      String
+  kind        String
+  valueHash   String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @updatedAt
+
+  @@unique([userId, kind, valueHash])
+  @@index([kind, valueHash])
+}
+
+model BannedIdentity {
+  id           String   @id @default(cuid())
+  kind         String
+  valueHash    String
+  reason       String
+  sourceUserId String?
+  createdAt    DateTime @default(now())
+
+  @@unique([kind, valueHash])
+  @@index([sourceUserId])
+}
+
+model CreditAudit {
+  id             String   @id @default(cuid())
+  actorId        String
+  actorUsername  String
+  targetId       String
+  targetUsername String
+  delta          Int
+  beforeBalance  Int
+  afterBalance   Int
+  reason         String
+  createdAt      DateTime @default(now())
+
+  @@index([targetId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+// Append-only staff audit trail. Snapshot fields deliberately avoid foreign
+// keys so moderation history survives later account deletion or role changes.
+model AuditLog {
+  id                     String   @id @default(cuid())
+  category               String
+  action                 String
+  actorIdSnapshot        String
+  actorUsernameSnapshot  String
+  actorRoleSnapshot      String
+  targetUserIdSnapshot   String?
+  targetUsernameSnapshot String?
+  reason                 String   @default("")
+  beforeJson             String   @default("{}")
+  afterJson              String   @default("{}")
+  metadataJson           String   @default("{}")
+  createdAt              DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([action, createdAt])
+  @@index([actorIdSnapshot, createdAt])
+  @@index([targetUserIdSnapshot, createdAt])
+}
+
+model SystemMigration {
+  key       String   @id
+  appliedAt DateTime @default(now())
+  details   String   @default("")
+}
+
+// ---------------------------------------------------------------------------
+// Consolidated feature platform (r15 full-source release)
+// ---------------------------------------------------------------------------
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  value     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+model ChannelPreference {
+  id                String    @id @default(cuid())
+  userId            String
+  channelId         String
+  pinned            Boolean   @default(false)
+  folder            String    @default("")
+  notificationLevel String    @default("all")
+  notificationSound String    @default("default")
+  draft             String    @default("")
+  lastReadMessageId String?
+  priority          Boolean   @default(false)
+  snoozedUntil      DateTime?
+  dealLater         Boolean   @default(false)
+  catchUpMessageId  String?
+  privateNote       String    @default("")
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, channelId])
+  @@index([userId, pinned])
+}
+
+model SavedMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, messageId])
+  @@index([userId, createdAt])
+}
+
+model ScheduledMessage {
+  id            String   @id @default(cuid())
+  userId        String
+  channelId     String
+  content       String
+  gifUrl        String?
+  replyToId     String?
+  sendAt        DateTime
+  status        String   @default("pending")
+  sentMessageId String?
+  error         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, sendAt])
+  @@index([userId, createdAt])
+}
+
+model MessageEditHistory {
+  id         String   @id @default(cuid())
+  messageId  String
+  editorId   String
+  oldContent String
+  newContent String
+  editedAt   DateTime @default(now())
+
+  @@index([messageId, editedAt])
+}
+
+model Poll {
+  id          String    @id @default(cuid())
+  channelId   String
+  messageId   String?
+  question    String
+  anonymous   Boolean   @default(false)
+  multiple    Boolean   @default(false)
+  createdById String
+  closesAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([channelId, createdAt])
+}
+
+model PollOption {
+  id       String @id @default(cuid())
+  pollId   String
+  label    String
+  position Int    @default(0)
+
+  @@index([pollId, position])
+}
+
+model PollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  optionId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([pollId, optionId, userId])
+  @@index([pollId, userId])
+}
+
+model CommunityEvent {
+  id          String   @id @default(cuid())
+  channelId   String
+  title       String
+  description String   @default("")
+  startsAt    DateTime
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([channelId, startsAt])
+}
+
+model EventRsvp {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  status    String   @default("going")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([eventId, status])
+}
+
+model FriendMeta {
+  id          String   @id @default(cuid())
+  userId      String
+  friendId    String
+  nickname    String   @default("")
+  note        String   @default("")
+  closeFriend Boolean  @default(false)
+  favorite    Boolean  @default(false)
+  label       String   @default("")
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, friendId])
+  @@index([userId, favorite, closeFriend])
+}
+
+model FriendshipBond {
+  id                String    @id @default(cuid())
+  pairKey           String    @unique
+  userAId           String
+  userBId           String
+  xp                Int       @default(0)
+  messageCount      Int       @default(0)
+  duoName           String    @default("")
+  title             String    @default("")
+  bannerOwnerId     String?
+  lastInteractionAt DateTime?
+  lastXpAt          DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userAId, updatedAt])
+  @@index([userBId, updatedAt])
+}
+
+model FriendshipMemory {
+  id         String   @id @default(cuid())
+  pairKey    String
+  creatorId  String
+  note       String
+  happenedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([pairKey, happenedAt])
+  @@index([creatorId, createdAt])
+}
+
+model FriendshipGoal {
+  id        String    @id @default(cuid())
+  pairKey   String
+  creatorId String
+  title     String
+  target    Int       @default(1)
+  current   Int       @default(0)
+  status    String    @default("active")
+  dueAt     DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([pairKey, status, updatedAt])
+}
+
+model FriendshipMilestone {
+  id         String   @id @default(cuid())
+  pairKey    String
+  code       String
+  label      String
+  achievedAt DateTime @default(now())
+
+  @@unique([pairKey, code])
+  @@index([pairKey, achievedAt])
+}
+
+model ProfileLink {
+  id                String    @id @default(cuid())
+  userId            String
+  label             String
+  url               String
+  domain            String
+  verificationToken String
+  verifiedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model ProfileVisit {
+  id            String   @id @default(cuid())
+  profileUserId String
+  viewerUserId  String
+  visitedAt     DateTime @default(now())
+
+  @@index([profileUserId, visitedAt])
+  @@index([viewerUserId, visitedAt])
+}
+
+model ProfileShowcase {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String
+  refId     String
+  label     String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, kind, refId])
+  @@index([userId, position])
+}
+
+model CosmeticFavorite {
+  id       String @id @default(cuid())
+  userId   String
+  itemType String
+  itemId   String
+
+  @@unique([userId, itemType, itemId])
+}
+
+model CosmeticLoadout {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  stateJson String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+model CosmeticWishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  itemType  String
+  itemId    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, itemType, itemId])
+}
+
+model ShopWishlist {
+  id           String   @id @default(cuid())
+  userId       String
+  itemType     String
+  itemId       String
+  priceAtAdded Int
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, itemType, itemId])
+  @@index([userId, createdAt])
+}
+
+model GiftRecord {
+  id          String   @id @default(cuid())
+  giverId     String
+  recipientId String
+  kind        String
+  itemType    String?
+  itemId      String?
+  itemName    String?
+  amount      Int      @default(0)
+  surcharge   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([giverId, createdAt])
+  @@index([recipientId, createdAt])
+}
+
+model PromoCode {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  rewardCoins    Int       @default(0)
+  itemType       String?
+  itemId         String?
+  maxRedemptions Int?
+  expiresAt      DateTime?
+  active         Boolean   @default(true)
+  createdById    String
+  createdAt      DateTime  @default(now())
+
+  @@index([active, expiresAt])
+}
+
+model PromoRedemption {
+  id         String   @id @default(cuid())
+  promoId    String
+  userId     String
+  redeemedAt DateTime @default(now())
+
+  @@unique([promoId, userId])
+  @@index([userId, redeemedAt])
+}
+
+model UserProgress {
+  userId           String   @id
+  xp               Int      @default(0)
+  level            Int      @default(1)
+  loginStreak      Int      @default(0)
+  lastLoginDay     String?
+  totalGameSeconds Int      @default(0)
+  updatedAt        DateTime @updatedAt
+}
+
+model Achievement {
+  id          String   @id
+  name        String
+  description String
+  icon        String   @default("trophy")
+  createdAt   DateTime @default(now())
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  earnedAt      DateTime @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId, earnedAt])
+}
+
+model Challenge {
+  id          String   @id
+  name        String
+  description String
+  metric      String
+  target      Int
+  rewardCoins Int      @default(0)
+  rewardXp    Int      @default(0)
+  period      String   @default("weekly")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model ChallengeProgress {
+  id          String    @id @default(cuid())
+  challengeId String
+  userId      String
+  periodKey   String
+  progress    Int       @default(0)
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([challengeId, userId, periodKey])
+  @@index([userId, updatedAt])
+}
+
+model CosmeticEdition {
+  id          String @id @default(cuid())
+  itemType    String
+  itemId      String
+  maxSupply   Int
+  totalMinted Int    @default(0)
+
+  @@unique([itemType, itemId])
+}
+
+model CosmeticSerial {
+  id           String   @id @default(cuid())
+  userId       String
+  itemType     String
+  itemId       String
+  serialNumber Int
+  acquiredAt   DateTime @default(now())
+
+  @@unique([itemType, itemId, serialNumber])
+  @@unique([userId, itemType, itemId])
+}
+
+model BotCustomCommand {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  response    String
+  createdById String
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BotReminder {
+  id        String   @id @default(cuid())
+  userId    String
+  channelId String
+  kind      String   @default("reminder")
+  body      String
+  dueAt     DateTime
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, dueAt])
+  @@index([userId, createdAt])
+}
+
+model BotUsage {
+  id        String   @id @default(cuid())
+  userId    String?
+  command   String
+  success   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([command, createdAt])
+  @@index([userId, createdAt])
+}
+
+model GameCollection {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model GameCollectionItem {
+  id           String   @id @default(cuid())
+  collectionId String
+  gameId       String
+  createdAt    DateTime @default(now())
+
+  @@unique([collectionId, gameId])
+}
+
+model GameSession {
+  id                String    @id @default(cuid())
+  userId            String
+  gameId            String
+  providerSessionId String?
+  startedAt         DateTime  @default(now())
+  endedAt           DateTime?
+  durationSeconds   Int       @default(0)
+  result            String    @default("active")
+  errorCode         String?
+  latencyMs         Int?
+  status            String    @default("active")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userId, startedAt])
+  @@index([providerSessionId])
+}
+
+model GamePreset {
+  id             String   @id @default(cuid())
+  userId         String
+  gameId         String
+  controllerJson String   @default("{}")
+  audioJson      String   @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, gameId])
+}
+
+model GameScreenshot {
+  id        String    @id @default(cuid())
+  userId    String
+  gameId    String
+  sessionId String?
+  fileUrl   String
+  name      String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, deletedAt])
+}
+
+model BrowserBookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  url       String
+  folder    String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, url])
+  @@index([userId, updatedAt])
+}
+
+model BrowserHistory {
+  id            String   @id @default(cuid())
+  userId        String
+  url           String
+  title         String
+  visitedAt     DateTime @default(now())
+  tempSessionId String?
+
+  @@index([userId, visitedAt])
+}
+
+model BrowserPermission {
+  id            String   @id @default(cuid())
+  userId        String
+  origin        String
+  popups        String   @default("ask")
+  notifications String   @default("ask")
+  storage       String   @default("allow")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, origin])
+}
+
+model BrowserDownload {
+  id            String    @id @default(cuid())
+  userId        String
+  url           String
+  filename      String
+  status        String    @default("started")
+  bytesTotal    Int?
+  bytesReceived Int       @default(0)
+  error         String?
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+
+  @@index([userId, startedAt])
+}
+
+model MediaList {
+  id        String   @id @default(cuid())
+  userId    String
+  profileId String   @default("")
+  kind      String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, profileId, kind, name])
+  @@index([userId, profileId, updatedAt])
+}
+
+model MediaListItem {
+  id        String   @id @default(cuid())
+  listId    String
+  mediaType String
+  mediaId   String
+  title     String
+  poster    String?
+  season    Int?
+  episode   Int?
+  createdAt DateTime @default(now())
+
+  @@unique([listId, mediaType, mediaId, season, episode])
+  @@index([listId, createdAt])
+}
+
+model MediaRating {
+  id        String   @id @default(cuid())
+  userId    String
+  profileId String   @default("")
+  mediaType String
+  mediaId   String
+  rating    Int
+  review    String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, profileId, mediaType, mediaId])
+  @@index([mediaType, mediaId, updatedAt])
+}
+
+model WatchParty {
+  id          String   @id @default(cuid())
+  hostId      String
+  mediaType   String
+  mediaId     String
+  title       String
+  season      Int?
+  episode     Int?
+  status      String   @default("active")
+  currentTime Float    @default(0)
+  playing     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([hostId, updatedAt])
+}
+
+model WatchPartyMember {
+  id       String   @id @default(cuid())
+  partyId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  @@unique([partyId, userId])
+  @@index([userId, joinedAt])
+}
+
+model MediaPreference {
+  userId           String  @id
+  episodeAutoplay  Boolean @default(true)
+  skipIntroEnabled Boolean @default(true)
+}
+
+model IntroMarker {
+  id           String   @id @default(cuid())
+  markerKey    String   @unique
+  mediaType    String
+  mediaId      String
+  season       Int?
+  episode      Int?
+  startSeconds Float    @default(0)
+  endSeconds   Float
+  source       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([mediaType, mediaId])
+}
+
+model MusicPlaylist {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model MusicPlaylistTrack {
+  id         String   @id @default(cuid())
+  playlistId String
+  trackId    String
+  provider   String   @default("audius")
+  title      String
+  artist     String
+  artwork    String?
+  streamUrl  String?
+  duration   Int      @default(0)
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([playlistId, position])
+}
+
+model MusicActivity {
+  userId       String   @id
+  trackId      String?
+  title        String?
+  artist       String?
+  artwork      String?
+  isPlaying    Boolean  @default(false)
+  shareEnabled Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+}
+
+model SystemEvent {
+  id        String   @id @default(cuid())
+  level     String
+  source    String
+  message   String
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([level, createdAt])
+  @@index([source, createdAt])
+}
+
+model VoiceUpload {
+  id         String    @id @default(cuid())
+  userId     String
+  url        String    @unique
+  transcript String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  @@index([userId, expiresAt])
+}
+
+model ChatImageUpload {
+  id         String    @id @default(cuid())
+  userId     String
+  url        String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  @@index([userId, expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// r7 privacy, security and Synnical Lab foundations
+// ---------------------------------------------------------------------------
+
+model PrivacyRule {
+  id               String   @id @default(cuid())
+  userId           String
+  viewerId         String
+  preset           String   @default("custom")
+  shareProfile     Boolean?
+  sharePresence    Boolean?
+  shareActivity    Boolean?
+  shareConnections Boolean?
+  shareBirthday    Boolean?
+  sharePronouns    Boolean?
+  shareGame        Boolean?
+  shareMusic       Boolean?
+  shareStats       Boolean?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  owner            User     @relation("PrivacyOwner", fields: [userId], references: [id], onDelete: Cascade)
+  viewer           User     @relation("PrivacyViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, viewerId])
+  @@index([viewerId])
+}
+
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+}
+
+model SecurityEvent {
+  id           String   @id @default(cuid())
+  userId       String
+  type         String
+  message      String
+  metadataJson String   @default("{}")
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model FeatureFlag {
+  key            String          @id
+  name           String
+  description    String          @default("")
+  enabled        Boolean         @default(false)
+  rolloutPercent Int             @default(0)
+  labOnly        Boolean         @default(true)
+  createdById    String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  enrollments    LabEnrollment[]
+  feedback       LabFeedback[]
+
+  @@index([enabled, labOnly])
+}
+
+model LabEnrollment {
+  id        String      @id @default(cuid())
+  userId    String
+  flagKey   String
+  enabled   Boolean     @default(true)
+  optedOut  Boolean     @default(false)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flag      FeatureFlag @relation(fields: [flagKey], references: [key], onDelete: Cascade)
+
+  @@unique([userId, flagKey])
+  @@index([flagKey, enabled, optedOut])
+}
+
+model LabFeedback {
+  id        String      @id @default(cuid())
+  userId    String
+  flagKey   String
+  kind      String
+  message   String      @default("")
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flag      FeatureFlag @relation(fields: [flagKey], references: [key], onDelete: Cascade)
+
+  @@index([flagKey, kind, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// r10 mega-expansion foundations. No VM/cloud-computer models by design.
+// ---------------------------------------------------------------------------
+
+model FeatureRecord {
+  id         String   @id @default(cuid())
+  userId     String
+  kind       String
+  scopeKey   String   @default("")
+  title      String   @default("")
+  dataJson   String   @default("{}")
+  visibility String   @default("private")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, kind, updatedAt])
+  @@index([kind, scopeKey, updatedAt])
+}
+
+model Persona {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  displayName  String
+  bio          String   @default("")
+  pfpUrl       String?
+  bannerUrl    String?
+  mood         String   @default("")
+  accent       String   @default("")
+  isActive     Boolean  @default(false)
+  audienceJson String   @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, isActive, updatedAt])
+}
+
+model PresenceSample {
+  id        String   @id @default(cuid())
+  userId    String
+  status    String
+  activity  String   @default("")
+  device    String   @default("")
+  quality   String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model SocialSpace {
+  id          String    @id @default(cuid())
+  ownerId     String
+  kind        String    @default("hangout")
+  name        String
+  description String    @default("")
+  background  String    @default("")
+  inviteCode  String    @unique
+  inviteOnly  Boolean   @default(true)
+  temporary   Boolean   @default(true)
+  status      String    @default("active")
+  expiresAt   DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([ownerId, status, updatedAt])
+  @@index([status, expiresAt])
+}
+
+model SocialSpaceMember {
+  id         String   @id @default(cuid())
+  spaceId    String
+  userId     String
+  role       String   @default("member")
+  ready      Boolean  @default(false)
+  joinedAt   DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@unique([spaceId, userId])
+  @@index([userId, joinedAt])
+}
+
+model SocialSpaceItem {
+  id        String   @id @default(cuid())
+  spaceId   String
+  creatorId String
+  kind      String
+  title     String   @default("")
+  dataJson  String   @default("{}")
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([spaceId, kind, updatedAt])
+  @@index([creatorId, createdAt])
+}
+
+model MediaProgress {
+  id               String   @id @default(cuid())
+  userId           String
+  profileId        String   @default("")
+  mediaType        String
+  mediaId          String
+  season           Int      @default(0)
+  episode          Int      @default(0)
+  title            String   @default("")
+  poster           String?
+  backdrop         String?
+  episodeName      String?
+  currentTime      Float    @default(0)
+  duration         Float    @default(0)
+  completed        Boolean  @default(false)
+  ratingPrediction Int?
+  actualRating     Int?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@unique([userId, profileId, mediaType, mediaId, season, episode])
+  @@index([userId, profileId, updatedAt])
+  @@index([mediaType, mediaId, season, episode])
+}
+
+model AutomationRule {
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+  enabled         Boolean   @default(true)
+  triggerType     String
+  triggerJson     String    @default("{}")
+  actionType      String
+  actionJson      String    @default("{}")
+  permissionJson  String    @default("{}")
+  cooldownSeconds Int       @default(60)
+  lastRunAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId, enabled, updatedAt])
+  @@index([triggerType, enabled])
+}
+
+model AutomationRun {
+  id          String   @id @default(cuid())
+  ruleId      String
+  userId      String
+  triggerType String
+  actionType  String
+  status      String
+  summary     String   @default("")
+  undoJson    String   @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([ruleId, createdAt])
+}
+
+model MarketplaceListing {
+  id          String    @id @default(cuid())
+  sellerId    String
+  itemType    String
+  itemId      String
+  itemName    String
+  price       Int
+  status      String    @default("active")
+  buyerId     String?
+  createdAt   DateTime  @default(now())
+  soldAt      DateTime?
+  cancelledAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([sellerId, status, createdAt])
+  @@index([itemType, itemId, status])
+}
+
+model TradeOffer {
+  id             String    @id @default(cuid())
+  senderId       String
+  recipientId    String
+  senderCoins    Int       @default(0)
+  recipientCoins Int       @default(0)
+  status         String    @default("pending")
+  note           String    @default("")
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([senderId, status, createdAt])
+  @@index([recipientId, status, createdAt])
+}
+
+model TradeOfferItem {
+  id       String @id @default(cuid())
+  tradeId  String
+  side     String
+  itemType String
+  itemId   String
+  itemName String
+
+  @@index([tradeId, side])
+}
+
+model CosmeticOwnershipEvent {
+  id          String   @id @default(cuid())
+  itemType    String
+  itemId      String
+  fromUserId  String?
+  toUserId    String?
+  eventType   String
+  referenceId String?
+  createdAt   DateTime @default(now())
+
+  @@index([itemType, itemId, createdAt])
+  @@index([toUserId, createdAt])
+}
+
+model CreatorProject {
+  id          String   @id @default(cuid())
+  ownerId     String
+  kind        String
+  name        String
+  description String   @default("")
+  stateJson   String   @default("{}")
+  status      String   @default("draft")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId, updatedAt])
+  @@index([status, kind, updatedAt])
+}
+
+model CreatorProjectVersion {
+  id        String   @id @default(cuid())
+  projectId String
+  authorId  String
+  version   Int
+  note      String   @default("")
+  stateJson String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, version])
+  @@index([projectId, createdAt])
+}
+
+model CreatorFollow {
+  id         String   @id @default(cuid())
+  followerId String
+  creatorId  String
+  createdAt  DateTime @default(now())
+
+  @@unique([followerId, creatorId])
+  @@index([creatorId, createdAt])
+}
+
+model BrowserWorkspace {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  layout    String   @default("tabs")
+  tabsJson  String   @default("[]")
+  notesJson String   @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model DeveloperToken {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  tokenHash  String    @unique
+  prefix     String
+  scopesJson String    @default("[]")
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, revokedAt, createdAt])
+}
+
+model CreditVault {
+  userId      String    @id
+  balance     Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
+
+model CreditGoal {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  target    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+model SharedCreditPot {
+  id        String   @id @default(cuid())
+  ownerId   String
+  name      String
+  target    Int
+  balance   Int      @default(0)
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, status, updatedAt])
+}
+
+model SharedCreditContribution {
+  id        String   @id @default(cuid())
+  potId     String
+  userId    String
+  amount    Int
+  createdAt DateTime @default(now())
+
+  @@index([potId, createdAt])
+  @@index([userId, createdAt])
+}

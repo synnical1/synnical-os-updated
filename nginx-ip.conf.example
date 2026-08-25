@@ -1,0 +1,136 @@
+# Synnical — Nginx config for an IP-only server (no domain name yet).
+#
+# Install:
+#   cp nginx-ip.conf.example /etc/nginx/sites-available/synnical
+#   ln -sf /etc/nginx/sites-available/synnical /etc/nginx/sites-enabled/synnical
+#   rm -f /etc/nginx/sites-enabled/default
+#   nginx -t && systemctl reload nginx
+#
+# Then visit http://92.38.177.23
+#
+# NOTE: this serves plain HTTP. You cannot get a Let's Encrypt certificate for a
+# bare IP address. Once you point a domain at this server, switch to
+# nginx.conf.example instead and run certbot.
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    # Uploads: pfp / banner / voice notes. Must be >= the app's own 8 MB limit.
+    client_max_body_size 12M;
+
+    # Socket.IO holds connections open for a long time. Without these, chat
+    # silently drops every 60 seconds.
+    proxy_send_timeout 7d;
+    proxy_read_timeout 7d;
+
+    # --- Main app ----------------------------------------------------------
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # --- Socket.IO (real-time chat) ---------------------------------------
+    # This path must match NEXT_PUBLIC_SOCKET_URL in .env.
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # --- Uploads -----------------------------------------------------------
+    # Deliberately NO `expires` directive here. The app appends ?v=<timestamp>
+    # to avatar URLs and sets its own immutable Cache-Control. Adding `expires`
+    # overrides that and is why a new profile picture used to keep showing the
+    # old image.
+    location /api/uploads/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # --- Stratus cloud-gaming API -----------------------------------------
+    # NDJSON streaming (createSession) and WebSocket signaling both need
+    # buffering disabled and a long read timeout.
+    location /api/games/cloud/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 7d;
+        proxy_send_timeout 7d;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # --- Wisp proxy server (for Scramjet) --------------------------------
+    # WebSocket-only. The Scramjet service worker connects here to proxy
+    # all upstream HTTP/TCP traffic.
+    location /wisp/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 7d;
+        proxy_send_timeout 7d;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # --- Scramjet service worker -----------------------------------------
+    # Must not be cached — otherwise SW updates never reach clients.
+    location = /sw.js {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Embedder-Policy "credentialless" always;
+    }
+
+    # --- Static assets served straight off disk ---------------------------
+    # Update these paths if you did not unzip to /var/www/synnical.
+    location /_next/static/ {
+        alias /var/www/synnical/.next/static/;
+        expires 365d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /games/ {
+        alias /var/www/synnical/public/games/;
+        expires 30d;
+    }
+
+    # --- Compression -------------------------------------------------------
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
+    gzip_min_length 1000;
+
+    # --- Security headers --------------------------------------------------
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+}

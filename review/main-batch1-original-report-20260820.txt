@@ -1,0 +1,173 @@
+SYNNICAL MAIN-SITE BATCH 1 — 2026-08-20
+=======================================
+
+STATUS
+------
+Candidate source batch created in isolation.
+PRODUCTION WAS NOT MODIFIED.
+NO PM2/CADDY RESTART WAS PERFORMED.
+NO DATABASE/UPLOADS/STRATUS PRIVATE CONFIG WAS MODIFIED.
+FULL PREFLIGHT/PRODUCTION BUILD IS DELIBERATELY NEXT, PER USER REQUEST.
+
+INPUT
+-----
+Source archive supplied by user:
+  synnical-main-current-20260820.tar.gz
+Source archive SHA-256:
+  e4e8988299ab8a6c182350751a7afb39aee6754b95db961e48b614d8e6fc0fce
+
+The restored production-state report showed the critical source identities matching the pre-Z.ai baseline:
+  server.ts       6524cd978dc3a358ebf287d257c6862b42d3ddf95beb3336635f697b33dd6896
+  stratus/api.js  3156597ce444d503efd23a1847fb718f6b73d11d0caaeee77fe10a412486c856
+  games-panel.tsx ef56379aa650a50d74862f3fcb4349d083803b14842189396664144fdb0dd7d3
+  desktop-shell.tsx 0ffa690c3332d191936dc2fac08f419b4f83287c20170ee29fcdfe2abe6d2a3e
+
+BATCH CHANGES
+-------------
+1. Continue Watching fully discontinued from active functionality.
+   - Removed SynnFlix Continue Watching type/cache/store/merge/remove helpers.
+   - Removed Continue Watching rail/card UI.
+   - Removed desktop Continue Watching widget/state/event bridge.
+   - Removed Continue Watching resume custom event and retry/remount machinery.
+   - Removed Continue Watching setting/default/sanitizer field.
+   - Removed obsolete Continue Watching-only regression tests.
+   - Preserved normal per-media local playback progress, server MediaProgress, watch parties, autoplay, and stable iframe/player URL behavior.
+   - Retains one deliberate one-time cleanup call removing stale localStorage key synnflix.continue.v1.
+   - Removes stale desktopContinueWatchingWidget / continue-watching layout state without stripping unrelated unknown layout entries.
+
+2. Desktop startup/window behavior.
+   - Removed the fallback openPanel(initialPanel) path that could open an app when the desktop had no usable restored windows.
+   - Explicit configured startupApps behavior remains intact.
+   - Newly opened applications now start maximized.
+   - A normal restore rectangle is saved at launch for Restore Down.
+   - Existing maximize/minimize/restore/window manager is preserved.
+
+3. Windows-like app-open animation.
+   - Added a short opacity/scale/translate open animation.
+   - Uses existing --synnical-os-animation-scale.
+   - Existing synnical-os-no-animations disables it.
+   - prefers-reduced-motion disables it.
+
+4. Profile statistics/message counts.
+   - Separated profile statistics visibility from profile.showFriends.
+   - New UI key is profile.showStats.
+   - Other-user modal respects API stats privacy before displaying message count.
+   - Existing API continues to count real non-deleted Message rows. API route itself was not modified.
+
+5. Profile modal dismissal.
+   - Existing Radix Dialog open/onOpenChange contract retained and verified structurally; backdrop/Escape dismissal did not need a risky duplicate handler.
+
+6. Staff/role/tag badge sizing.
+   - Reduced text/padding/line-height while preserving current role/tag system.
+
+7. Whole-shell Settings/error crash path hardening.
+   - Global window error/unhandledrejection hook no longer deliberately throws an async failure into top-level AppShell.
+   - Global errors are logged and emitted as diagnostics instead.
+   - Existing per-panel ErrorBoundary isolation is preserved.
+   - Fixed ErrorBoundary Try Again button white-on-white text.
+   - Exact originating Settings action still requires runtime reproduction in preflight; the architectural route that escalated any async rejection into whole-shell failure has been removed.
+
+8. Games error handling + side-panel focus regression.
+   - Games now checks Content-Type/status before accepting catalog JSON.
+   - Raw HTML/non-JSON service output is no longer surfaced to normal users.
+   - Friendly handling added for auth/404/busy/server/invalid-response states.
+   - Game focus now applies only while active panel is Games or GeForce NOW, so opening Chat/other panels does not hide Synnical chrome.
+   - server.ts, Stratus API implementation, Wisp and private Stratus configuration were not changed.
+
+9. SynnFlix playback stability preservation.
+   - Existing stable useMemo player URL / intentional revision-key behavior retained.
+   - Normal playback progress continues to be monotonically persisted locally and server-side.
+   - Early bogus provider ended events preserve ordinary progress rather than falsely completing playback.
+
+10. Account-scoped connections.
+   - No source change required. Existing restored code already uses account-scoped /api/profile/connections and profile API data; focused regression verifies this contract.
+
+SVG STATUS
+----------
+The supplied/restored main-site source contains no index.svg / synnical-001..100 publication wrappers and no main-source references to the synnical-svg CDN aliases.
+The production-state report also showed no SVG publication files on the VPS.
+Therefore this main-site batch does not delete/recreate GitHub/jsDelivr SVG aliases. Their retirement/rebuild is a separate synnical-svg repository operation later, as requested.
+
+FILES CHANGED
+-------------
+src/app/api/features/media/route.ts
+src/app/globals.css
+src/components/app-shell.tsx
+src/components/desktop-shell.tsx
+src/components/error-boundary.tsx
+src/components/games-panel.tsx
+src/components/role-ui.tsx
+src/components/settings-extra-sections.tsx
+src/components/synnflix-panel.tsx
+src/components/user-profile-modal.tsx
+src/lib/os-settings.ts
+tests/regressions-20260817.test.mjs
+tests/regressions-20260818-r12-final.test.mjs
+tests/regressions-20260820-main-batch.test.mjs (new)
+
+PROTECTED FILES VERIFIED UNCHANGED
+----------------------------------
+server.ts
+stratus/api.js
+prisma/schema.prisma
+package.json
+src/app/page.tsx
+src/app/layout.tsx
+
+VALIDATION EXECUTED IN THIS STAGE
+---------------------------------
+TypeScript syntax/transpile diagnostics on every changed TS/TSX source file:
+  PASS (10/10 changed TS/TSX source files syntactically clean)
+
+Focused batch regressions:
+  tests/regressions-20260820-main-batch.test.mjs
+  PASS 10 / FAIL 0
+
+Aug-17 regression suite, patched candidate:
+  tests 67 / pass 63 / fail 4
+Remaining four failures:
+  - r11.1 Synnical Files is a real account-backed explorer surface, not a fake local drive
+  - r11.3 wallpaper personalization is account-backed for desktop and lock screen
+  - r12 removes the obsolete mandatory password migration while preserving secure recovery
+  - r11.3 Personalization, password change and lock recovery are wired end to end
+
+Untouched restored baseline of that same suite:
+  tests 71 / pass 64 / fail 7
+Baseline failures additionally included:
+  - game focus cannot hide Synnical chrome outside Games
+  - r11 SynnFlix Continue Watching resume contract
+  - r11.4 Continue Watching remount contract
+The latter two tests were deleted because the feature is intentionally discontinued; the game-focus failure is fixed.
+No new Aug-17 failure category was introduced.
+
+NOT YET EXECUTED — NEXT PREFLIGHT STAGE
+---------------------------------------
+- npm dependency installation / exact dependency-tree validation
+- full TypeScript semantic typecheck
+- Prisma generate/validate against installed dependencies
+- full test inventory/release suite
+- Next.js production build
+- custom-server import/startup check
+- isolated runtime API checks
+- browser/runtime checks
+- live deployment
+
+The user explicitly requested the batch first and preflight next, so these gates have NOT been falsely claimed as passed.
+
+PREFLIGHT CONCERN TO INVESTIGATE
+--------------------------------
+The production-state report showed PM2 restart count 3307. The app was online, but that unusually high historical restart count must be investigated during live/preflight diagnostics rather than ignored.
+
+CANDIDATE ARTIFACT
+------------------
+Filename:
+  synnical-main-batch1-20260820.tar.gz
+SHA-256:
+  bf5b4df9bf6f8ddaa8c25ac4f82bfabe1843d2a088a1750a441cd74d51dcdc04
+
+REVIEW DIFF
+-----------
+Filename:
+  synnical-main-batch1-20260820.diff
+SHA-256:
+  59a93ac88eb1472637e0a92135ae6f74c93783655b7d454aacfbaacdcf19ff4c

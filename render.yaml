@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: synnical
+    env: docker
+    plan: free
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_AUTH_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_SOCKET_URL
+        value: /socket.io
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Stratus cloud-gaming API — disabled by default on Render because
+      # sites.json (which holds the api_key) is gitignored. Set STRATUS_ENABLED
+      # to "false" explicitly if you don't need cloud gaming.
+      - key: STRATUS_ENABLED
+        value: "true"
+      # Temp-mail upstream — leave blank to disable the Temp Mail panel.
+      # Must implement GET /api/v1/session and GET /api/v1/inbox/:token.
+      - key: TEMPMAIL_API_URL
+        sync: false
+      # Required in production — validateEnv() exits if these are missing.
+      - key: OWNER_PASSWORD
+        sync: false
+      - key: ADULT_PASSWORD
+        sync: false
+      - key: UPLOAD_DIR
+        value: /var/lib/synnical/uploads

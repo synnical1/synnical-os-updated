@@ -1,0 +1,110 @@
+# Synnical — Caddy config with automatic HTTPS
+# Caddy automatically provisions and renews Let's Encrypt SSL certificates
+# when you use a real domain name instead of just a port.
+#
+# Prerequisites:
+#   - DNS A record for synnical.co.uk pointing to your server IP
+#   - DNS A record for www.synnical.co.uk pointing to your server IP
+#   - Ports 80 and 443 open in your firewall
+#   - Caddy installed: https://caddyserver.com/docs/install
+#
+# After deploying, Caddy will automatically:
+#   1. Obtain an SSL certificate from Let's Encrypt
+#   2. Redirect all HTTP traffic to HTTPS
+#   3. Renew the certificate before it expires
+#   4. Serve the Next.js app over HTTPS (fixing the "not secure" error)
+#   5. Enable wss:// for the Wisp proxy (fixing the proxy browser error)
+
+synnical.co.uk, www.synnical.co.uk {
+	# Automatically redirect HTTP to HTTPS (Caddy does this implicitly,
+	# but we make it explicit for clarity)
+	encode gzip
+
+	# Security headers
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=()"
+	}
+
+	# Handle the XTransformPort query parameter for dynamic port proxying
+	@transform_port_query {
+		query XTransformPort=*
+	}
+
+	handle @transform_port_query {
+		reverse_proxy localhost:{query.XTransformPort} {
+			header_up Host {host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto https
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# Wisp proxy WebSocket — needs long timeouts and no buffering
+	@wisp path /wisp/*
+	handle @wisp {
+		reverse_proxy localhost:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto https
+			header_up X-Real-IP {remote_host}
+			flush_interval -1
+		}
+	}
+
+	# Socket.IO — WebSocket support
+	@socketio path /socket.io/*
+	handle @socketio {
+		reverse_proxy localhost:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto https
+			header_up X-Real-IP {remote_host}
+			flush_interval -1
+		}
+	}
+
+	# Cloud gaming API — NDJSON streaming + WebSocket signaling
+	@cloudgaming path /api/games/cloud/*
+	handle @cloudgaming {
+		reverse_proxy localhost:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto https
+			header_up X-Real-IP {remote_host}
+			flush_interval -1
+		}
+	}
+
+	# File uploads — stream through without buffering
+	@uploads path /api/uploads/*
+	handle @uploads {
+		reverse_proxy localhost:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto https
+			header_up X-Real-IP {remote_host}
+			flush_interval -1
+		}
+	}
+
+	# Default — proxy to Next.js app
+	handle {
+		reverse_proxy localhost:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto https
+			header_up X-Real-IP {remote_host}
+		}
+	}
+}
+
+# HTTP listener — redirects to HTTPS automatically
+# Caddy handles this implicitly when you specify a domain, but if you
+# need to serve on a specific HTTP port for debugging:
+# :80 {
+# 	redir https://{host}{uri} permanent
+# }

@@ -1,0 +1,21 @@
+Synnical OS r12 Final - VPS TypeScript Hotfix 1 validation
+Date: 2026-08-18
+
+Trigger:
+- First production-safe VPS installer stopped before production deployment when `npx tsc --noEmit` found 3 errors in chat-panel.tsx and desktop-shell.tsx.
+
+Corrections:
+- DmInfo now includes and maps the DM partner pfpUrl used by the pinned-DM widget.
+- Battery performance mode narrows nullable Battery API values before comparison.
+- Persisted desktop order IDs are narrowed when checked against the Panel-keyed app map.
+- Battery regression updated to assert the safer nullable check.
+
+Local artifact validation after corrections:
+- Historical + final dependency-free regressions: 131/131 PASS
+- TypeScript 5.8.3 TS/TSX parser/transpile sweep: 288 files, 0 syntax errors
+
+Required VPS validation before production switch:
+- npx tsc --noEmit
+- npm run test:release
+- NODE_ENV=production npm run build
+- Prisma generate/validate/db push against production only after backup

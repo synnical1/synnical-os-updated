@@ -1,0 +1,1247 @@
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/app/api/features/media/route.ts /mnt/data/synnical-batch1-work/synnical/src/app/api/features/media/route.ts
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/app/api/features/media/route.ts	2026-08-20 17:43:18.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/app/api/features/media/route.ts	2026-08-20 18:33:38.265916078 +0000
+@@ -131,8 +131,8 @@
+     const key = { userId_mediaType_mediaId_season_episode: { userId: me.id, mediaType, mediaId, season, episode } }
+     const existing = await db.mediaProgress.findUnique({ where: key })
+     const playbackUpdate = hasPlaybackUpdate ? {
+-      // Continue Watching represents the furthest credible point reached. A
+-      // delayed ad/player event is not allowed to rewind durable progress.
++      // Durable playback progress is monotonic. A delayed ad/player event is
++      // not allowed to rewind the furthest credible point reached.
+       currentTime: Math.max(existing?.currentTime || 0, currentTime),
+       duration: Math.max(existing?.duration || 0, duration),
+       completed: Boolean(existing?.completed || completed),
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/app/globals.css /mnt/data/synnical-batch1-work/synnical/src/app/globals.css
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/app/globals.css	2026-08-20 17:43:18.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/app/globals.css	2026-08-20 18:30:00.868320249 +0000
+@@ -698,6 +698,18 @@
+   box-shadow: var(--os-shadow);
+   transition: box-shadow .12s ease, border-color .12s ease, opacity .15s ease, transform .2s ease;
+ }
++@keyframes synnical-window-open {
++  0% { opacity: 0; transform: translateY(7px) scale(.965); }
++  72% { opacity: 1; transform: translateY(-1px) scale(1.006); }
++  100% { opacity: 1; transform: translateY(0) scale(1); }
++}
++.synnical-os-root .synnical-os-window.synnical-window-open {
++  transform-origin: 50% 52%;
++  animation: synnical-window-open calc(180ms * var(--synnical-os-animation-scale, 1)) cubic-bezier(.2,.82,.2,1) both;
++}
++@media (prefers-reduced-motion: reduce) {
++  .synnical-os-root .synnical-os-window.synnical-window-open { animation: none !important; }
++}
+ .synnical-os-root .synnical-os-window.is-focused { border-color: rgba(255,255,255,.24) !important; box-shadow: 0 24px 90px rgba(0,0,0,.62); }
+ .synnical-os-root .synnical-taskbar,
+ .synnical-os-root [class*="backdrop-blur"] { -webkit-backdrop-filter: blur(26px) saturate(135%); backdrop-filter: blur(26px) saturate(135%); }
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/app-shell.tsx /mnt/data/synnical-batch1-work/synnical/src/components/app-shell.tsx
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/app-shell.tsx	2026-08-20 17:43:18.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/components/app-shell.tsx	2026-08-20 18:35:17.458252372 +0000
+@@ -107,7 +107,7 @@
+   useGlobalErrorHandler()
+ 
+   const isMod = user?.role === "OWNER" || user?.role === "HEAD_ADMIN" || user?.role === "ADMIN" || user?.role === "MOD"
+-  const gameFocusVisible = gameFocus && panel === "games"
++  const gameFocusVisible = gameFocus && (panel === "games" || panel === "geforce-now")
+   const visibleApps = APP_NAV.filter((item) => (!item.modOnly || isMod) && (!item.authOnly || Boolean(user)) && (!item.labOnly || labVisible))
+   const visibleNav = visibleApps.filter((item) => CORE_NAV.has(item.id))
+ 
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/desktop-shell.tsx /mnt/data/synnical-batch1-work/synnical/src/components/desktop-shell.tsx
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/desktop-shell.tsx	2026-08-20 17:43:22.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/components/desktop-shell.tsx	2026-08-20 18:30:00.867374930 +0000
+@@ -7,7 +7,7 @@
+   Moon, MoreHorizontal, Network, PanelTop, Power, RefreshCcw, Search, Settings, Sun, Volume2,
+   VolumeX, Wifi, WifiOff, X, Zap, LayoutGrid, SquareStack, Smile, Keyboard, Folder, Trash2,
+   Pin, PinOff, ExternalLink, Info, ChevronUp, Focus, AirVent, CircleUserRound, LogOut, Delete, CornerDownLeft, CaseUpper,
+-  Timer, History, Coins, Users, Film, MessageSquare, Grip, Play, Activity, Terminal, CloudSun, Camera, Video, Square, Mic, Palette,
++  Timer, History, Coins, Users, MessageSquare, Grip, Play, Activity, Terminal, CloudSun, Camera, Video, Square, Mic, Palette,
+ } from "lucide-react"
+ import { cn } from "@/lib/utils"
+ import { readSetting, writeSetting } from "@/lib/settings-runtime"
+@@ -222,20 +222,7 @@
+ type RecentGameWidgetItem = { id: string; name: string; at: number }
+ type PinnedChatWidgetItem = { id: string; name: string; avatar?: string | null; unread?: number }
+ type OnlineWidgetUser = { userId: string; username: string; displayName?: string; pfpUrl?: string | null }
+-type ContinueWidgetItem = {
+-  player?: {
+-    media?: { id?: number; mediaType?: "movie" | "tv"; title?: string; posterPath?: string | null; backdropPath?: string | null }
+-    season?: number | null
+-    episode?: number | null
+-    episodeName?: string | null
+-  }
+-  currentTime?: number
+-  duration?: number
+-  updatedAt?: number
+-}
+-
+ const RECENT_GAMES_WIDGET_KEY = "synnical:os:recent-games:v1"
+-const CONTINUE_WATCHING_WIDGET_KEY = "synnflix.continue.v1"
+ 
+ function DesktopWidgetCard({ id, title, icon: Icon, rect, onRect, children }: {
+   id: string
+@@ -298,10 +285,9 @@
+   </section>
+ }
+ 
+-export function DesktopShell({ apps, renderPanel, initialPanel, onActivePanel }: {
++export function DesktopShell({ apps, renderPanel, onActivePanel }: {
+   apps: DesktopApp[]
+   renderPanel: (panel: Panel, openPanel: (panel: Panel) => void) => ReactNode
+-  initialPanel?: Panel
+   onActivePanel?: (panel: Panel) => void
+ }) {
+   const { user, logout } = useAuth()
+@@ -446,7 +432,6 @@
+   const [friendIds, setFriendIds] = useState<Set<string>>(() => new Set())
+   const [pinnedChats, setPinnedChats] = useState<PinnedChatWidgetItem[]>([])
+   const [recentGames, setRecentGames] = useState<RecentGameWidgetItem[]>(() => readJson<RecentGameWidgetItem[]>(RECENT_GAMES_WIDGET_KEY, []))
+-  const [continueWatchingWidget, setContinueWatchingWidget] = useState<ContinueWidgetItem[]>(() => readJson<ContinueWidgetItem[]>(CONTINUE_WATCHING_WIDGET_KEY, []))
+   const [gameInputCaptured, setGameInputCaptured] = useState(false)
+   const [clipboardTick, setClipboardTick] = useState(0)
+   const [wallpaperSlideIndex, setWallpaperSlideIndex] = useState(0)
+@@ -525,15 +510,10 @@
+       if (Array.isArray(rows)) setRecentGames(rows.filter((row): row is RecentGameWidgetItem => Boolean(row && typeof row === "object" && typeof (row as any).id === "string" && typeof (row as any).name === "string")).slice(0, 8))
+       else setRecentGames(readJson<RecentGameWidgetItem[]>(RECENT_GAMES_WIDGET_KEY, []))
+     }
+-    const watching = (event: Event) => {
+-      const rows = (event as CustomEvent<{ items?: unknown }>).detail?.items
+-      setContinueWatchingWidget(Array.isArray(rows) ? rows.slice(0, 20) as ContinueWidgetItem[] : readJson<ContinueWidgetItem[]>(CONTINUE_WATCHING_WIDGET_KEY, []))
+-    }
+     window.addEventListener("synnical-chat-online-users", online)
+     window.addEventListener("synnical-chat-pinned-widget", pinned)
+     window.addEventListener("synnical-recent-games-changed", games)
+-    window.addEventListener("synnical-continue-watching-changed", watching)
+-    return () => { window.removeEventListener("synnical-chat-online-users", online); window.removeEventListener("synnical-chat-pinned-widget", pinned); window.removeEventListener("synnical-recent-games-changed", games); window.removeEventListener("synnical-continue-watching-changed", watching) }
++    return () => { window.removeEventListener("synnical-chat-online-users", online); window.removeEventListener("synnical-chat-pinned-widget", pinned); window.removeEventListener("synnical-recent-games-changed", games) }
+   }, [])
+ 
+   useEffect(() => {
+@@ -666,8 +646,14 @@
+         return next
+       }
+       zRef.current += 1
+-      const rect = defaultRect(current.filter((win) => win.workspace === workspace).length, taskbarMetric.height)
+-      const nextWindow: WindowRecord = { id: uid(panel), panel, ...rect, z: zRef.current, minimized: false, maximized: false, workspace, snapGroup: null }
++      const restore = defaultRect(current.filter((win) => win.workspace === workspace).length, taskbarMetric.height)
++      const nextWindow: WindowRecord = {
++        id: uid(panel), panel,
++        x: 0, y: 0,
++        width: window.innerWidth,
++        height: Math.max(MIN_HEIGHT, window.innerHeight - taskbarMetric.height),
++        z: zRef.current, minimized: false, maximized: true, restore, workspace, snapGroup: null,
++      }
+       onActivePanel?.(panel); recordRecent(panel); playTone("open")
+       const next = [...current, nextWindow]; try { localStorage.setItem(WINDOW_KEY, JSON.stringify(next)) } catch {}; return next
+     })
+@@ -677,7 +663,6 @@
+   useEffect(() => {
+     const usable = windows.filter((win) => allowed.has(win.panel))
+     if (usable.length !== windows.length) persistWindows(usable)
+-    if (usable.length === 0 && initialPanel && allowed.has(initialPanel) && os.restoreWindows) openPanel(initialPanel)
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [allowed])
+ 
+@@ -1008,7 +993,6 @@
+   const standaloneTaskbarApps = useMemo(() => taskbarApps.filter((app) => !groupedPanels.has(app.id)), [taskbarApps, groupedPanels])
+   const recentApps = useMemo(() => recents.map((row) => ({ ...row, app: allowed.get(row.panel) })).filter((row) => row.app).slice(0, 6), [recents, allowed])
+   const onlineFriends = useMemo(() => onlineWidgetUsers.filter((row) => friendIds.has(row.userId)).slice(0, 8), [onlineWidgetUsers, friendIds])
+-  const validContinueWatching = useMemo(() => continueWatchingWidget.filter((row) => { const media=row?.player?.media; return Boolean(media && Number.isFinite(Number(media.id)) && (media.mediaType === "movie" || media.mediaType === "tv") && typeof media.title === "string") }).sort((a,b)=>(Number(b.updatedAt)||0)-(Number(a.updatedAt)||0)).slice(0,4), [continueWatchingWidget])
+   const widgetLayout = os.widgetLayouts[String(workspace)] || {}
+   const desktopLayout = os.desktopLayouts[String(workspace)] || { order: [], hidden: [], labels: {}, customIcons: {}, positions: {}, folders: [] }
+   const desktopFolderItems = useMemo(() => new Set(desktopLayout.folders.flatMap((folder) => folder.items)), [desktopLayout.folders])
+@@ -1395,7 +1379,6 @@
+       {os.desktopCalendarWidget ? <DesktopWidgetCard id="calendar" title="Calendar" icon={CalendarDays} rect={widgetRect("calendar",1,250,225)} onRect={(rect)=>saveWidgetRect("calendar",rect)}><div className="flex items-center gap-2 text-xs font-semibold">{now.toLocaleDateString([], { month: "long", year: "numeric" })}</div><div className="mt-3 grid grid-cols-7 gap-1 text-center text-[9px] text-white/45">{["S","M","T","W","T","F","S"].map((d,i)=><span key={`${d}-${i}`}>{d}</span>)}{calendar.map((d,i)=><span key={i} className={cn("grid h-6 place-items-center rounded-full", d.toDateString()===now.toDateString()&&"bg-sky-500 text-white", d.getMonth()!==now.getMonth()&&"text-white/20")}>{d.getDate()}</span>)}</div></DesktopWidgetCard> : null}
+       {os.desktopRecentGamesWidget ? <DesktopWidgetCard id="recent-games" title="Recently played" icon={Gamepad2} rect={widgetRect("recent-games",2,250,160)} onRect={(rect)=>saveWidgetRect("recent-games",rect)}>{recentGames.length ? <div className="space-y-1.5">{recentGames.slice(0,4).map((game)=><button key={game.id} onClick={()=>{openPanel("games");window.setTimeout(()=>window.dispatchEvent(new CustomEvent("synnical-game-open",{detail:{gameKey:game.id}})),80)}} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-white/10"><Play className="h-3.5 w-3.5 text-emerald-300"/><span className="min-w-0 flex-1 truncate">{game.name}</span><span className="text-[9px] text-white/30">{new Date(game.at).toLocaleDateString()}</span></button>)}</div> : <p className="text-xs leading-5 text-white/40">Games you actually launch will appear here.</p>}</DesktopWidgetCard> : null}
+       {os.desktopFriendsWidget ? <DesktopWidgetCard id="friends-online" title="Friends online" icon={Users} rect={widgetRect("friends-online",3,250,180)} onRect={(rect)=>saveWidgetRect("friends-online",rect)}>{onlineFriends.length ? <div className="space-y-1">{onlineFriends.map((friend)=><button key={friend.userId} onClick={()=>openPanel("friends")} className="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-white/10">{friend.pfpUrl?<img src={friend.pfpUrl} alt="" className="h-7 w-7 rounded-full object-cover"/>:<span className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-[10px]">{(friend.displayName||friend.username||"?")[0]?.toUpperCase()}</span>}<span className="min-w-0 flex-1 truncate text-xs">{friend.displayName||friend.username}</span><span className="h-2 w-2 rounded-full bg-emerald-400"/></button>)}</div> : <p className="text-xs text-white/40">No friends are online right now.</p>}</DesktopWidgetCard> : null}
+-      {os.desktopContinueWatchingWidget ? <DesktopWidgetCard id="continue-watching" title="Continue Watching" icon={Film} rect={widgetRect("continue-watching",4,280,190)} onRect={(rect)=>saveWidgetRect("continue-watching",rect)}>{validContinueWatching.length ? <div className="space-y-2">{validContinueWatching.map((entry,index)=>{const media=entry.player!.media!,duration=Math.max(0,Number(entry.duration)||0),current=Math.max(0,Number(entry.currentTime)||0),pct=duration>0?Math.min(100,Math.round(current/duration*100)):0;return <button key={`${media.mediaType}:${media.id}:${entry.player?.season||0}:${entry.player?.episode||0}:${index}`} onClick={()=>{openPanel("movies");window.setTimeout(()=>window.dispatchEvent(new CustomEvent("synnical-synnflix-resume",{detail:entry})),100)}} className="w-full rounded-lg bg-white/[0.04] p-2 text-left hover:bg-white/[0.08]"><div className="flex items-center gap-2"><Film className="h-4 w-4 text-fuchsia-300"/><span className="min-w-0 flex-1 truncate text-xs font-medium">{media.title}{media.mediaType==="tv"&&entry.player?.season&&entry.player?.episode?` · S${entry.player.season}E${entry.player.episode}`:""}</span></div><div className="mt-2 h-1 overflow-hidden rounded bg-white/10"><div className="h-full bg-fuchsia-400" style={{width:`${pct}%`}}/></div></button>})}</div>:<p className="text-xs text-white/40">Partially watched SynnFlix titles will appear here.</p>}</DesktopWidgetCard> : null}
+       {os.desktopCreditsWidget ? <DesktopWidgetCard id="credits" title="Credit balance" icon={Coins} rect={widgetRect("credits",5,210,125)} onRect={(rect)=>saveWidgetRect("credits",rect)}><button onClick={()=>openPanel("shop")} className="flex w-full items-end justify-between rounded-xl p-2 text-left hover:bg-white/[0.06]"><div><div className="text-3xl font-light">{Number(user?.coins||0).toLocaleString()}</div><div className="mt-1 text-[10px] text-white/40">Synnical credits</div></div><Coins className="h-7 w-7 text-amber-300"/></button></DesktopWidgetCard> : null}
+       {os.desktopPinnedChatWidget ? <DesktopWidgetCard id="pinned-chat" title="Pinned chats" icon={MessageSquare} rect={widgetRect("pinned-chat",6,250,175)} onRect={(rect)=>saveWidgetRect("pinned-chat",rect)}>{pinnedChats.length ? <div className="space-y-1">{pinnedChats.map((chat)=><button key={chat.id} onClick={()=>{openPanel("chat");window.setTimeout(()=>window.dispatchEvent(new CustomEvent("synnical-chat-open-message",{detail:{channelId:chat.id}})),80)}} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/10">{chat.avatar?<img src={chat.avatar} alt="" className="h-7 w-7 rounded-full object-cover"/>:<MessageSquare className="h-4 w-4 text-sky-300"/>}<span className="min-w-0 flex-1 truncate text-xs">{chat.name}</span>{chat.unread?<span className="grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold">{chat.unread>99?"99+":chat.unread}</span>:null}</button>)}</div>:<p className="text-xs text-white/40">Pin a DM in Chat and it will appear here.</p>}</DesktopWidgetCard> : null}
+     </> : null}
+@@ -1403,7 +1386,7 @@
+     {windows.map((win) => {
+       const app = allowed.get(win.panel); if (!app) return null
+       const Icon = app.icon, visible = win.workspace === workspace && !win.minimized
+-      return <section key={win.id} data-synnical-window-id={win.id} className={cn("synnical-os-window absolute overflow-hidden rounded-lg border border-white/15 bg-[#0d0d0f]/96 shadow-[0_20px_80px_rgba(0,0,0,.55)]", visible ? "block" : "hidden", win.z === maxZ && "is-focused")} style={{ left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.alwaysOnTop ? 100000 + win.z : win.z, borderRadius: os.windowCornerRadius, backgroundColor: `rgba(13,13,15,${os.windowTransparency / 100})` }} onMouseDown={(event) => { event.stopPropagation(); closeFlyouts(); if (win.z !== maxZ || win.minimized) focusWindow(win.id) }}>
++      return <section key={win.id} data-synnical-window-id={win.id} className={cn("synnical-os-window synnical-window-open absolute overflow-hidden rounded-lg border border-white/15 bg-[#0d0d0f]/96 shadow-[0_20px_80px_rgba(0,0,0,.55)]", visible ? "block" : "hidden", win.z === maxZ && "is-focused")} style={{ left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.alwaysOnTop ? 100000 + win.z : win.z, borderRadius: os.windowCornerRadius, backgroundColor: `rgba(13,13,15,${os.windowTransparency / 100})` }} onMouseDown={(event) => { event.stopPropagation(); closeFlyouts(); if (win.z !== maxZ || win.minimized) focusWindow(win.id) }}>
+         <header className="synnical-os-titlebar relative flex h-9 cursor-default select-none items-center gap-2 border-b border-white/8 bg-white/[0.025] px-2" onDoubleClick={() => toggleMaximize(win.id)} onPointerDown={(event) => {
+           if ((event.target as HTMLElement).closest("button")) return
+           if (win.maximized && win.restore) {
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/error-boundary.tsx /mnt/data/synnical-batch1-work/synnical/src/components/error-boundary.tsx
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/error-boundary.tsx	2026-08-20 17:43:18.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/components/error-boundary.tsx	2026-08-20 18:30:00.869743465 +0000
+@@ -1,6 +1,6 @@
+ "use client"
+ 
+-import { Component, ReactNode, useState, useEffect, useRef } from "react"
++import { Component, ReactNode, useState, useEffect } from "react"
+ 
+ type State = { hasError: boolean; error: Error | null; resetKey: number }
+ 
+@@ -12,9 +12,6 @@
+  * This actually clears stale refs, timers, and broken component state that
+  * caused the crash in the first place.
+  *
+- * Also sets up a global unhandledrejection listener so async errors
+- * (failed fetch in useEffect, etc.) are caught and shown in the UI
+- * instead of silently crashing the panel.
+  */
+ export class ErrorBoundary extends Component<{ children: ReactNode; name?: string }, State> {
+   state: State = { hasError: false, error: null, resetKey: 0 }
+@@ -53,7 +50,7 @@
+             </p>
+             <button
+               onClick={this.handleReset}
+-              className="px-4 py-2 rounded-md bg-white text-white text-sm hover:bg-[#e8e8e8] transition-colors"
++              className="px-4 py-2 rounded-md bg-white text-black text-sm hover:bg-[#e8e8e8] transition-colors"
+             >
+               Try again
+             </button>
+@@ -107,25 +104,22 @@
+ }
+ 
+ /**
+- * Hook to catch global unhandledrejection and window error events.
+- * When an unhandled promise rejection or error occurs, it throws it into
+- * React's error boundary system so the user sees a crash message instead
+- * of a blank screen.
++ * Top-level diagnostics for errors that occur outside React render/lifecycle.
+  *
+- * Only call this once per component tree (e.g., in the top-level App).
++ * Panel render crashes are isolated by the per-panel ErrorBoundary instances in
++ * AppShell. Async event/fetch failures must not be deliberately re-thrown from
++ * AppShell itself, because doing that bypasses panel isolation and turns one
++ * rejected promise into the framework-level full-page error screen.
+  */
+ export function useGlobalErrorHandler() {
+-  const { catchError } = useAsyncError()
+-  const handlerRef = useRef(catchError)
+-  handlerRef.current = catchError
+-
+   useEffect(() => {
+-    const onUnhandledRejection = (e: PromiseRejectionEvent) => {
+-      handlerRef.current(e.reason)
+-    }
+-    const onError = (e: ErrorEvent) => {
+-      if (e.error) handlerRef.current(e.error)
++    const report = (kind: "unhandledrejection" | "error", cause: unknown) => {
++      console.error(`[Synnical ${kind}]`, cause)
++      const message = cause instanceof Error ? cause.message : typeof cause === "string" ? cause : "Unexpected client error"
++      window.dispatchEvent(new CustomEvent("synnical-client-error", { detail: { kind, message } }))
+     }
++    const onUnhandledRejection = (event: PromiseRejectionEvent) => report("unhandledrejection", event.reason)
++    const onError = (event: ErrorEvent) => report("error", event.error || event.message)
+     window.addEventListener("unhandledrejection", onUnhandledRejection)
+     window.addEventListener("error", onError)
+     return () => {
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/games-panel.tsx /mnt/data/synnical-batch1-work/synnical/src/components/games-panel.tsx
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/games-panel.tsx	2026-08-20 17:43:22.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/components/games-panel.tsx	2026-08-20 18:30:00.870018713 +0000
+@@ -66,19 +66,37 @@
+ }
+ 
+ async function responseFailure(res: Response, stage: string): Promise<GameRequestError> {
++  const contentType = (res.headers.get("content-type") || "").toLowerCase()
+   const text = await res.text().catch(() => "")
+   let payload: any = {}
+-  try { payload = text ? JSON.parse(text) : {} } catch {}
+-  const code = payload.code || `${stage}_HTTP_${res.status}`
+-  const rawMessage = payload.error || payload.message || text.slice(0, 240)
+-  const message = res.status === 429
+-    ? "Cloud gaming is busy right now. Try again shortly."
+-    : res.status >= 500
+-      ? "Cloud gaming is temporarily unavailable. Try again shortly."
+-      : friendlyGameMessage(rawMessage, "Cloud gaming could not complete that request. Try again.")
++  if (contentType.includes("json") || /^\s*[\[{]/.test(text)) {
++    try { payload = text ? JSON.parse(text) : {} } catch {}
++  }
++  const code = typeof payload?.code === "string" ? payload.code : `${stage}_HTTP_${res.status}`
++  const structuredMessage = typeof payload?.error === "string" ? payload.error : typeof payload?.message === "string" ? payload.message : ""
++  const nonJsonResponse = !contentType.includes("json") && !structuredMessage
++  const message = res.status === 401 || res.status === 403
++    ? "Cloud gaming could not authorize this request. Sign in again and retry."
++    : res.status === 404
++      ? "Cloud gaming is temporarily unavailable because its service route could not be reached."
++      : res.status === 429
++        ? "Cloud gaming is busy right now. Try again shortly."
++        : res.status >= 500
++          ? "Cloud gaming is temporarily unavailable. Try again shortly."
++          : nonJsonResponse
++            ? "Cloud gaming returned an invalid service response. Try again shortly."
++            : friendlyGameMessage(structuredMessage, "Cloud gaming could not complete that request. Try again.")
+   return new GameRequestError(code, message)
+ }
+ 
++async function responseJson<T>(res: Response, stage: string): Promise<T> {
++  if (!res.ok) throw await responseFailure(res, stage)
++  const contentType = (res.headers.get("content-type") || "").toLowerCase()
++  if (!contentType.includes("json")) throw new GameRequestError(`${stage}_INVALID_RESPONSE`, "Cloud gaming returned an invalid service response. Try again shortly.")
++  try { return await res.json() as T }
++  catch { throw new GameRequestError(`${stage}_INVALID_JSON`, "Cloud gaming returned an invalid service response. Try again shortly.") }
++}
++
+ // ─── Constants ─────────────────────────────────────────────────────────────────
+ 
+ const STRATUS_API_KEY = process.env.NEXT_PUBLIC_STRATUS_API_KEY || ""
+@@ -547,10 +565,7 @@
+     const controller = new AbortController()
+     setCatalogError("")
+     fetch(`${STRATUS_BASE}/games`, { cache: "no-store", signal: controller.signal })
+-      .then(async (response) => {
+-        if (!response.ok) throw await responseFailure(response, "GAME_CATALOG")
+-        return response.json()
+-      })
++      .then((response) => responseJson<unknown>(response, "GAME_CATALOG"))
+       .then((payload: unknown) => {
+         if (!Array.isArray(payload)) throw new GameRequestError("GAME_CATALOG_INVALID", "The game catalog response is invalid")
+         const valid = payload.filter((entry): entry is GameEntry => {
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/role-ui.tsx /mnt/data/synnical-batch1-work/synnical/src/components/role-ui.tsx
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/role-ui.tsx	2026-08-20 17:43:18.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/components/role-ui.tsx	2026-08-20 18:30:00.869504752 +0000
+@@ -19,8 +19,8 @@
+   if (role === "MEMBER" && recognition.length === 0) return null
+   return (
+     <span className={cn("inline-flex flex-wrap items-center gap-1", className)}>
+-      {role !== "MEMBER" ? <span className={cn("inline-flex rounded border px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider", style[role])}>{role === "HEAD_ADMIN" ? "HEAD ADMIN" : role}</span> : null}
+-      {recognition.map((tag) => <span key={tag} className={cn("inline-flex rounded border px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider", tag === NOTABLE_PERSON_TAG ? "border-fuchsia-300/70 bg-fuchsia-400/12 text-fuchsia-100 shadow-[0_0_12px_rgba(217,70,239,.45)]" : "border-cyan-300/70 bg-cyan-400/12 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,.45)]")}>{tag === BIG_SITE_OWNER_TAG ? "BIG SITE OWNER" : "NOTABLE PERSON"}</span>)}
++      {role !== "MEMBER" ? <span className={cn("inline-flex rounded border px-1 py-px text-[8px] font-bold leading-3 tracking-wide", style[role])}>{role === "HEAD_ADMIN" ? "HEAD ADMIN" : role}</span> : null}
++      {recognition.map((tag) => <span key={tag} className={cn("inline-flex rounded border px-1 py-px text-[8px] font-bold leading-3 tracking-wide", tag === NOTABLE_PERSON_TAG ? "border-fuchsia-300/70 bg-fuchsia-400/12 text-fuchsia-100 shadow-[0_0_12px_rgba(217,70,239,.45)]" : "border-cyan-300/70 bg-cyan-400/12 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,.45)]")}>{tag === BIG_SITE_OWNER_TAG ? "BIG SITE OWNER" : "NOTABLE PERSON"}</span>)}
+     </span>
+   )
+ }
+@@ -32,7 +32,7 @@
+ export function TagsDisplay({ tags, className }: { tags: string[]; className?: string }) {
+   const visible = ordinaryTags(tags)
+   if (!visible.length) return null
+-  return <div className={cn("flex flex-wrap gap-1", className)}>{visible.map((t) => <span key={t} className="rounded border border-[#242424] bg-[#0d0d0d] px-1.5 py-0.5 text-[9px] text-[#a7a7a7]">{t}</span>)}</div>
++  return <div className={cn("flex flex-wrap gap-1", className)}>{visible.map((t) => <span key={t} className="rounded border border-[#242424] bg-[#0d0d0d] px-1 py-px text-[8px] leading-3 text-[#a7a7a7]">{t}</span>)}</div>
+ }
+ 
+ export function AvatarWithDeco({
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/settings-extra-sections.tsx /mnt/data/synnical-batch1-work/synnical/src/components/settings-extra-sections.tsx
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/settings-extra-sections.tsx	2026-08-20 17:43:18.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/components/settings-extra-sections.tsx	2026-08-20 18:30:00.868951323 +0000
+@@ -514,7 +514,7 @@
+   const [showOnline, setShowOnline] = useLocalSetting<boolean>("profile.showOnline", true)
+   const [showActivity, setShowActivity] = useLocalSetting<boolean>("profile.showActivity", true)
+   const [showLastSeen, setShowLastSeen] = useLocalSetting<boolean>("profile.showLastSeen", false)
+-  const [showStats, setShowStats] = useLocalSetting<boolean>("profile.showFriends", true)
++  const [showStats, setShowStats] = useLocalSetting<boolean>("profile.showStats", true)
+   const [showConnections, setShowConnections] = useLocalSetting<boolean>("profile.showConnections", true)
+   const [profileBg, setProfileBg] = useLocalSetting<string>("profile.background", "")
+ 
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/synnflix-panel.tsx /mnt/data/synnical-batch1-work/synnical/src/components/synnflix-panel.tsx
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/synnflix-panel.tsx	2026-08-20 17:43:22.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/components/synnflix-panel.tsx	2026-08-20 18:36:33.262335847 +0000
+@@ -60,37 +60,15 @@
+   episode?: unknown
+ }
+ 
+-type ContinueWatchingEntry = {
+-  player: PlayerState
+-  currentTime: number
+-  duration: number
+-  updatedAt: number
+-}
+-
+-const CONTINUE_WATCHING_KEY = "synnflix.continue.v1"
+-const CONTINUE_WATCHING_LIMIT = 20
+-const RESUME_AUTO_RETRY_LIMIT = 1
+-const RESUME_RETRY_DELAY_MS = 12_000
+-const RESUME_TARGET_TOLERANCE_SECONDS = 8
+-
+-type ResumeTarget = {
+-  seconds: number
+-  attempts: number
+-  lastRetryAt: number
+-  startedAt: number
+-  sawEvent: boolean
+-}
+ 
+ function VidkingPlayerFrame({
+   src,
+   title,
+   playerFrameRef,
+-  onLoad,
+ }: {
+   src: string
+   title: string
+   playerFrameRef: MutableRefObject<HTMLIFrameElement | null>
+-  onLoad?: () => void
+ }) {
+   const hostRef = useRef<HTMLDivElement | null>(null)
+ 
+@@ -119,25 +97,16 @@
+     iframe.setAttribute("allowfullscreen", "")
+     iframe.referrerPolicy = "strict-origin-when-cross-origin"
+ 
+-    const loaded = () => {
+-      try {
+-        const loadedUrl = new URL(iframe.src)
+-        if (loadedUrl.origin !== VIDKING_ORIGIN) return
+-      } catch { return }
+-      onLoad?.()
+-    }
+-    iframe.addEventListener("load", loaded)
+     iframe.src = providerUrl.toString()
+     playerFrameRef.current = iframe
+     host.replaceChildren(iframe)
+ 
+     return () => {
+-      iframe.removeEventListener("load", loaded)
+       if (playerFrameRef.current === iframe) playerFrameRef.current = null
+       try { iframe.src = "about:blank" } catch {}
+       iframe.remove()
+     }
+-  }, [onLoad, playerFrameRef, src, title])
++  }, [playerFrameRef, src, title])
+ 
+   return <div ref={hostRef} className="h-full min-h-[420px] w-full bg-black" />
+ }
+@@ -206,162 +175,6 @@
+   return `${player.media.mediaType}:${player.media.id}:${player.season ?? 0}:${player.episode ?? 0}`
+ }
+ 
+-function validStoredMedia(value: unknown): value is SynnFlixMediaItem {
+-  if (!value || typeof value !== "object") return false
+-  const media = value as Partial<SynnFlixMediaItem>
+-  return Number.isInteger(media.id) && Number(media.id) > 0
+-    && (media.mediaType === "movie" || media.mediaType === "tv")
+-    && typeof media.title === "string" && media.title.trim().length > 0
+-    && (media.posterPath === null || typeof media.posterPath === "string")
+-    && (media.backdropPath === null || typeof media.backdropPath === "string")
+-}
+-
+-function readContinueWatching(): ContinueWatchingEntry[] {
+-  if (typeof window === "undefined") return []
+-  try {
+-    const raw = JSON.parse(window.localStorage.getItem(CONTINUE_WATCHING_KEY) || "[]")
+-    if (!Array.isArray(raw)) return []
+-    return raw.filter((entry): entry is ContinueWatchingEntry => {
+-      if (!entry || typeof entry !== "object") return false
+-      const item = entry as Partial<ContinueWatchingEntry>
+-      const player = item.player as PlayerState | undefined
+-      if (!player || !validStoredMedia(player.media)) return false
+-      if (player.media.mediaType === "tv" && (!Number.isInteger(player.season) || !Number.isInteger(player.episode) || Number(player.season) < 1 || Number(player.episode) < 1)) return false
+-      return Number.isFinite(item.currentTime) && Number(item.currentTime) >= 3
+-        && Number.isFinite(item.duration) && Number(item.duration) >= 0
+-        && Number.isFinite(item.updatedAt)
+-    }).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, CONTINUE_WATCHING_LIMIT)
+-  } catch {
+-    return []
+-  }
+-}
+-
+-function persistContinueWatching(entries: ContinueWatchingEntry[]): void {
+-  try {
+-    const next = entries.slice(0, CONTINUE_WATCHING_LIMIT)
+-    window.localStorage.setItem(CONTINUE_WATCHING_KEY, JSON.stringify(next))
+-    window.dispatchEvent(new CustomEvent("synnical-continue-watching-changed", { detail: { items: next } }))
+-  } catch {}
+-}
+-
+-function storeContinueWatching(entry: ContinueWatchingEntry): ContinueWatchingEntry[] {
+-  const identity = playerIdentity(entry.player)
+-  const stored = readContinueWatching()
+-  const previous = stored.find((item) => playerIdentity(item.player) === identity)
+-  const current = stored.filter((item) => playerIdentity(item.player) !== identity)
+-  const merged: ContinueWatchingEntry = previous
+-    ? {
+-        player: {
+-          ...entry.player,
+-          episodeName: entry.player.episodeName || previous.player.episodeName,
+-        },
+-        currentTime: Math.max(previous.currentTime, entry.currentTime),
+-        duration: Math.max(previous.duration, entry.duration),
+-        // A stale late event must not make an older playback position look like
+-        // the newest Continue Watching item. Only equal/further progress bumps recency.
+-        updatedAt: entry.currentTime >= previous.currentTime
+-          ? Math.max(previous.updatedAt, entry.updatedAt)
+-          : previous.updatedAt,
+-      }
+-    : entry
+-  const next = [merged, ...current].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, CONTINUE_WATCHING_LIMIT)
+-  try {
+-    window.localStorage.setItem(CONTINUE_WATCHING_KEY, JSON.stringify(next))
+-    window.dispatchEvent(new CustomEvent("synnical-continue-watching-changed", { detail: { items: next } }))
+-  } catch {}
+-  return next
+-}
+-
+-function removeContinueWatching(player: PlayerState): ContinueWatchingEntry[] {
+-  const next = readContinueWatching().filter((item) => playerIdentity(item.player) !== playerIdentity(player))
+-  try { window.localStorage.setItem(CONTINUE_WATCHING_KEY, JSON.stringify(next)) } catch {}
+-  return next
+-}
+-
+-
+-function continueEntryFromServer(row: any): ContinueWatchingEntry | null {
+-  const mediaType = row?.mediaType === "tv" ? "tv" : row?.mediaType === "movie" ? "movie" : null
+-  const id = Number(row?.mediaId)
+-  const currentTime = Number(row?.currentTime)
+-  const duration = Number(row?.duration)
+-  if (!mediaType || !Number.isSafeInteger(id) || id <= 0 || !Number.isFinite(currentTime) || currentTime < 3 || row?.completed === true) return null
+-  const season = mediaType === "tv" && Number.isSafeInteger(Number(row?.season)) && Number(row.season) > 0 ? Number(row.season) : null
+-  const episode = mediaType === "tv" && Number.isSafeInteger(Number(row?.episode)) && Number(row.episode) > 0 ? Number(row.episode) : null
+-  if (mediaType === "tv" && (!season || !episode)) return null
+-  const title = typeof row?.title === "string" && row.title.trim() ? row.title.trim() : "Untitled"
+-  const player: PlayerState = {
+-    media: {
+-      id,
+-      mediaType,
+-      title,
+-      originalTitle: title,
+-      overview: "",
+-      posterPath: typeof row?.poster === "string" && row.poster ? row.poster : null,
+-      backdropPath: typeof row?.backdrop === "string" && row.backdrop ? row.backdrop : null,
+-      releaseDate: null,
+-      voteAverage: 0,
+-      voteCount: 0,
+-      popularity: 0,
+-    },
+-    season,
+-    episode,
+-    episodeName: typeof row?.episodeName === "string" && row.episodeName ? row.episodeName : null,
+-  }
+-  const updatedAt = new Date(row?.updatedAt || 0).getTime()
+-  return { player, currentTime: Math.floor(currentTime), duration: Number.isFinite(duration) && duration > 0 ? Math.floor(duration) : 0, updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now() }
+-}
+-
+-function progressIdentity(row: any): string | null {
+-  const mediaType = row?.mediaType === "tv" ? "tv" : row?.mediaType === "movie" ? "movie" : null
+-  const id = Number(row?.mediaId)
+-  if (!mediaType || !Number.isSafeInteger(id) || id <= 0) return null
+-  const season = mediaType === "tv" ? Number(row?.season) : null
+-  const episode = mediaType === "tv" ? Number(row?.episode) : null
+-  if (mediaType === "tv") {
+-    if (season === null || episode === null || !Number.isSafeInteger(season) || season <= 0 || !Number.isSafeInteger(episode) || episode <= 0) return null
+-  }
+-  return `${mediaType}:${id}:${season ?? 0}:${episode ?? 0}`
+-}
+-
+-function mergeContinueWatching(localEntries: ContinueWatchingEntry[], serverRows: any[]): ContinueWatchingEntry[] {
+-  const completedKeys = new Set(serverRows.filter((row) => row?.completed === true).map(progressIdentity).filter((key): key is string => Boolean(key)))
+-  const serverEntries = serverRows.map(continueEntryFromServer).filter((entry): entry is ContinueWatchingEntry => Boolean(entry))
+-  const keys = new Set<string>([
+-    ...localEntries.map((entry) => playerIdentity(entry.player)),
+-    ...serverEntries.map((entry) => playerIdentity(entry.player)),
+-  ])
+-  const localByKey = new Map(localEntries.map((entry) => [playerIdentity(entry.player), entry]))
+-  const serverByKey = new Map(serverEntries.map((entry) => [playerIdentity(entry.player), entry]))
+-  const merged: ContinueWatchingEntry[] = []
+-
+-  for (const key of keys) {
+-    if (completedKeys.has(key)) continue
+-    const local = localByKey.get(key)
+-    const server = serverByKey.get(key)
+-    const base = local && server
+-      ? (local.currentTime >= server.currentTime ? local : server)
+-      : local || server
+-    if (!base) continue
+-
+-    // r11.0-r11.3 could leave a newer-but-lower server timestamp after a
+-    // failed resume. Recovery is intentionally monotonic here: for the same
+-    // exact movie/episode, keep the furthest credible saved point from the
+-    // Continue Watching cache, account row, or per-title local progress key.
+-    const localProgress = typeof window === "undefined" ? 0 : readProgress(base.player)
+-    const currentTime = Math.max(
+-      3,
+-      Math.floor(local?.currentTime || 0),
+-      Math.floor(server?.currentTime || 0),
+-      Math.floor(localProgress || 0),
+-    )
+-    const duration = Math.max(Math.floor(local?.duration || 0), Math.floor(server?.duration || 0))
+-    const updatedAt = Math.max(local?.updatedAt || 0, server?.updatedAt || 0) || Date.now()
+-    merged.push({ ...base, currentTime, duration, updatedAt })
+-  }
+-
+-  return merged.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, CONTINUE_WATCHING_LIMIT)
+-}
+-
+ function buildPlayerUrl(player: PlayerState, options?: { progress?: number; autoplay?: boolean }): string {
+   const savedProgress = typeof window === "undefined" ? 0 : readProgress(player)
+   const progress = Number.isFinite(options?.progress) ? Math.max(0, Math.floor(Number(options?.progress))) : savedProgress
+@@ -426,34 +239,6 @@
+   )
+ }
+ 
+-function ContinueWatchingCard({ entry, onResume }: { entry: ContinueWatchingEntry; onResume: (entry: ContinueWatchingEntry) => void }) {
+-  const poster = imageUrl(entry.player.media.posterPath, "w342")
+-  const percent = entry.duration > 0 ? Math.max(0, Math.min(100, (entry.currentTime / entry.duration) * 100)) : 0
+-  return (
+-    <button type="button" onClick={() => onResume(entry)} className="group w-[190px] shrink-0 text-left" aria-label={`Continue ${entry.player.media.title}`}>
+-      <span className="relative block aspect-video overflow-hidden rounded-xl border border-white/10 bg-[#090909] transition group-hover:-translate-y-1 group-hover:border-white/35">
+-        {poster ? <img src={poster} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : <span className="grid h-full w-full place-items-center text-white/25"><Play className="h-8 w-8" /></span>}
+-        <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
+-        <span className="absolute bottom-3 left-3 grid h-8 w-8 place-items-center rounded-full bg-white text-black"><Play className="h-4 w-4 fill-current" /></span>
+-        {entry.player.media.mediaType === "tv" ? <span className="absolute bottom-3 right-3 rounded bg-black/75 px-2 py-1 text-[10px] font-medium text-white">S{entry.player.season} E{entry.player.episode}</span> : null}
+-        <span className="absolute inset-x-0 bottom-0 h-1 bg-white/15"><span className="block h-full bg-white" style={{ width: `${percent}%` }} /></span>
+-      </span>
+-      <strong className="mt-2 block truncate text-sm font-medium text-white/88">{entry.player.media.title}</strong>
+-      <span className="mt-0.5 block truncate text-[11px] text-white/40">{entry.player.episodeName || `${Math.floor(entry.currentTime / 60)} min watched`}</span>
+-    </button>
+-  )
+-}
+-
+-function ContinueWatchingRail({ items, onResume }: { items: ContinueWatchingEntry[]; onResume: (entry: ContinueWatchingEntry) => void }) {
+-  if (!items.length) return null
+-  return (
+-    <section className="mb-8">
+-      <div className="mb-3 flex items-center gap-2 px-1"><RotateCcw className="h-4 w-4 text-white/55" /><h2 className="text-[15px] font-semibold text-white">Continue Watching</h2></div>
+-      <div className="synnflix-rail flex gap-3 overflow-x-auto px-1 pb-3">{items.map((entry) => <ContinueWatchingCard key={playerIdentity(entry.player)} entry={entry} onResume={onResume} />)}</div>
+-    </section>
+-  )
+-}
+-
+ function Rail({ title, icon, items, onSelect }: { title: string; icon: React.ReactNode; items: SynnFlixMediaItem[]; onSelect: (item: SynnFlixMediaItem) => void }) {
+   if (!items.length) return null
+   return (
+@@ -535,14 +320,7 @@
+   const [trackedPlayer, setTrackedPlayer] = useState<PlayerState | null>(null)
+   const trackedPlayerRef = useRef<PlayerState | null>(null)
+   const autoplayFallbackTimerRef = useRef<number | null>(null)
+-  const [continueWatching, setContinueWatching] = useState<ContinueWatchingEntry[]>([])
+-  const lastContinueSecondRef = useRef(new Map<string, number>())
+   const lastServerProgressRef = useRef(new Map<string, number>())
+-  const resumeTargetRef = useRef(new Map<string, ResumeTarget>())
+-  const [resumeUi, setResumeUi] = useState<{ identity: string; seconds: number; status: "restoring" | "retrying" | "failed" } | null>(null)
+-  const [playerFrameLoaded, setPlayerFrameLoaded] = useState(false)
+-  const [playerReady, setPlayerReady] = useState(false)
+-  const handlePlayerFrameLoad = useCallback(() => setPlayerFrameLoaded(true), [])
+   const [fullscreenActive, setFullscreenActive] = useState(false)
+   const [mediaFeatures, setMediaFeatures] = useState<any>(null)
+   const [activeParty, setActiveParty] = useState<any>(null)
+@@ -591,38 +369,6 @@
+       if (!response.ok) return
+       const body = await response.json()
+       setMediaFeatures(body)
+-      if (Array.isArray(body?.progress)) {
+-        const localBeforeMerge = readContinueWatching()
+-        const merged = mergeContinueWatching(localBeforeMerge, body.progress)
+-        persistContinueWatching(merged)
+-        const serverTimes = new Map<string, number>()
+-        for (const row of body.progress) {
+-          const key = progressIdentity(row)
+-          if (key && row?.completed !== true) serverTimes.set(key, Math.max(0, Math.floor(Number(row?.currentTime) || 0)))
+-        }
+-        for (const entry of merged) {
+-          if (entry.currentTime < 3) continue
+-          const existingProgress = readProgress(entry.player)
+-          if (entry.currentTime > existingProgress) writeProgress(entry.player, entry.currentTime)
+-          const key = playerIdentity(entry.player)
+-          const serverTime = serverTimes.get(key) || 0
+-          if (entry.currentTime > serverTime + RESUME_TARGET_TOLERANCE_SECONDS) {
+-            void featureApi.media.action("progress", {
+-              mediaType: entry.player.media.mediaType,
+-              mediaId: String(entry.player.media.id),
+-              title: entry.player.media.title,
+-              poster: entry.player.media.posterPath,
+-              backdrop: entry.player.media.backdropPath,
+-              season: entry.player.season,
+-              episode: entry.player.episode,
+-              episodeName: entry.player.episodeName,
+-              currentTime: entry.currentTime,
+-              duration: entry.duration,
+-            }).catch(() => {})
+-          }
+-        }
+-        setContinueWatching(merged)
+-      }
+     } catch {}
+   }, [])
+ 
+@@ -641,7 +387,7 @@
+   useEffect(() => {
+     void loadHome()
+     void refreshMediaFeatures()
+-    setContinueWatching(readContinueWatching())
++    try { window.localStorage.removeItem("synnflix.continue.v1") } catch {}
+   }, [loadHome, refreshMediaFeatures])
+ 
+   const openMedia = useCallback(async (item: SynnFlixMediaItem) => {
+@@ -766,7 +512,6 @@
+     if (!focus || second < 3) return
+     const duration = Math.max(0, Math.floor(currentPlayerDurationRef.current))
+     writeProgress(focus, second)
+-    setContinueWatching(storeContinueWatching({ player: focus, currentTime: second, duration, updatedAt: Date.now() }))
+     const body = JSON.stringify({
+       action: "progress", mediaType: focus.media.mediaType, mediaId: String(focus.media.id), title: focus.media.title,
+       poster: focus.media.posterPath, backdrop: focus.media.backdropPath, season: focus.season, episode: focus.episode,
+@@ -879,14 +624,6 @@
+       if (!Number.isFinite(currentTime) || currentTime < 0) return
+       const eventName = String(data.event ?? "")
+       const identity = playerIdentity(eventPlayer)
+-      const pendingResume = resumeTargetRef.current.get(identity)
+-      const resumeTarget = pendingResume?.seconds || 0
+-      // Any valid player event proves the iframe is alive. Mark it ready before
+-      // resume validation so Continue Watching never leaves an interactive
+-      // player trapped behind a fake "loading" state. More importantly, once
+-      // the player is alive we do not auto-remount it: repeated remounts were
+-      // interrupting play/pause and causing the live black-screen loop.
+-      setPlayerReady(true)
+       const playingNow = eventName === "play" || eventName === "timeupdate"
+         ? true
+         : eventName === "pause" || eventName === "ended"
+@@ -896,23 +633,6 @@
+       setPlayerPlaying(playingNow)
+       setCurrentPlayerTime(currentTime)
+       currentPlayerTimeRef.current = currentTime
+-      if (pendingResume) {
+-        pendingResume.sawEvent = true
+-        resumeTargetRef.current.set(identity, pendingResume)
+-      }
+-
+-      // A Continue Watching launch is never allowed to erase its own saved
+-      // point. Vidking documents progress=<seconds>, but if the provider starts
+-      // below that point we keep the frame usable and protect the saved value
+-      // instead of repeatedly destroying/recreating the iframe.
+-      if (pendingResume && resumeTarget >= 3 && currentTime + RESUME_TARGET_TOLERANCE_SECONDS < resumeTarget) {
+-        setResumeUi((current) => current?.identity === identity && current.status === "failed" ? current : { identity, seconds: resumeTarget, status: "restoring" })
+-        return
+-      }
+-      if (pendingResume && resumeTarget >= 3 && currentTime >= Math.max(3, resumeTarget - RESUME_TARGET_TOLERANCE_SECONDS)) {
+-        resumeTargetRef.current.delete(identity)
+-        setResumeUi((current) => current?.identity === identity ? null : current)
+-      }
+       if (activeParty?.id && activeParty.hostId === mediaFeatures?.meId) {
+         partySocketRef.current?.emit("watch-party-state", { partyId: activeParty.id, currentTime, playing: playingNow, season: eventPlayer.season, episode: eventPlayer.episode })
+       }
+@@ -922,21 +642,17 @@
+         if (!genuinelyCompleted) {
+           // Provider ad/pop-under navigation can tear down a nested playback frame
+           // and surface an early `ended` event. That is an interruption, not the
+-          // end of the movie/episode. Preserve it in Continue Watching instead of
+-          // falsely marking it complete and deleting the resume card.
++          // end of the movie/episode. Preserve ordinary playback progress instead of
++          // falsely marking the title complete.
+           if (currentTime >= 3) {
+             writeProgress(eventPlayer, currentTime)
+-            setContinueWatching(storeContinueWatching({ player: eventPlayer, currentTime: Math.floor(currentTime), duration: Math.floor(credibleDuration || 0), updatedAt: Date.now() }))
+             void featureApi.media.action("progress", { mediaType: eventPlayer.media.mediaType, mediaId: String(eventPlayer.media.id), title: eventPlayer.media.title, poster: eventPlayer.media.posterPath, backdrop: eventPlayer.media.backdropPath, season: eventPlayer.season, episode: eventPlayer.episode, episodeName: eventPlayer.episodeName, currentTime: Math.floor(currentTime), duration: credibleDuration, activePlayback: false }).catch(() => {})
+           }
+           return
+         }
+         void featureApi.media.action("progress", { mediaType: eventPlayer.media.mediaType, mediaId: String(eventPlayer.media.id), title: eventPlayer.media.title, poster: eventPlayer.media.posterPath, backdrop: eventPlayer.media.backdropPath, season: eventPlayer.season, episode: eventPlayer.episode, episodeName: eventPlayer.episodeName, currentTime, duration: credibleDuration, completed: true }).catch(() => {})
+         clearProgress(eventPlayer)
+-        setContinueWatching(removeContinueWatching(eventPlayer))
+-        lastContinueSecondRef.current.delete(identity)
+         lastServerProgressRef.current.delete(identity)
+-        resumeTargetRef.current.delete(identity)
+         if (eventPlayer.media.mediaType === "tv" && mediaFeatures?.preference?.episodeAutoplay) {
+           // Vidking has nextEpisode enabled and may advance inside this exact
+           // iframe. Give the provider first chance; only remount as a fallback
+@@ -972,15 +688,6 @@
+         lastServerProgressRef.current.set(identity, second)
+         void featureApi.media.action("progress", { mediaType: eventPlayer.media.mediaType, mediaId: String(eventPlayer.media.id), title: eventPlayer.media.title, poster: eventPlayer.media.posterPath, backdrop: eventPlayer.media.backdropPath, season: eventPlayer.season, episode: eventPlayer.episode, episodeName: eventPlayer.episodeName, currentTime: second, duration: Number.isFinite(duration) && duration > 0 ? duration : 0, activePlayback: playingNow }).catch(() => {})
+       }
+-      const last = lastContinueSecondRef.current.get(identity) ?? -10
+-      if (data.event === "timeupdate" && second - last < 5) return
+-      lastContinueSecondRef.current.set(identity, second)
+-      setContinueWatching(storeContinueWatching({
+-        player: eventPlayer,
+-        currentTime: second,
+-        duration: Number.isFinite(duration) && duration > 0 ? Math.floor(duration) : 0,
+-        updatedAt: Date.now(),
+-      }))
+     }
+     window.addEventListener("message", handleMessage)
+     return () => window.removeEventListener("message", handleMessage)
+@@ -997,9 +704,6 @@
+   const prepareFreshPlayer = useCallback(() => {
+     playerPlayingRef.current = false
+     setPlayerPlaying(false)
+-    setPlayerFrameLoaded(false)
+-    setPlayerReady(false)
+-    setResumeUi(null)
+   }, [])
+ 
+   const startMovie = async (item: SynnFlixMediaItem) => {
+@@ -1036,34 +740,6 @@
+     if (replayingCompleted) void refreshMediaFeatures(null, null)
+   }
+ 
+-  const resumeContinueWatching = useCallback((entry: ContinueWatchingEntry) => {
+-    const identity = playerIdentity(entry.player)
+-    const cachedEntry = readContinueWatching().find((row) => playerIdentity(row.player) === identity)
+-    const storedProgress = readProgress(entry.player)
+-    const resumeAt = Math.max(3, Math.floor(entry.currentTime || 0), Math.floor(cachedEntry?.currentTime || 0), storedProgress)
+-    prepareFreshPlayer()
+-    setPartyHeld(false)
+-    setActiveParty(null)
+-    setCurrentPlayerTime(resumeAt)
+-    currentPlayerTimeRef.current = resumeAt
+-    if (resumeAt > storedProgress) writeProgress(entry.player, resumeAt)
+-    resumeTargetRef.current.set(identity, { seconds: resumeAt, attempts: 0, lastRetryAt: 0, startedAt: Date.now(), sawEvent: false })
+-    setResumeUi({ identity, seconds: resumeAt, status: "restoring" })
+-    setSyncedProgress(resumeAt)
+-    setPlayerRevision((value) => value + 1)
+-    setPlayer(entry.player)
+-  }, [prepareFreshPlayer])
+-
+-  useEffect(() => {
+-    const resume = (event: Event) => {
+-      const entry = (event as CustomEvent<ContinueWatchingEntry>).detail
+-      if (!entry || !entry.player || !validStoredMedia(entry.player.media)) return
+-      resumeContinueWatching(entry)
+-    }
+-    window.addEventListener("synnical-synnflix-resume", resume)
+-    return () => window.removeEventListener("synnical-synnflix-resume", resume)
+-  }, [resumeContinueWatching])
+-
+   const activePlaybackPlayer = trackedPlayer || player
+ 
+   const toggleMediaList = useCallback(async (item: SynnFlixMediaItem, kind: "watchlist" | "favorite", listId?: string) => {
+@@ -1145,43 +821,6 @@
+     [player, syncedProgress],
+   )
+ 
+-  // Retry only a frame that has not even finished loading. Once the iframe load
+-  // event or any PLAYER_EVENT proves the provider is alive, never auto-remount
+-  // it: destroying a live frame interrupts its Play/Pause controls and was the
+-  // root of the Continue Watching black-screen loop. If the loaded provider
+-  // ignores the saved position, keep it interactive and preserve the saved
+-  // point silently. Resume diagnostics stay internal instead of covering video.
+-  useEffect(() => {
+-    if (!player || !resumeUi || resumeUi.status === "failed") return
+-    const identity = playerIdentity(player)
+-    if (identity !== resumeUi.identity) return
+-    const timer = window.setTimeout(() => {
+-      const pending = resumeTargetRef.current.get(identity)
+-      if (!pending) return
+-      if (pending.sawEvent || playerFrameLoaded) {
+-        const observed = currentPlayerTimeRef.current
+-        if (observed + RESUME_TARGET_TOLERANCE_SECONDS < pending.seconds) {
+-          setResumeUi({ identity, seconds: pending.seconds, status: "failed" })
+-        }
+-        return
+-      }
+-      if (pending.attempts >= RESUME_AUTO_RETRY_LIMIT) {
+-        setResumeUi({ identity, seconds: pending.seconds, status: "failed" })
+-        return
+-      }
+-      pending.attempts += 1
+-      pending.lastRetryAt = Date.now()
+-      pending.sawEvent = false
+-      resumeTargetRef.current.set(identity, pending)
+-      setResumeUi({ identity, seconds: pending.seconds, status: "retrying" })
+-      setPlayerFrameLoaded(false)
+-      setPlayerReady(false)
+-      setSyncedProgress(pending.seconds)
+-      setPlayerRevision((value) => value + 1)
+-    }, RESUME_RETRY_DELAY_MS)
+-    return () => window.clearTimeout(timer)
+-  }, [player, playerFrameLoaded, playerRevision, resumeUi])
+-
+   useEffect(() => {
+     if (!activeParty?.id) return
+     const socket = io(window.location.origin, { path: "/socket.io", transports: ["websocket", "polling"], withCredentials: true })
+@@ -1232,12 +871,8 @@
+   const restartCurrentPlayer = async () => {
+     if (!activePlaybackPlayer) return
+     const identity = playerIdentity(activePlaybackPlayer)
+-    resumeTargetRef.current.delete(identity)
+-    setResumeUi(null)
+     clearProgress(activePlaybackPlayer)
+     lastServerProgressRef.current.delete(identity)
+-    lastContinueSecondRef.current.delete(identity)
+-    setContinueWatching(removeContinueWatching(activePlaybackPlayer))
+     await featureApi.media.action("reset-progress", {
+       mediaType: activePlaybackPlayer.media.mediaType,
+       mediaId: String(activePlaybackPlayer.media.id),
+@@ -1246,8 +881,6 @@
+     }).catch(() => {})
+     currentPlayerTimeRef.current = 1
+     setCurrentPlayerTime(1)
+-    setPlayerFrameLoaded(false)
+-    setPlayerReady(false)
+     setSyncedProgress(1)
+     setPlayerRevision((value) => value + 1)
+     // If Vidking auto-advanced inside the iframe, restart the exact episode the
+@@ -1268,7 +901,7 @@
+     return (
+       <section ref={fullscreenShellRef} className="flex h-full min-h-0 flex-col overflow-hidden bg-black text-white">
+         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-white/10 bg-black px-3 sm:px-4">
+-          <button type="button" onClick={() => { flushPlaybackProgress("close"); leavePlayerFullscreen(); if (player) resumeTargetRef.current.delete(playerIdentity(player)); setResumeUi(null); setPlayer(null) }} className="rounded-lg p-2 text-white/60 hover:bg-white/8 hover:text-white" aria-label="Back to SynnFlix">
++          <button type="button" onClick={() => { flushPlaybackProgress("close"); leavePlayerFullscreen(); setPlayer(null) }} className="rounded-lg p-2 text-white/60 hover:bg-white/8 hover:text-white" aria-label="Back to SynnFlix">
+             <ArrowLeft className="h-4 w-4" />
+           </button>
+           <Clapperboard className="h-4 w-4" />
+@@ -1288,7 +921,6 @@
+             src={playerUrl}
+             title={`${displayPlayer.media.title} — SynnFlix`}
+             playerFrameRef={playerFrameRef}
+-            onLoad={handlePlayerFrameLoad}
+           />
+         </div>
+         {activeParty && activeParty.hostId !== mediaFeatures?.meId ? <div className="flex items-center gap-2 border-t border-white/10 bg-[#080808] px-3 py-2 text-[11px] text-white/55"><span>{partyHeld ? "Host is paused" : "Party is playing"}</span>{activeParty.needsSync ? <button type="button" className="rounded border border-white/15 px-2 py-1 text-white/80" onClick={() => { setSyncedProgress(Math.max(0, Number(activeParty.currentTime) || 0)); setPlayerRevision((value) => value + 1); setActiveParty((previous: any) => previous ? { ...previous, needsSync: false } : previous) }}>Sync to host</button> : null}</div> : null}
+@@ -1297,12 +929,7 @@
+           {activeParty ? <button type="button" className="rounded border border-white/15 px-3 py-1.5 text-xs" onClick={async () => { await featureApi.media.action("leave-party", { partyId: activeParty.id }); setActiveParty(null); setPartyHeld(false); setPartyConnected(0) }}>Leave party</button> : null}
+           <button type="button" className="rounded border border-white/15 px-3 py-1.5 text-xs" onClick={() => void restartCurrentPlayer()}><RotateCcw className="mr-1 inline h-3 w-3" />Restart from beginning</button>
+           <button type="button" className="rounded border border-white/15 px-3 py-1.5 text-xs" onClick={() => {
+-            const identity = playerIdentity(displayPlayer)
+-            const pending = resumeTargetRef.current.get(identity)
+-            const progress = pending?.seconds ?? Math.max(0, currentPlayerTimeRef.current)
+-            if (pending) setResumeUi({ identity, seconds: pending.seconds, status: "restoring" })
+-            setPlayerFrameLoaded(false)
+-            setPlayerReady(false)
++            const progress = Math.max(0, currentPlayerTimeRef.current)
+             setSyncedProgress(progress)
+             if (playerIdentity(displayPlayer) !== playerIdentity(player)) setPlayer(displayPlayer)
+             else setPlayerRevision((value) => value + 1)
+@@ -1406,7 +1033,6 @@
+                 </section>
+               ) : null}
+               <div className="mx-auto max-w-7xl px-4 py-7 sm:px-5">
+-                <ContinueWatchingRail items={continueWatching} onResume={resumeContinueWatching} />
+                 {mediaFeatures?.lists?.map((list: any) => <Rail key={list.id} title={list.name} icon={list.kind === "favorite" ? <Heart className="h-4 w-4" /> : list.kind === "watchlist" ? <Bookmark className="h-4 w-4" /> : <ListPlus className="h-4 w-4" />} items={storedMediaItems(list)} onSelect={openMedia} />)}
+                 <Rail title="Trending now" icon={<Clapperboard className="h-4 w-4" />} items={home.trending} onSelect={openMedia} />
+                 <Rail title="Popular movies" icon={<Film className="h-4 w-4" />} items={home.popularMovies} onSelect={openMedia} />
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/user-profile-modal.tsx /mnt/data/synnical-batch1-work/synnical/src/components/user-profile-modal.tsx
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/components/user-profile-modal.tsx	2026-08-20 17:43:18.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/components/user-profile-modal.tsx	2026-08-20 18:30:00.869266780 +0000
+@@ -166,7 +166,7 @@
+   const showOnline = readSetting("profile.showOnline", true)
+   const showActivity = readSetting("profile.showActivity", true)
+   const showLastSeen = readSetting("profile.showLastSeen", false)
+-  const showFriends = readSetting("profile.showFriends", true)
++  const showStats = readSetting("profile.showStats", true)
+   const showConnections = readSetting("profile.showConnections", true)
+   const profileBg = readSetting("profile.background", "")
+ 
+@@ -254,7 +254,7 @@
+                 </div>
+               )}
+               <div className="mt-4 flex flex-wrap gap-3 border-t pt-3 text-xs" style={{ borderColor: themeBorder, color: themeMuted }}>
+-                {showFriends && <span className="inline-flex items-center gap-1.5"><MessageSquare className="h-3.5 w-3.5" />{data.stats.messageCount.toLocaleString()} messages</span>}
++                {showStats && data.privacy?.stats !== false && <span className="inline-flex items-center gap-1.5"><MessageSquare className="h-3.5 w-3.5" />{data.stats.messageCount.toLocaleString()} messages</span>}
+                 {showLastSeen && presenceKnown && <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />{isOnline ? "Active now" : "Currently offline"}</span>}
+                 {joined && <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />Joined {joined}</span>}
+               </div>
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/lib/os-settings.ts /mnt/data/synnical-batch1-work/synnical/src/lib/os-settings.ts
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/src/lib/os-settings.ts	2026-08-20 17:43:22.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/src/lib/os-settings.ts	2026-08-20 18:39:27.529342859 +0000
+@@ -83,12 +83,10 @@
+   additionalTimeZones: [] as string[],
+   widgetDefaultsVersion: 1,
+   desktopClockWidget: false,
+-  desktopContinueWatchingWidget: false,
+   desktopWeatherWidget: false,
+   desktopCalendarWidget: false,
+   desktopRecentGamesWidget: false,
+   desktopFriendsWidget: false,
+-    // [REMOVED-RULE22] Continue Watching removed
+   desktopCreditsWidget: false,
+   desktopPinnedChatWidget: false,
+   widgetLayouts: {} as Record<string, Record<string, { x: number; y: number; width: number; height: number }>>,
+@@ -256,12 +254,10 @@
+     })(),
+     widgetDefaultsVersion: 1,
+     desktopClockWidget: widgetBool("desktopClockWidget"),
+-    desktopContinueWatchingWidget: widgetBool("desktopContinueWatchingWidget"),
+     desktopWeatherWidget: widgetBool("desktopWeatherWidget"),
+     desktopCalendarWidget: widgetBool("desktopCalendarWidget"),
+     desktopRecentGamesWidget: widgetBool("desktopRecentGamesWidget"),
+     desktopFriendsWidget: widgetBool("desktopFriendsWidget"),
+-    // [REMOVED-RULE22] Continue Watching removed
+     desktopCreditsWidget: widgetBool("desktopCreditsWidget"),
+     desktopPinnedChatWidget: widgetBool("desktopPinnedChatWidget"),
+     widgetLayouts: (() => {
+@@ -271,7 +267,7 @@
+         if (!/^\d{1,4}$/.test(workspaceId) || !raw || typeof raw !== "object") continue
+         const layout: Record<string, { x: number; y: number; width: number; height: number }> = {}
+         for (const [widgetId, item] of Object.entries(raw as Record<string, unknown>).slice(0, 20)) {
+-          if (!/^[a-z0-9-]{1,40}$/i.test(widgetId) || !item || typeof item !== "object") continue
++          if (widgetId === "continue-watching" || !/^[a-z0-9-]{1,40}$/i.test(widgetId) || !item || typeof item !== "object") continue
+           const row = item as Record<string, unknown>
+           const x = Number(row.x), y = Number(row.y), width = Number(row.width), height = Number(row.height)
+           if (![x,y,width,height].every(Number.isFinite)) continue
+@@ -330,6 +326,24 @@
+     const settings = sanitizeOsSettings(parsed)
+     if (!current) {
+       try { localStorage.setItem(KEY, JSON.stringify(settings)) } catch {}
++    } else if (parsed && typeof parsed === "object") {
++      const raw = { ...(parsed as Record<string, unknown>) }
++      let changed = Object.prototype.hasOwnProperty.call(raw, "desktopContinueWatchingWidget")
++      delete raw.desktopContinueWatchingWidget
++      if (raw.widgetLayouts && typeof raw.widgetLayouts === "object") {
++        const layouts = { ...(raw.widgetLayouts as Record<string, unknown>) }
++        for (const [workspaceId, workspace] of Object.entries(layouts)) {
++          if (!workspace || typeof workspace !== "object" || !Object.prototype.hasOwnProperty.call(workspace, "continue-watching")) continue
++          const nextWorkspace = { ...(workspace as Record<string, unknown>) }
++          delete nextWorkspace["continue-watching"]
++          layouts[workspaceId] = nextWorkspace
++          changed = true
++        }
++        raw.widgetLayouts = layouts
++      }
++      if (changed) {
++        try { localStorage.setItem(KEY, JSON.stringify(raw)) } catch {}
++      }
+     }
+     return settings
+   } catch { return OS_DEFAULTS }
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/tests/regressions-20260817.test.mjs /mnt/data/synnical-batch1-work/synnical/tests/regressions-20260817.test.mjs
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/tests/regressions-20260817.test.mjs	2026-08-19 13:23:31.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/tests/regressions-20260817.test.mjs	2026-08-20 18:35:17.459087748 +0000
+@@ -726,40 +726,6 @@
+   assert.match(desktop, /Recycle Bin/)
+ })
+ 
+-test("r11 SynnFlix Continue Watching resumes the exact saved timestamp without startup-zero clobber", () => {
+-  const schema = read("prisma/schema.prisma")
+-  const media = read("src/app/api/features/media/route.ts")
+-  const ui = read("src/components/synnflix-panel.tsx")
+-  assert.match(schema, /model MediaProgress[\s\S]*poster\s+String\?[\s\S]*backdrop\s+String\?[\s\S]*episodeName\s+String\?/)
+-  assert.match(media, /poster = clean\(body\.poster/)
+-  assert.match(media, /episodeName = clean\(body\.episodeName/)
+-  assert.match(media, /hasPlaybackUpdate = Object\.prototype\.hasOwnProperty\.call\(body, "currentTime"\)/)
+-  assert.match(media, /const replayingCompleted = Boolean\([\s\S]*existing\?\.completed[\s\S]*activePlayback[\s\S]*currentTime < credibleDuration \* 0\.80[\s\S]*\)/)
+-  assert.match(media, /currentTime: replayingCompleted \? currentTime : Math\.max\(existing\?\.currentTime \|\| 0, currentTime\)/)
+-  assert.match(media, /duration: credibleDuration/)
+-  assert.match(media, /completed: replayingCompleted \? false : Boolean\(existing\?\.completed \|\| completed\)/)
+-  assert.match(ui, /ratingPrediction \}\)/)
+-  assert.doesNotMatch(ui, /episodeNumber \|\| 0, currentTime: 0, duration: 0, ratingPrediction/)
+-  assert.match(ui, /params\.set\("progress", String\(progress\)\)/)
+-  assert.match(ui, /continueEntryFromServer/)
+-  assert.match(ui, /mergeContinueWatching/)
+-  assert.match(ui, /resumeTargetRef/)
+-  assert.match(ui, /setSyncedProgress\(resumeAt\)/)
+-  assert.match(ui, /completedKeys/)
+-  assert.match(ui, /if \(completedKeys\.has\(key\)\) continue/)
+-  assert.match(ui, /RESUME_AUTO_RETRY_LIMIT = 1/)
+-  assert.match(ui, /RESUME_RETRY_DELAY_MS = 12_000/)
+-  assert.match(ui, /Continue Watching black-screen loop/)
+-  assert.match(ui, /currentTime \+ RESUME_TARGET_TOLERANCE_SECONDS < resumeTarget/)
+-  assert.match(ui, /status: "failed"/)
+-  assert.doesNotMatch(ui, /Retry \{formatPlayerTime\(resumeUi\.seconds\)\}/)
+-  assert.doesNotMatch(ui, /expiresAt: Date\.now\(\) \+ 20_000/)
+-  assert.match(ui, /if \(currentTime < 3\) return\s*\n\s*writeProgress\(eventPlayer, currentTime\)/)
+-  assert.match(ui, /<ContinueWatchingRail items=\{displayedContinueWatching\} onResume=\{resumeContinueWatching\}/)
+-  // SERVER_AUTHORITATIVE_CONTINUE_WATCHING_CONTRACT
+-  assert.match(ui, /const displayedContinueWatching = useMemo/)
+-  assert.match(ui, /mergeContinueWatching\(/)
+-})
+ 
+ test("r11 Synnical OS uses real panel windows with persistent layout, snapping, workspaces and taskbar", () => {
+   const desktop = read("src/components/desktop-shell.tsx")
+@@ -807,14 +773,6 @@
+   assert.match(automation, /synnical-os-notify/)
+ })
+ 
+-test("r11.1 fixes the nullable SynnFlix resume identity boundary that failed VPS TypeScript", () => {
+-  const ui = read("src/components/synnflix-panel.tsx")
+-  assert.match(ui, /if \(mediaType === "tv"\) \{\s*if \(season === null \|\| episode === null/)
+-  assert.match(ui, /!Number\.isSafeInteger\(season\)/)
+-  assert.match(ui, /!Number\.isSafeInteger\(episode\)/)
+-  assert.match(ui, /season \?\? 0/)
+-  assert.match(ui, /episode \?\? 0/)
+-})
+ 
+ test("r11.1 makes Synnical OS the real default and syncs OS preferences to the account", () => {
+   const shell = read("src/components/app-shell.tsx")
+@@ -1051,32 +1009,6 @@
+   assert.doesNotMatch(tags, /canManage|permission|role\s*=/i)
+ })
+ 
+-test("r11.4 Continue Watching never auto-remounts a loaded or interactive player", () => {
+-  const synnflix = read("src/components/synnflix-panel.tsx")
+-  assert.match(synnflix, /RESUME_AUTO_RETRY_LIMIT = 1/)
+-  assert.match(synnflix, /pending\.sawEvent \|\| playerFrameLoaded/)
+-  assert.match(synnflix, /setPlayerReady\(true\)/)
+-  assert.match(synnflix, /root of the Continue Watching black-screen loop/)
+-  assert.match(synnflix, /SYNNICAL_RESUME_NO_AUTOMATIC_REMOUNT_V2/)
+-  // NO_AUTOMATIC_PROVIDER_REMOUNT_CONTRACT
+-  assert.doesNotMatch(
+-    synnflix,
+-    /setResumeUi\(\{ identity, seconds: pending\.seconds, status: "retrying" \}\)[\s\S]{0,600}setPlayerRevision\(\(value\) => value \+ 1\)/,
+-  )
+-  assert.match(
+-    synnflix,
+-    /\}, \[player, playerFrameLoaded, resumeUi\]\)/,
+-  )
+-  // NO_AUTOMATIC_PROVIDER_REMOUNT_DEPENDENCY_CONTRACT
+-  assert.match(
+-    synnflix,
+-    /\[player, playerFrameLoaded, resumeUi\]/,
+-  )
+-  assert.doesNotMatch(
+-    synnflix,
+-    /\[player, playerFrameLoaded, playerRevision, resumeUi\]/,
+-  )
+-})
+ 
+ test("r11.4 uses wallpaper 2 by default and exposes all four original wallpapers", () => {
+   const os = read("src/lib/os-settings.ts")
+@@ -1123,19 +1055,6 @@
+ })
+ 
+ 
+-test("r11.5 Continue Watching repairs stale lower progress and stays silent on screen", () => {
+-  const synnflix = read("src/components/synnflix-panel.tsx")
+-  assert.match(synnflix, /keep the furthest credible saved point/)
+-  assert.match(synnflix, /Math\.floor\(local\?\.currentTime \|\| 0\)/)
+-  assert.match(synnflix, /Math\.floor\(server\?\.currentTime \|\| 0\)/)
+-  assert.match(synnflix, /Math\.floor\(localProgress \|\| 0\)/)
+-  assert.match(synnflix, /persistContinueWatching\(merged\)/)
+-  assert.match(synnflix, /entry\.currentTime > serverTime \+ RESUME_TARGET_TOLERANCE_SECONDS/)
+-  assert.match(synnflix, /const resumeAt = Math\.max\(3, Math\.floor\(entry\.currentTime \|\| 0\), Math\.floor\(cachedEntry\?\.currentTime \|\| 0\), storedProgress\)/)
+-  assert.match(synnflix, /if \(resumeAt > storedProgress\) writeProgress\(entry\.player, resumeAt\)/)
+-  assert.match(synnflix, /iframe\.src = providerUrl\.toString\(\)[\s\S]*host\.replaceChildren\(iframe\)/)
+-  assert.doesNotMatch(synnflix, /Restoring saved position|Retrying saved position|Saved position .* was not restored|Keep playing here|Retry \{formatPlayerTime/)
+-})
+ 
+ test("r11.6 desktop icons are light without losing contrast on bright wallpapers", () => {
+   const desktop = read("src/components/desktop-shell.tsx")
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/tests/regressions-20260818-r12-final.test.mjs /mnt/data/synnical-batch1-work/synnical/tests/regressions-20260818-r12-final.test.mjs
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/tests/regressions-20260818-r12-final.test.mjs	2026-08-18 18:23:32.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/tests/regressions-20260818-r12-final.test.mjs	2026-08-20 18:33:38.267163514 +0000
+@@ -84,15 +84,17 @@
+   assert.doesNotMatch(chat, /value=\{draft\}\s+onChange=\{\(e\)\s*=>\s*setDraft/)
+ })
+ 
+-test('r12 final: SynnFlix follows provider-reported episode identity and keeps progress monotonic', () => {
++test('r12 final: SynnFlix follows provider-reported episode identity and preserves durable progress without Continue Watching', () => {
+   const flix = read('src/components/synnflix-panel.tsx')
++  const media = read('src/app/api/features/media/route.ts')
+   assert.match(flix, /trackedPlayerRef/)
+   assert.match(flix, /const eventSeason = Number\(data\.season\)/)
+   assert.match(flix, /const eventEpisode = Number\(data\.episode\)/)
+   assert.match(flix, /eventPlayer = \{/)
+-  assert.match(flix, /Math\.max\(previous\.currentTime, entry\.currentTime\)/)
+-  assert.match(flix, /synnical-continue-watching-changed/)
+-  assert.match(flix, /synnical-synnflix-resume/)
++  assert.match(flix, /writeProgress\(eventPlayer, currentTime\)/)
++  assert.match(flix, /featureApi\.media\.action\("progress"/)
++  assert.match(media, /Math\.max\(existing\?\.currentTime \|\| 0, currentTime\)/)
++  assert.doesNotMatch(flix, /synnical-continue-watching-changed|synnical-synnflix-resume|ContinueWatchingRail|storeContinueWatching/)
+ })
+ 
+ test('r12 final: workspaces and desktop layouts are dynamic persisted models', async () => {
+@@ -119,7 +121,7 @@
+   const games = read('src/components/games-panel.tsx')
+   assert.match(settings, /widgetLayouts/)
+   assert.match(shell, /DesktopWidgetCard/)
+-  assert.match(shell, /desktopContinueWatchingWidget/)
++  assert.doesNotMatch(shell, /desktopContinueWatchingWidget/)
+   assert.match(shell, /desktopCreditsWidget/)
+   assert.match(chat, /synnical-chat-online-users/)
+   assert.match(games, /synnical-recent-games-changed/)
+@@ -479,7 +481,7 @@
+ test('r12 hotfix2: desktop widgets are opt-in and old default-on widget state is migrated off once', async () => {
+   const settings = await importTs('src/lib/os-settings.ts')
+   const defaults = settings.OS_DEFAULTS
+-  for (const key of ['desktopClockWidget','desktopWeatherWidget','desktopCalendarWidget','desktopRecentGamesWidget','desktopFriendsWidget','desktopContinueWatchingWidget','desktopCreditsWidget','desktopPinnedChatWidget']) {
++  for (const key of ['desktopClockWidget','desktopWeatherWidget','desktopCalendarWidget','desktopRecentGamesWidget','desktopFriendsWidget','desktopCreditsWidget','desktopPinnedChatWidget']) {
+     assert.equal(defaults[key], false, `${key} must default off`)
+   }
+   const migrated = settings.sanitizeOsSettings({ desktopClockWidget: true, desktopCalendarWidget: true, desktopCreditsWidget: true })
+diff -ruN '--exclude=.next' '--exclude=node_modules' /mnt/data/synnical-batch1-work/synnical-before-batch-main/tests/regressions-20260820-main-batch.test.mjs /mnt/data/synnical-batch1-work/synnical/tests/regressions-20260820-main-batch.test.mjs
+--- /mnt/data/synnical-batch1-work/synnical-before-batch-main/tests/regressions-20260820-main-batch.test.mjs	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/synnical-batch1-work/synnical/tests/regressions-20260820-main-batch.test.mjs	2026-08-20 18:40:51.625547239 +0000
+@@ -0,0 +1,107 @@
++import test from "node:test"
++import assert from "node:assert/strict"
++import { readFileSync } from "node:fs"
++
++const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8")
++
++test("main batch: Continue Watching is discontinued while ordinary SynnFlix progress remains", () => {
++  const flix = read("src/components/synnflix-panel.tsx")
++  const desktop = read("src/components/desktop-shell.tsx")
++  const settings = read("src/lib/os-settings.ts")
++  const media = read("src/app/api/features/media/route.ts")
++  assert.doesNotMatch(flix, /ContinueWatching|Continue Watching|continueWatching|storeContinueWatching|readContinueWatching|persistContinueWatching|synnical-continue-watching-changed|synnical-synnflix-resume/)
++  assert.match(flix, /localStorage\.removeItem\("synnflix\.continue\.v1"\)/)
++  assert.doesNotMatch(desktop, /desktopContinueWatchingWidget|synnical-continue-watching|synnflix\.continue\.v1/)
++  assert.doesNotMatch(settings, /desktopContinueWatchingWidget:\s*(?:true|false)/)
++  assert.match(settings, /delete raw\.desktopContinueWatchingWidget/)
++  assert.match(settings, /delete nextWorkspace\["continue-watching"\]/)
++  assert.match(flix, /function progressKey\(/)
++  assert.match(flix, /writeProgress\(eventPlayer, currentTime\)/)
++  assert.match(flix, /featureApi\.media\.action\("progress"/)
++  assert.match(media, /Math\.max\(existing\?\.currentTime \|\| 0, currentTime\)/)
++  assert.match(flix, /const playerUrl = useMemo\(/)
++  assert.match(flix, /key=\{`\$\{playerRevision\}:\$\{playerUrl\}`\}/)
++})
++
++test("main batch: normal desktop boot is neutral but configured startup apps remain", () => {
++  const desktop = read("src/components/desktop-shell.tsx")
++  assert.doesNotMatch(desktop, /openPanel\(initialPanel\)/)
++  assert.doesNotMatch(desktop, /initialPanel\?: Panel/)
++  assert.match(desktop, /os\.startupApps/)
++  assert.match(desktop, /for \(const \w+ of os\.startupApps\)/)
++})
++
++test("main batch: newly launched windows maximize and retain a restore rectangle", () => {
++  const desktop = read("src/components/desktop-shell.tsx")
++  assert.match(desktop, /const restore = defaultRect\(/)
++  assert.match(desktop, /maximized: true, restore/)
++  assert.match(desktop, /x: 0, y: 0/)
++  assert.match(desktop, /height: Math\.max\(MIN_HEIGHT, window\.innerHeight - taskbarMetric\.height\)/)
++})
++
++test("main batch: app launch animation uses existing animation controls and reduced motion", () => {
++  const desktop = read("src/components/desktop-shell.tsx")
++  const css = read("src/app/globals.css")
++  assert.match(desktop, /synnical-window-open/)
++  assert.match(css, /@keyframes synnical-window-open/)
++  assert.match(css, /--synnical-os-animation-scale/)
++  assert.match(css, /prefers-reduced-motion: reduce/)
++  assert.match(css, /synnical-os-no-animations/)
++})
++
++test("main batch: profile statistics are independent from friends visibility and use real Message rows", () => {
++  const settings = read("src/components/settings-extra-sections.tsx")
++  const modal = read("src/components/user-profile-modal.tsx")
++  const profileApi = read("src/app/api/profile/[id]/route.ts")
++  assert.match(settings, /useLocalSetting<boolean>\("profile\.showStats", true\)/)
++  assert.doesNotMatch(settings, /showStats[\s\S]{0,120}profile\.showFriends/)
++  assert.match(modal, /readSetting\("profile\.showStats", true\)/)
++  assert.match(modal, /showStats && data\.privacy\?\.stats !== false/)
++  assert.match(profileApi, /db\.message\.count\(\{ where: \{ userId: target\.id, deleted: false \} \}\)/)
++})
++
++test("main batch: profile dialog keeps standard backdrop and Escape dismissal", () => {
++  const modal = read("src/components/user-profile-modal.tsx")
++  const dialog = read("src/components/ui/dialog.tsx")
++  assert.match(modal, /<Dialog open=\{!!userId\} onOpenChange=/)
++  assert.match(dialog, /<DialogPrimitive\.Overlay/)
++  assert.doesNotMatch(modal, /onPointerDownOutside=.*preventDefault|onEscapeKeyDown=.*preventDefault/)
++})
++
++test("main batch: staff badges are compact", () => {
++  const roles = read("src/components/role-ui.tsx")
++  assert.match(roles, /text-\[8px\]/)
++  assert.match(roles, /px-1 py-px/)
++  assert.match(roles, /leading-3/)
++})
++
++test("main batch: global async failures no longer crash the entire OS shell", () => {
++  const errors = read("src/components/error-boundary.tsx")
++  const shell = read("src/components/app-shell.tsx")
++  assert.match(errors, /window\.addEventListener\("unhandledrejection", onUnhandledRejection\)/)
++  assert.match(errors, /window\.dispatchEvent\(new CustomEvent\("synnical-client-error"/)
++  const globalHandler = errors.slice(errors.indexOf("export function useGlobalErrorHandler"))
++  assert.doesNotMatch(globalHandler, /catchError\(/)
++  assert.doesNotMatch(globalHandler, /throw\s+error|throw\s+err/)
++  assert.match(shell, /<ErrorBoundary name="Synnical Settings"><SynnicalSettingsApp \/><\/ErrorBoundary>/)
++})
++
++test("main batch: Games rejects raw non-JSON responses and preserves game-focus chrome isolation", () => {
++  const games = read("src/components/games-panel.tsx")
++  const shell = read("src/components/app-shell.tsx")
++  assert.match(games, /res\.headers\.get\("content-type"\)/)
++  assert.match(games, /Cloud gaming returned an invalid service response/)
++  assert.doesNotMatch(games, /text\.slice\(0,\s*240\)/)
++  assert.match(games, /responseJson<unknown>\(response, "GAME_CATALOG"\)/)
++  assert.match(shell, /const gameFocusVisible = gameFocus && \(panel === "games" \|\| panel === "geforce-now"\)/)
++})
++
++test("main batch: connection data remains server/account scoped", () => {
++  const connections = read("src/lib/connections.ts")
++  const route = read("src/app/api/profile/connections/route.ts")
++  const modal = read("src/components/user-profile-modal.tsx")
++  assert.match(connections, /fetch\("\/api\/profile\/connections"/)
++  assert.match(route, /where: \{ id: me\.id \}/)
++  assert.doesNotMatch(modal, /loadConnections\(/)
++  assert.match(modal, /const connections = data\?\.connections \|\| \[\]/)
++})

@@ -1,0 +1,46 @@
+Synnical runtime bug batch validation — 2026-08-18
+
+LOCAL / ARTIFACT VALIDATION
+
+PASS — dependency-free regression suite
+Command scope:
+  tests/regressions-20260817.test.mjs
+  tests/regressions-20260818-r11-6.test.mjs
+  tests/regressions-20260818-batch1.test.mjs
+  tests/regressions-20260818-r12-final.test.mjs
+  tests/regressions-20260818-runtime-batch.test.mjs
+Result: 139 tests, 139 pass, 0 fail.
+
+PASS — consolidated 100-feature/source checks
+Result: 104 tests, 104 pass, 0 fail.
+
+PASS — consolidated runtime checks using a temporary TypeScript loader
+Result: 8 tests, 8 pass, 0 fail.
+
+PASS — TypeScript/TSX parser sweep using TypeScript 5.8.3
+Scope: all .ts/.tsx under src and tests
+Result: 284 files, 0 syntax errors.
+
+PASS — Prisma schema unchanged from the installed Hotfix 2 source baseline
+Schema SHA-256: ddae470a5807b511b8f3c69c9c6f4bfb2329ae40eab1165455433cd6e0c713e4
+No Prisma migration or db push is required by this batch.
+
+RUNTIME BATCH COVERAGE
+- Inline poll lookup no longer requires channelId before poll-message resolution.
+- SynnFlix progress flushes on blur, visibility loss, pagehide, and explicit player close.
+- SynnFlix ignores false early provider `ended` events as completion and preserves interrupted progress.
+- Stale completed media rows can reopen only from authenticated active playback well before the real end.
+- Chat typing avoids redundant composer metadata state writes.
+- Chat sends optimistically and reconciles using a client nonce echoed by Socket.IO.
+- /mute, /warn, /ban, /unban are staff-only guided Chat commands backed by existing moderation APIs, hierarchy, infractions, identity-ban handling, and audit logs.
+- Rich Presence supports Synnical Games, SynnFlix, and Synnical Music, obeys activity privacy, and is source/socket aware.
+
+NOT RUN IN THIS ARTIFACT SANDBOX
+- npm ci (project dependencies are intentionally not bundled)
+- npx prisma generate with project-local dependencies
+- npx tsc --noEmit with generated project Prisma client
+- npm run test:release as the dependency-backed project command (includes cloud-free-flow)
+- npm run build / real Next.js Turbopack production build
+- custom server boot
+
+Those dependency-backed checks MUST be run on the VPS candidate tree before production files are replaced.

@@ -1,0 +1,17 @@
+ADDED RUNTIME-BUG-BATCH-20260818.md
+ADDED RUNTIME-BUG-BATCH-VALIDATION.txt
+MODIFIED package.json
+MODIFIED src/app/api/features/chat/route.ts
+MODIFIED src/app/api/features/media/route.ts
+MODIFIED src/app/api/moderation/unban/route.ts
+MODIFIED src/components/chat-panel.tsx
+MODIFIED src/components/games-panel.tsx
+MODIFIED src/components/music-panel.tsx
+MODIFIED src/components/presence-bridge.tsx
+MODIFIED src/components/synnflix-panel.tsx
+MODIFIED src/components/user-profile-modal.tsx
+MODIFIED src/lib/api.ts
+MODIFIED src/lib/chat-server.ts
+MODIFIED src/lib/presence.ts
+MODIFIED tests/regressions-20260817.test.mjs
+ADDED tests/regressions-20260818-runtime-batch.test.mjs

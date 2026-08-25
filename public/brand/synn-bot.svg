@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Synn Bot">
+  <defs>
+    <linearGradient id="body" x1="18" y1="12" x2="108" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4fdcff"/>
+      <stop offset="1" stop-color="#3768ff"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="128" height="128" rx="34" fill="#050b16"/>
+  <path d="M64 20v13" stroke="#7de8ff" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="64" cy="16" r="7" fill="#7de8ff" filter="url(#glow)"/>
+  <rect x="22" y="33" width="84" height="68" rx="24" fill="url(#body)"/>
+  <rect x="31" y="43" width="66" height="46" rx="17" fill="#071226"/>
+  <circle cx="50" cy="64" r="7" fill="#baf5ff" filter="url(#glow)"/>
+  <circle cx="78" cy="64" r="7" fill="#baf5ff" filter="url(#glow)"/>
+  <path d="M49 79c8 6 22 6 30 0" fill="none" stroke="#68dcff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M22 57H13v22h9M106 57h9v22h-9" fill="none" stroke="#4a8fff" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M45 102v10M83 102v10" stroke="#4a8fff" stroke-width="8" stroke-linecap="round"/>
+</svg>

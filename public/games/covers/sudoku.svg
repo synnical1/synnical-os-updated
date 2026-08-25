@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="200" fill="url(#bg)"/>
+  <!-- Sudoku grid 4x4 -->
+  <g transform="translate(90, 30)" stroke="#ec4899" stroke-width="2" fill="none" opacity="0.7">
+    <!-- Outer border -->
+    <rect x="0" y="0" width="140" height="140"/>
+    <!-- Internal lines -->
+    <line x1="35" y1="0" x2="35" y2="140"/>
+    <line x1="70" y1="0" x2="70" y2="140"/>
+    <line x1="105" y1="0" x2="105" y2="140"/>
+    <line x1="0" y1="35" x2="140" y2="35"/>
+    <line x1="0" y1="70" x2="140" y2="70"/>
+    <line x1="0" y1="105" x2="140" y2="105"/>
+    <!-- Box dividers (thicker) -->
+    <line x1="70" y1="0" x2="70" y2="140" stroke-width="3"/>
+    <line x1="0" y1="70" x2="140" y2="70" stroke-width="3"/>
+  </g>
+  <!-- Numbers -->
+  <g font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#ec4899" text-anchor="middle">
+    <text x="125" y="57">3</text>
+    <text x="160" y="57">1</text>
+    <text x="195" y="57">4</text>
+    <text x="230" y="57">2</text>
+    <text x="125" y="92">2</text>
+    <text x="160" y="92">4</text>
+    <text x="195" y="92">1</text>
+    <text x="230" y="92">3</text>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#888" text-anchor="middle">
+    <text x="125" y="127">1</text>
+    <text x="160" y="127">3</text>
+    <text x="195" y="127">2</text>
+    <text x="230" y="127">4</text>
+    <text x="125" y="162">4</text>
+    <text x="160" y="162">2</text>
+    <text x="195" y="162">3</text>
+    <text x="230" y="162">1</text>
+  </g>
+  <!-- Title -->
+  <text x="160" y="190" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#ec4899" text-anchor="middle" opacity="0.6">MINI SUDOKU</text>
+</svg>

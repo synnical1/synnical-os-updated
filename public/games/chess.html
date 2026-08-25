@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Mini Chess — Synnical</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --panel: #141414;
+    --panel-2: #1a1a1a;
+    --text: #e4e4e7;
+    --muted: #8b8b95;
+    --accent: #ec4899;
+    --accent-2: #be185d;
+    --w: #f9a8d4; /* pink pieces */
+    --b: #38bdf8; /* cyan pieces */
+    --light-sq: #2a2a2a;
+    --dark-sq: #181818;
+    --border: #2a2a2a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .wrap {
+    width: 100%;
+    max-width: 480px;
+    padding: 12px 14px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+
+  .captured {
+    width: 100%;
+    min-height: 28px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px 10px;
+    font-size: 22px;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .captured .label { font-size: 11px; color: var(--muted); font-weight: 700; min-width: 50px; }
+  .captured .w { color: var(--w); }
+  .captured .b { color: var(--b); }
+
+  .board-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 1 / 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+  .sq {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(22px, 7vw, 38px);
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.08s ease;
+  }
+  .sq.light { background: var(--light-sq); }
+  .sq.dark { background: var(--dark-sq); }
+  .sq .piece {
+    pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4);
+  }
+  .sq .piece.w { color: var(--w); }
+  .sq .piece.b { color: var(--b); }
+  .sq.sel { background: rgba(236,72,153,0.35) !important; box-shadow: inset 0 0 0 2px var(--accent); }
+  .sq.move::after {
+    content: "";
+    position: absolute;
+    width: 28%;
+    height: 28%;
+    border-radius: 50%;
+    background: rgba(236,72,153,0.55);
+    pointer-events: none;
+  }
+  .sq.move.cap::after {
+    width: 80%;
+    height: 80%;
+    background: transparent;
+    border: 3px solid rgba(239,68,68,0.8);
+    border-radius: 50%;
+  }
+  .sq.last { background: rgba(236,72,153,0.12) !important; }
+  .sq.check { box-shadow: inset 0 0 0 3px #ef4444; }
+  .coords {
+    position: absolute;
+    color: rgba(255,255,255,0.45);
+    font-size: 9px;
+    font-weight: 700;
+    pointer-events: none;
+  }
+  .coords.f { bottom: 1px; right: 3px; }
+  .coords.r { top: 1px; left: 3px; }
+
+  .status {
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+  .status b { color: var(--text); font-weight: 700; }
+  .status .w-name { color: var(--w); }
+  .status .b-name { color: var(--b); }
+  .status.check { border-color: #ef4444; }
+  .status.check b { color: #ef4444; }
+  .status.win { border-color: var(--accent); }
+
+  .controls {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button.btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.15s ease;
+  }
+  button.btn:hover { background: var(--accent-2); }
+  button.btn:active { transform: scale(0.96); }
+  button.btn.ghost {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  button.btn.ghost:hover { background: #232323; }
+
+  .hint { font-size: 11px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title"><span class="dot"></span> Mini Chess</div>
+    <button class="btn ghost" id="undoBtn">Undo</button>
+  </header>
+
+  <div class="captured" aria-label="Captured pieces">
+    <span class="label">Taken:</span>
+    <span class="b" id="capB"></span>
+    <span style="flex:1"></span>
+    <span class="w" id="capW"></span>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board" role="grid" aria-label="Chess board"></div>
+  </div>
+
+  <div class="status" id="status"><b class="w-name">Pink</b> to move</div>
+
+  <div class="controls">
+    <button class="btn" id="restartBtn">Restart</button>
+    <button class="btn ghost" id="flipBtn">Flip Board</button>
+  </div>
+  <div class="hint">Tap a piece to select, tap a highlighted square to move. Auto-queen promotion. No castling / en passant.</div>
+</div>
+
+<script>
+(function () {
+  const boardEl = document.getElementById("board");
+  const statusEl = document.getElementById("status");
+  const restartBtn = document.getElementById("restartBtn");
+  const flipBtn = document.getElementById("flipBtn");
+  const undoBtn = document.getElementById("undoBtn");
+  const capWEl = document.getElementById("capW");
+  const capBEl = document.getElementById("capB");
+
+  // Pieces use the filled (black) Unicode glyphs and are recolored via CSS.
+  const GLYPH = { p: "\u265F", n: "\u265E", b: "\u265D", r: "\u265C", q: "\u265B", k: "\u265A" };
+  const VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+  const FILES = ["a","b","c","d","e","f","g","h"];
+
+  let board, turn, selected, legalForSel, history, captured, lastMove, flipped;
+
+  function initialBoard() {
+    const back = ["r","n","b","q","k","b","n","r"];
+    const b = [];
+    for (let r = 0; r < 8; r++) {
+      const row = [];
+      for (let c = 0; c < 8; c++) {
+        if (r === 0) row.push({ t: back[c], c: "b" });
+        else if (r === 1) row.push({ t: "p", c: "b" });
+        else if (r === 6) row.push({ t: "p", c: "w" });
+        else if (r === 7) row.push({ t: back[c], c: "w" });
+        else row.push(null);
+      }
+      b.push(row);
+    }
+    return b;
+  }
+
+  function init() {
+    board = initialBoard();
+    turn = "w";
+    selected = null;
+    legalForSel = [];
+    history = [];
+    captured = { w: [], b: [] };
+    lastMove = null;
+    flipped = false;
+    render();
+    setStatus();
+  }
+
+  function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+
+  function pseudoMoves(b, r, c) {
+    const p = b[r][c];
+    if (!p) return [];
+    const moves = [];
+    const me = p.c;
+    const enemy = me === "w" ? "b" : "w";
+    const add = (rr, cc, type) => {
+      if (!inBounds(rr, cc)) return false;
+      const tgt = b[rr][cc];
+      if (!tgt) { moves.push({ r: rr, c: cc, cap: false, type: type || "move" }); return type !== "step"; }
+      if (tgt.c === enemy) { moves.push({ r: rr, c: cc, cap: true, type: "cap" }); }
+      return false;
+    };
+    const slide = (dr, dc) => {
+      let rr = r + dr, cc = c + dc;
+      while (inBounds(rr, cc)) {
+        const tgt = b[rr][cc];
+        if (!tgt) { moves.push({ r: rr, c: cc, cap: false, type: "move" }); }
+        else { if (tgt.c === enemy) moves.push({ r: rr, c: cc, cap: true, type: "cap" }); break; }
+        rr += dr; cc += dc;
+      }
+    };
+
+    if (p.t === "p") {
+      const dir = me === "w" ? -1 : 1;
+      const startRow = me === "w" ? 6 : 1;
+      const promoRow = me === "w" ? 0 : 7;
+      // Forward 1
+      if (inBounds(r + dir, c) && !b[r + dir][c]) {
+        const m = { r: r + dir, c, cap: false, type: "move" };
+        if (r + dir === promoRow) m.promo = true;
+        moves.push(m);
+        // Forward 2
+        if (r === startRow && !b[r + 2 * dir][c]) {
+          moves.push({ r: r + 2 * dir, c, cap: false, type: "move" });
+        }
+      }
+      // Captures
+      for (const dc of [-1, 1]) {
+        const rr = r + dir, cc = c + dc;
+        if (inBounds(rr, cc) && b[rr][cc] && b[rr][cc].c === enemy) {
+          const m = { r: rr, c: cc, cap: true, type: "cap" };
+          if (rr === promoRow) m.promo = true;
+          moves.push(m);
+        }
+      }
+    } else if (p.t === "n") {
+      const deltas = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+      for (const [dr, dc] of deltas) add(r + dr, c + dc, "step");
+    } else if (p.t === "b") {
+      slide(-1,-1); slide(-1,1); slide(1,-1); slide(1,1);
+    } else if (p.t === "r") {
+      slide(-1,0); slide(1,0); slide(0,-1); slide(0,1);
+    } else if (p.t === "q") {
+      slide(-1,-1); slide(-1,1); slide(1,-1); slide(1,1);
+      slide(-1,0); slide(1,0); slide(0,-1); slide(0,1);
+    } else if (p.t === "k") {
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        add(r + dr, c + dc, "step");
+      }
+    }
+    return moves;
+  }
+
+  function findKing(b, color) {
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const p = b[r][c];
+      if (p && p.t === "k" && p.c === color) return { r, c };
+    }
+    return null;
+  }
+
+  function isSquareAttacked(b, r, c, byColor) {
+    for (let rr = 0; rr < 8; rr++) for (let cc = 0; cc < 8; cc++) {
+      const p = b[rr][cc];
+      if (p && p.c === byColor) {
+        const ms = pseudoMoves(b, rr, cc);
+        for (const m of ms) if (m.r === r && m.c === c) return true;
+      }
+    }
+    return false;
+  }
+
+  function inCheck(b, color) {
+    const k = findKing(b, color);
+    if (!k) return false;
+    return isSquareAttacked(b, k.r, k.c, color === "w" ? "b" : "w");
+  }
+
+  function cloneBoard(b) {
+    return b.map((row) => row.map((cell) => (cell ? { t: cell.t, c: cell.c } : null)));
+  }
+
+  function applyMove(b, m) {
+    const nb = cloneBoard(b);
+    const piece = nb[m.fr][m.fc];
+    nb[m.fr][m.fc] = null;
+    if (m.promo) piece.t = "q";
+    nb[m.tr][m.tc] = piece;
+    return nb;
+  }
+
+  function legalMoves(b, r, c) {
+    const p = b[r][c];
+    if (!p) return [];
+    const pseudo = pseudoMoves(b, r, c);
+    const legal = [];
+    for (const m of pseudo) {
+      const test = applyMove(b, { fr: r, fc: c, tr: m.r, tc: m.c, promo: m.promo });
+      if (!inCheck(test, p.c)) legal.push(m);
+    }
+    return legal;
+  }
+
+  function anyLegal(b, color) {
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const p = b[r][c];
+      if (p && p.c === color) {
+        if (legalMoves(b, r, c).length > 0) return true;
+      }
+    }
+    return false;
+  }
+
+  function render() {
+    boardEl.innerHTML = "";
+    const rows = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
+    const cols = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
+    const checkSq = inCheck(board, turn) ? findKing(board, turn) : null;
+
+    for (const r of rows) {
+      for (const c of cols) {
+        const sq = document.createElement("div");
+        sq.className = "sq " + ((r + c) % 2 === 0 ? "light" : "dark");
+        sq.setAttribute("role", "gridcell");
+        sq.dataset.r = r;
+        sq.dataset.c = c;
+        if (selected && selected.r === r && selected.c === c) sq.classList.add("sel");
+        if (lastMove && ((lastMove.fr === r && lastMove.fc === c) || (lastMove.tr === r && lastMove.tc === c))) sq.classList.add("last");
+        if (checkSq && checkSq.r === r && checkSq.c === c) sq.classList.add("check");
+        const lm = legalForSel.find((m) => m.r === r && m.c === c);
+        if (lm) { sq.classList.add("move"); if (lm.cap) sq.classList.add("cap"); }
+        const p = board[r][c];
+        if (p) {
+          const span = document.createElement("span");
+          span.className = "piece " + p.c;
+          span.textContent = GLYPH[p.t];
+          sq.appendChild(span);
+        }
+        if (r === (flipped ? 0 : 7)) {
+          const f = document.createElement("span");
+          f.className = "coords f";
+          f.textContent = FILES[c];
+          sq.appendChild(f);
+        }
+        if (c === (flipped ? 7 : 0)) {
+          const rk = document.createElement("span");
+          rk.className = "coords r";
+          rk.textContent = (8 - r);
+          sq.appendChild(rk);
+        }
+        sq.addEventListener("click", () => onSquare(r, c));
+        boardEl.appendChild(sq);
+      }
+    }
+    capWEl.textContent = captured.b.map((t) => GLYPH[t]).join(" "); // pieces captured BY white = black pieces
+    capBEl.textContent = captured.w.map((t) => GLYPH[t]).join(" ");
+  }
+
+  function setStatus(win) {
+    const wName = "Pink", bName = "Cyan";
+    const me = turn === "w" ? wName : bName;
+    const cls = win ? "win" : (inCheck(board, turn) ? "check" : "");
+    statusEl.className = "status" + (cls ? " " + cls : "");
+    if (win === "mate") {
+      const winner = turn === "w" ? bName : wName;
+      const wColor = turn === "w" ? "b-name" : "w-name";
+      statusEl.innerHTML = "<b class=\"" + wColor + "\">" + winner + "</b> wins by checkmate!";
+    } else if (win === "stale") {
+      statusEl.innerHTML = "<b>Stalemate</b> — draw.";
+    } else if (inCheck(board, turn)) {
+      statusEl.innerHTML = "<b>Check!</b> <span class=\"" + (turn === "w" ? "w-name" : "b-name") + "\">" + me + "</span> to move.";
+    } else {
+      statusEl.innerHTML = "<span class=\"" + (turn === "w" ? "w-name" : "b-name") + "\"><b>" + me + "</b></span> to move";
+    }
+  }
+
+  function onSquare(r, c) {
+    const p = board[r][c];
+    // If a piece is selected and (r,c) is a legal destination, move.
+    if (selected) {
+      const lm = legalForSel.find((m) => m.r === r && m.c === c);
+      if (lm) { doMove(selected.r, selected.c, lm); return; }
+    }
+    // Otherwise, select if it's the current player's piece.
+    if (p && p.c === turn) {
+      selected = { r, c };
+      legalForSel = legalMoves(board, r, c);
+      render();
+      return;
+    }
+    // Deselect
+    selected = null;
+    legalForSel = [];
+    render();
+  }
+
+  function doMove(fr, fc, m) {
+    const moving = board[fr][fc];
+    const target = board[m.r][m.c];
+    // Save history for undo
+    history.push({
+      board: cloneBoard(board),
+      turn,
+      captured: { w: captured.w.slice(), b: captured.b.slice() },
+      lastMove: lastMove ? { ...lastMove } : null,
+    });
+    if (target) captured[target.c].push(target.t);
+    board[fr][fc] = null;
+    if (m.promo) moving.t = "q";
+    board[m.r][m.c] = moving;
+    lastMove = { fr, fc, tr: m.r, tc: m.c };
+    selected = null;
+    legalForSel = [];
+    turn = turn === "w" ? "b" : "w";
+    render();
+
+    if (!anyLegal(board, turn)) {
+      if (inCheck(board, turn)) setStatus("mate");
+      else setStatus("stale");
+    } else {
+      setStatus();
+    }
+  }
+
+  function undo() {
+    if (!history.length) return;
+    const h = history.pop();
+    board = h.board;
+    turn = h.turn;
+    captured = h.captured;
+    lastMove = h.lastMove;
+    selected = null;
+    legalForSel = [];
+    render();
+    setStatus();
+  }
+
+  restartBtn.addEventListener("click", init);
+  flipBtn.addEventListener("click", () => { flipped = !flipped; render(); });
+  undoBtn.addEventListener("click", undo);
+
+  init();
+})();
+</script>
+</body>
+</html>

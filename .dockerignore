@@ -1,0 +1,24 @@
+node_modules
+.git
+db/*.db
+db/*.db-wal
+db/*.db-shm
+prisma/db/*.db
+prisma/db/*.db-wal
+prisma/db/*.db-shm
+uploads
+skills
+examples
+tests
+*.log
+dev.log
+chat-service.log
+tsconfig.tsbuildinfo
+
+# Stratus cloud-gaming API — sites.json contains the live api_key.
+# Mount it as a volume at runtime instead of baking it into the image.
+stratus/sites.json
+
+# Never bake secrets into the image.
+.env
+.env.local
