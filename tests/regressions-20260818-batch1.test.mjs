@@ -132,6 +132,6 @@ test('batch1 emergency fix: staff moderation has a durable audited unban path', 
 test('r12 final release identity is exact', () => {
   const pkg = JSON.parse(read('package.json'))
   const info = read('src/lib/build-info.ts')
-  assert.equal(pkg.version, '0.8.0')
-  assert.match(info, /synnical-r23-synnical-os-r12-final-20260818/)
+  assert.equal(pkg.version, '0.8.1-recovery.20260915')
+  assert.match(info, /synnical-recovered-20260915-839d810/)
 })

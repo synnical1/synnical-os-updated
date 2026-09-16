@@ -1,9 +1,5 @@
 node_modules/
-!node_modules/
-!node_modules/**
 .next/
-!.next/
-!.next/**
 .next/cache/
 .next/trace
 .next/trace-build
@@ -24,7 +20,15 @@ uploads/*
 !prisma/db/.gitkeep
 .DS_Store
 tsconfig.tsbuildinfo
-!tsconfig.tsbuildinfo
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+coverage/
+.cache/
+*.zip
 
 # Stratus cloud-gaming API — sites.json contains live api keys.
 stratus/sites.json

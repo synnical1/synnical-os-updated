@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { runtimeHealthSnapshot } from "@/lib/runtime-health"
 import { aiProviderStatus } from "@/lib/ai-provider-pool"
+import { uploadsDir } from "@/lib/uploads"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -38,7 +39,7 @@ export async function GET() {
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   if (me.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 })
   const dbPath = databasePath()
-  const uploadRoot = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(process.cwd(), "public", "uploads")
+  const uploadRoot = uploadsDir()
   const [users, messages, channels, activeGames, activeDownloads, events, uploadUsage, dbStat] = await Promise.all([
     db.user.count(), db.message.count(), db.channel.count(),
     db.gameSession.count({ where: { status: "active" } }),

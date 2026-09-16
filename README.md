@@ -1,12 +1,14 @@
 # Synnical
 
+**Recovery 2026-09-15:** start with [README-INSTALL-FIRST.md](README-INSTALL-FIRST.md), [RECOVERY-REPORT.md](RECOVERY-REPORT.md) and [DEPLOY-ORACLE-ARM64.md](DEPLOY-ORACLE-ARM64.md). All 295 repository tests pass; see [VALIDATION-REPORT.md](VALIDATION-REPORT.md). Older release documents below are historical claims, not the results of this recovery.
+
 Synnical is a self-hosted social/community web application built with Next.js, React, TypeScript, Prisma/SQLite, Socket.IO and a custom Node server. This tree is the **consolidated full-source release**: the cumulative hotfix lineage has been merged into normal source files instead of being shipped as another overlay installer.
 
 ## Release identity
 
-- Build: `synnical-r22-synnical-os-r11-5-20260818`
-- Version: `0.7.5`
-- Runtime: Node.js 20+ (production currently uses Node 22)
+- Build: `synnical-recovered-20260915-839d810`
+- Version: `0.8.1-recovery.20260915`
+- Runtime: Node.js 22
 - Web: Next.js 16.3 / React 19
 - Data: Prisma 6.19 / SQLite
 - Realtime: Socket.IO

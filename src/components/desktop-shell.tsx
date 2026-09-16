@@ -1,5 +1,7 @@
 "use client"
 
+import { queueGlobalSearch } from "@/lib/global-search"
+
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode, type CSSProperties } from "react"
 import {
   Accessibility, AppWindow, Battery, BatteryCharging, Bell, Bluetooth, CalendarDays, ChevronRight,
@@ -981,6 +983,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
   const activeCandidates = useMemo(() => windows.filter((win) => win.workspace === workspace && !win.minimized).sort((a, b) => b.z - a.z), [windows, workspace])
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
       if (gameInputCaptured || document.documentElement.dataset.synnicalGameFocus === "1") return
       if (poweredOff) return
       if (locked) { if (lockStage === "lock") { event.preventDefault(); setLockStage("signin") }; return }
@@ -1037,8 +1040,8 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
   const searchAllSynnical = () => {
     const query=startQuery.trim(); if(!query)return
     rememberStartSearch(query)
+    queueGlobalSearch(query) // synnical-global-search also queues until a lazy Search panel mounts.
     openPanel("discover"); setStartOpen(false); setStartFolderOpen(null)
-    window.setTimeout(()=>window.dispatchEvent(new CustomEvent("synnical-global-search",{detail:{query}})),80)
   }
   const pinnedApps = useMemo(() => pinned.filter((id)=>!os.hiddenLauncherApps.includes(id)).map((id) => allowed.get(id)).filter((x): x is DesktopApp => Boolean(x)), [pinned, allowed, os.hiddenLauncherApps])
   const runningPanels = useMemo(() => new Set(windows.map((win) => win.panel)), [windows])

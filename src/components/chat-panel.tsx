@@ -24,7 +24,7 @@ import { readSetting, useSetting } from "@/lib/settings-runtime"
 import { useViewProfile } from "@/components/user-profile-modal"
 import { SYNN_BOT_COMMANDS, type SynnBotCommand } from "@/lib/synn-bot"
 import { canDeleteMessage } from "@/lib/message-permissions"
-import { onlineDurationLabel, presenceSectionLabel, publicPresenceLabel, type PresenceMode } from "@/lib/presence"
+import { onlineDurationLabel, presenceSectionLabel, publicPresenceLabel, type PresenceMode, type RichPresenceActivity } from "@/lib/presence"
 import { VoiceRecorder, VoiceMessage } from "@/components/voice-recorder"
 import { CHAT_EMOJI_CATEGORIES } from "@/lib/chat-emojis"
 import {
@@ -34,6 +34,7 @@ import {
 } from "@/lib/channel-permissions"
 
 type PresenceUser = {
+  activity?: RichPresenceActivity | null
   userId: string
   username: string
   displayName: string
@@ -79,6 +80,13 @@ type GiphyApiResult = {
   }
   analytics?: { onload?: { url?: unknown }; onclick?: { url?: unknown }; onsent?: { url?: unknown } }
 }
+
+const STAFF_COMMANDS: SynnBotCommand[] = [
+  { name: "mute", usage: "/mute @username", description: "Mute a member with a reason and duration", category: "Moderation", kind: "local" },
+  { name: "warn", usage: "/warn @username", description: "Warn a member", category: "Moderation", kind: "local" },
+  { name: "ban", usage: "/ban @username", description: "Permanently ban a member", category: "Moderation", kind: "local" },
+  { name: "unban", usage: "/unban @username", description: "Revoke a permanent ban", category: "Moderation", kind: "local" },
+]
 
 function canModerate(role: Role) { return role === "OWNER" || role === "HEAD_ADMIN" || role === "ADMIN" || role === "MOD" }
 
@@ -343,8 +351,12 @@ export function ChatPanel() {
   const historyRequestRef = useRef<{ channelId: string; beforeId: string } | null>(null)
   const composerRef = useRef<HTMLInputElement>(null)
   const draftRef = useRef("")
+  const draftSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (draftSyncTimerRef.current) clearTimeout(draftSyncTimerRef.current) }, [])
+  const typingExpiryTimersRef = useRef(new Map<string, number>())
   const pendingMessageTimersRef = useRef(new Map<string, number>())
   const replaceDraft = useCallback((value: string | ((current: string) => string)) => {
+    if (draftSyncTimerRef.current) clearTimeout(draftSyncTimerRef.current)
     const next = typeof value === "function" ? value(draftRef.current) : value
     draftRef.current = next
     if (composerRef.current && composerRef.current.value !== next) composerRef.current.value = next
@@ -534,7 +546,11 @@ export function ChatPanel() {
   // The member rail is global, not limited to whichever channel is open.
   useEffect(() => {
     if (!socket || !connected) return
-    const receive = (data: { users?: PresenceUser[] }) => setOnlineUsers(Array.isArray(data.users) ? data.users : [])
+    const receive = (data: { users?: PresenceUser[] }) => {
+      const users = Array.isArray(data.users) ? data.users : []
+      setOnlineUsers(users)
+      window.dispatchEvent(new CustomEvent("synnical-chat-online-users", { detail: { users } }))
+    }
     socket.on("online-users", receive)
     socket.emit("who-is-online")
     return () => { socket.off("online-users", receive) }
@@ -570,7 +586,7 @@ export function ChatPanel() {
   // Join the active channel and bind its event handlers
   useEffect(() => {
     if (!socket || !activeChannel || !connected) return
-    setMessages([])
+    setMessages((current) => current.filter((message) => message.channelId === activeChannel && (message.pendingLocal || message.failedLocal)))
     messagesRef.current = []
     setHasOlderMessages(false)
     setLoadingOlderMessages(false)
@@ -580,7 +596,7 @@ export function ChatPanel() {
     setPresence([])
     socket.emit("join-channel", { channelId: activeChannel, history: true })
 
-    socket.on("message-history", (data: { channelId: string; messages: ChatMessage[]; hasMore?: boolean }) => {
+    const onHistory = (data: { channelId: string; messages: ChatMessage[]; hasMore?: boolean }) => {
       if (data.channelId !== activeChannel) return
       initialHistoryScrollRef.current = true
       setHasOlderMessages(Boolean(data.hasMore))
@@ -589,7 +605,12 @@ export function ChatPanel() {
       setMessages((current) => {
         const pendingLocal = current.filter((candidate) => candidate.pendingLocal || candidate.failedLocal)
         const serverIds = new Set(data.messages.map((candidate) => candidate.id))
-        return [...data.messages, ...pendingLocal.filter((candidate) => !serverIds.has(candidate.id))]
+        const unresolved = pendingLocal.filter((candidate) => {
+          const confirmed = serverIds.has(candidate.id) || data.messages.some((message) => message.clientNonce && message.clientNonce === candidate.clientNonce && message.userId === candidate.userId)
+          if (confirmed && candidate.clientNonce) clearPendingMessageTimer(candidate.clientNonce)
+          return !confirmed
+        })
+        return [...data.messages, ...unresolved]
       })
       const lastRead = prefsRef.current[data.channelId]?.lastReadMessageId
       if (lastRead) {
@@ -598,9 +619,10 @@ export function ChatPanel() {
       } else {
         setFirstUnreadMessageId(data.messages[0]?.id || null)
       }
-    })
+    }
+    socket.on("message-history", onHistory)
 
-    socket.on("older-message-history", (data: { channelId: string; beforeId: string; messages: ChatMessage[]; hasMore?: boolean }) => {
+    const onOlderHistory = (data: { channelId: string; beforeId: string; messages: ChatMessage[]; hasMore?: boolean }) => {
       if (data.channelId !== activeChannelRef.current) return
       const pending = historyRequestRef.current
       if (!pending || pending.channelId !== data.channelId || pending.beforeId !== data.beforeId) return
@@ -616,9 +638,10 @@ export function ChatPanel() {
         const older = data.messages.filter((message) => !existing.has(message.id))
         return older.length ? [...older, ...current] : current
       })
-    })
+    }
+    socket.on("older-message-history", onOlderHistory)
 
-    socket.on("message", (msg: ChatMessage) => {
+    const onMessage = (msg: ChatMessage) => {
       const myId = userIdRef.current
       const fromSelf = !!myId && msg.userId === myId
       const active = activeChannelRef.current
@@ -632,13 +655,13 @@ export function ChatPanel() {
         autoScrollNextRef.current = readSetting("chat.autoScroll", true) && nearBottom
         setMessages((prev) => {
           const pendingIndex = msg.clientNonce
-            ? prev.findIndex((candidate) => (candidate.pendingLocal || candidate.failedLocal) && candidate.clientNonce === msg.clientNonce)
+            ? prev.findIndex((candidate) => (candidate.pendingLocal || candidate.failedLocal) && candidate.clientNonce === msg.clientNonce && candidate.userId === msg.userId)
             : -1
           if (pendingIndex >= 0) {
             clearPendingMessageTimer(msg.clientNonce!)
             const next = [...prev]
             next[pendingIndex] = { ...msg, pendingLocal: false, failedLocal: false }
-            return next
+            return next.filter((candidate, index) => candidate.id !== msg.id || index === pendingIndex)
           }
           return prev.some((candidate) => candidate.id === msg.id) ? prev : [...prev, msg]
         })
@@ -698,19 +721,22 @@ export function ChatPanel() {
       if (!fromSelf && shouldNotify && soundRef.current) {
         playMessageSound(pref?.notificationSound || "default")
       }
-    })
+    }
+    socket.on("message", onMessage)
 
-    socket.on("message-deleted", (data: { id: string; channelId: string }) => {
+    const onDeleted = (data: { id: string; channelId: string }) => {
       if (data.channelId !== activeChannelRef.current) return
       setMessages((prev) => prev.map((m) => (m.id === data.id ? { ...m, deleted: true, content: "" } : m)))
-    })
+    }
+    socket.on("message-deleted", onDeleted)
 
-    socket.on("message-edited", (data: { id: string; channelId: string; content: string; editedAt: string }) => {
+    const onEdited = (data: { id: string; channelId: string; content: string; editedAt: string }) => {
       if (data.channelId !== activeChannelRef.current) return
       setMessages((prev) => prev.map((m) => (m.id === data.id ? { ...m, content: data.content, edited: true } : m)))
-    })
+    }
+    socket.on("message-edited", onEdited)
 
-    socket.on("message-reactions", (data: { messageId: string; channelId: string; reactions: { emoji: string; userId: string }[] }) => {
+    const onReactions = (data: { messageId: string; channelId: string; reactions: { emoji: string; userId: string }[] }) => {
       if (data.channelId !== activeChannelRef.current || !Array.isArray(data.reactions)) return
       const grouped = new Map<string, { emoji: string; count: number; reacted: boolean }>()
       for (const row of data.reactions) {
@@ -721,9 +747,10 @@ export function ChatPanel() {
       }
       const reactions = [...grouped.values()].sort((left, right) => right.count - left.count || left.emoji.localeCompare(right.emoji))
       setMessages((current) => current.map((message) => message.id === data.messageId ? { ...message, reactions } : message))
-    })
+    }
+    socket.on("message-reactions", onReactions)
 
-    socket.on("typing", (data: { channelId: string; userId: string; username: string; isTyping: boolean }) => {
+    const onTyping = (data: { channelId: string; userId: string; username: string; isTyping: boolean }) => {
       if (data.channelId !== activeChannelRef.current) return
       if (data.userId === userIdRef.current) return
       // Use the flag from the PAYLOAD — the previous code read the component's
@@ -734,26 +761,35 @@ export function ChatPanel() {
           : prev.filter((u) => u.userId !== data.userId)
         return next
       })
+      const previous = typingExpiryTimersRef.current.get(data.userId)
+      if (previous !== undefined) window.clearTimeout(previous)
+      typingExpiryTimersRef.current.delete(data.userId)
       if (data.isTyping) {
-        setTimeout(() => {
+        typingExpiryTimersRef.current.set(data.userId, window.setTimeout(() => {
+          typingExpiryTimersRef.current.delete(data.userId)
           setTypingUsers((prev) => prev.filter((u) => u.userId !== data.userId))
-        }, 3000)
+        }, 3000))
       }
-    })
+    }
+    socket.on("typing", onTyping)
 
-    socket.on("presence", (data: { channelId: string; users: PresenceUser[] }) => {
+    const onPresence = (data: { channelId: string; users: PresenceUser[] }) => {
       if (data.channelId === activeChannelRef.current) setPresence(data.users)
-    })
+    }
+    socket.on("presence", onPresence)
 
     return () => {
-      socket.off("message-history")
-      socket.off("older-message-history")
-      socket.off("message")
-      socket.off("message-deleted")
-      socket.off("message-edited")
-      socket.off("message-reactions")
-      socket.off("typing")
-      socket.off("presence")
+      for (const timer of typingExpiryTimersRef.current.values()) window.clearTimeout(timer)
+      typingExpiryTimersRef.current.clear()
+      setTypingUsers([])
+      socket.off("message-history", onHistory)
+      socket.off("older-message-history", onOlderHistory)
+      socket.off("message", onMessage)
+      socket.off("message-deleted", onDeleted)
+      socket.off("message-edited", onEdited)
+      socket.off("message-reactions", onReactions)
+      socket.off("typing", onTyping)
+      socket.off("presence", onPresence)
     }
   }, [socket, activeChannel, connected, clearPendingMessageTimer])
 
@@ -927,8 +963,37 @@ export function ChatPanel() {
 
   /* ----------------------------- Send / edit / etc ----------------------------- */
 
+  const executeModeration = useCallback(async (text: string) => {
+    if (!user || !canModerate(user.role)) { toast.error("Moderation commands require a staff account"); return }
+    const [rawCommand, rawTarget] = text.trim().split(/\s+/)
+    const command = rawCommand.slice(1).toLowerCase()
+    const username = (rawTarget || window.prompt("Member username") || "").replace(/^@/, "").toLowerCase()
+    if (!username) return
+    const target = directory.find((row) => row.username.toLowerCase() === username || row.id === username)
+    if (!target) { toast.error("Member not found. Use the Moderation panel to search all accounts."); return }
+    const reason = window.prompt(`Reason to ${command} @${target.username}`)?.trim()
+    if (!reason) return
+    let durationMin: number | undefined
+    if (command === "mute") {
+      const duration = window.prompt("Duration: 10m, 2h, 1d (or permanent)", "10m")?.trim().toLowerCase()
+      if (!duration) return
+      const match = /^(\d+)(m|h|d)$/.exec(duration)
+      if (duration !== "permanent" && (!match || Number(match[1]) <= 0)) { toast.error("Choose a duration such as 10m, 2h or 1d"); return }
+      if (match) durationMin = Number(match[1]) * (match[2] === "d" ? 1440 : match[2] === "h" ? 60 : 1)
+      if (durationMin && durationMin > 525600) { toast.error("Duration must be at most one year"); return }
+    }
+    if (!window.confirm(`${command.toUpperCase()} @${target.username}? Reason: ${reason}`)) return
+    try {
+      const response = await fetch(command === "unban" ? "/api/moderation/unban" : "/api/infractions/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: target.id, type: command.toUpperCase(), reason, durationMin }) })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || "Moderation failed")
+      replaceDraft(""); toast.success(`${command} completed for @${target.username}`)
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Moderation failed") }
+  }, [user, directory, replaceDraft])
+
   const send = useCallback((gifUrl?: string, imageUrl?: string) => {
     const text = draftRef.current.trim()
+    if (!gifUrl && !imageUrl && /^\/(mute|warn|ban|unban)(?:\s|$)/i.test(text)) { void executeModeration(text); return }
     if (!text && !gifUrl && !imageUrl) return
     if (!socket || !connected || !activeChannel || !user) return
     const clientNonce = chatClientNonce()
@@ -993,7 +1058,7 @@ export function ChatPanel() {
     setEpisodeSpoiler(null)
     setReplyingTo(null)
     setThreadRootForComposer(null)
-  }, [socket, connected, activeChannel, user, replyingTo, threadRootForComposer, episodeSpoiler, spoilerDays, replaceDraft])
+  }, [socket, connected, activeChannel, user, replyingTo, threadRootForComposer, episodeSpoiler, spoilerDays, replaceDraft, executeModeration])
 
   const uploadAndSendImage = useCallback(async (file: File | null | undefined) => {
     if (!file || !activeChannel || !connected) return
@@ -1029,7 +1094,11 @@ export function ChatPanel() {
   }, [socket, connected, activeChannel, replyingTo, threadRootForComposer])
 
   const onDraftChange = useCallback((v: string) => {
-    replaceDraft(v)
+    const wasEmpty = !draftRef.current
+    draftRef.current = v
+    if (draftSyncTimerRef.current) clearTimeout(draftSyncTimerRef.current)
+    if (wasEmpty !== !v || /^\//.test(v) || /@[a-zA-Z0-9_]*$/.test(v)) setDraft(v)
+    else draftSyncTimerRef.current = setTimeout(() => setDraft(draftRef.current), 250)
     if (socket && connected && activeChannel) {
       const now = Date.now()
       if (!v) {
@@ -1090,8 +1159,8 @@ export function ChatPanel() {
     const match = deferredDraft.match(/^\/([a-zA-Z0-9-]*)$/)
     if (!match) return []
     const query = match[1].toLowerCase()
-    return SYNN_BOT_COMMANDS.filter((command) => command.name.startsWith(query))
-  }, [deferredDraft])
+    return [...SYNN_BOT_COMMANDS, ...(user && canModerate(user.role) ? STAFF_COMMANDS : [])].filter((command) => command.name.startsWith(query))
+  }, [deferredDraft, user])
   const showCommandDropdown = commandCandidates.length > 0 && !showMentionDropdown
   const insertCommand = useCallback((name: string) => replaceDraft(`/${name} `), [replaceDraft])
 
@@ -1651,7 +1720,7 @@ export function ChatPanel() {
                   <p className="mt-0.5 truncate text-[10px] text-[var(--synnical-muted)]">
                     {[
                       u.afk && u.afkMessage ? u.afkMessage : publicPresenceLabel(u.presenceMode, u.afk, u.presenceModeExpiresAt),
-                      presenceSectionLabel(u.currentSection),
+                      u.activity ? `${u.activity.kind}: ${u.activity.name}${u.activity.details ? ` · ${u.activity.details}` : ""}` : presenceSectionLabel(u.currentSection),
                       u.deviceType && u.deviceType !== "unknown" ? u.deviceType.charAt(0).toUpperCase() + u.deviceType.slice(1) : null,
                       u.networkQuality && u.networkQuality !== "unknown" ? `${u.networkQuality.charAt(0).toUpperCase() + u.networkQuality.slice(1)} connection` : null,
                       onlineDurationLabel(u.onlineSince),

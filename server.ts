@@ -18,6 +18,7 @@ import { validateEnv } from "./src/lib/env"
 import { existsSync } from "fs"
 import { resolve } from "path"
 import { createBlockedUdpSocketClass, createSocks5TcpSocketClass, parseSocks5Url } from "./src/lib/wisp-socks"
+import { authenticatedProxyRequest, allowedSocketOrigin } from "./src/lib/server-request-auth"
 
 // Stratus + wisp ship as CommonJS. Load via createRequire so we keep
 // server.ts as ESM.
@@ -124,6 +125,11 @@ if (WISP_ENABLED) {
     if (wispModule.server?.options) {
       wispModule.server.options.parse_real_ip = true
       wispModule.server.options.parse_real_ip_from = ["127.0.0.1", "::1"]
+      wispModule.server.options.allow_private_ips = false
+      wispModule.server.options.allow_loopback_ips = false
+      wispModule.server.options.allow_udp_streams = false
+      wispModule.server.options.port_whitelist = [80, 443]
+      wispModule.server.options.stream_limit_total = 128
     }
     wispRouteRequest = (req, socket, head) => {
       wispModule.server.routeRequest(req as any, socket as any, head as any)
@@ -206,11 +212,14 @@ async function main() {
   // We install ONE upgrade handler that dispatches by URL prefix. Socket.IO
   // also installs its own listener via attachChat() below; we capture those
   // listeners and fall through to them for anything we don't handle.
+  const chat = attachChat(httpServer)
   const preExistingListeners = httpServer.listeners("upgrade").slice()
   httpServer.removeAllListeners("upgrade")
 
   httpServer.on("upgrade", (req, socket, head) => {
+    void (async () => {
     const url = req.url || ""
+    if (!allowedSocketOrigin(req)) { socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"); return }
 
     // 1. Stratus signaling WS
     if (stratus && url.startsWith(`${STRATUS_BASE_PATH}/cloud/v1/signal/`)) {
@@ -220,24 +229,28 @@ async function main() {
     // 2a. Optional Netherlands-routed Wisp proxy. This path exists only when
     // the operator configured a real SOCKS5 endpoint in the Netherlands.
     if (wispNlRouteRequest && (url === WISP_NL_PATH || url.startsWith(`${WISP_NL_PATH}/`))) {
+      if (!await authenticatedProxyRequest(req)) { socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n"); return }
       wispNlRouteRequest(req, socket, head)
       return
     }
 
     // 2b. Direct Wisp proxy WS
     if (wispRouteRequest && (url === WISP_PATH || url.startsWith(`${WISP_PATH}/`))) {
+      if (!await authenticatedProxyRequest(req)) { socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n"); return }
       wispRouteRequest(req, socket, head)
       return
     }
 
     // 3. Fall through to Socket.IO / Next.js
-    for (const l of preExistingListeners) {
-      try { (l as any)(req, socket, head) } catch {}
+    const socketPath = (process.env.NEXT_PUBLIC_SOCKET_URL || "/socket.io").replace(/\/$/, "")
+    if (url.startsWith(`${socketPath}/`)) {
+      for (const listener of preExistingListeners) (listener as any)(req, socket, head)
+      return
     }
+    if (dev && url.startsWith("/_next/")) { await app.getUpgradeHandler()(req, socket, head); return }
+    socket.destroy()
+    })().catch(() => socket.destroy())
   })
-
-  // Attach Socket.IO for real-time chat
-  attachChat(httpServer)
 
   httpServer.listen(port, hostname, () => {
     console.log(`> Synnical ready on http://${hostname}:${port} (production=${!dev})`)
@@ -263,6 +276,7 @@ async function main() {
   const shutdown = (sig: string) => {
     console.log(`\n> ${sig} received, shutting down...`)
     try { stratus?.shutdown() } catch {}
+    chat.close()
     httpServer.close(() => process.exit(0))
     setTimeout(() => process.exit(1), 5000).unref()
   }

@@ -3,5 +3,5 @@
 import { BrowserPanel } from "@/components/browser-panel"
 
 export function GeForceNowPanel() {
-  return <BrowserPanel initialUrl="https://play.geforcenow.com/" embedded embeddedLabel="GeForce NOW" />
+  return <BrowserPanel initialUrl="https://play.geforcenow.com/" embedded immersiveGame embeddedLabel="GeForce NOW" />
 }

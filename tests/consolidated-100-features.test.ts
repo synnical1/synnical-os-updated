@@ -84,7 +84,7 @@ const features: Array<{ id: number; name: string; clauses: Clause[] }> = [
   { id: 75, name: "Game status sharing", clauses: [{ file: "src/app/api/features/games/route.ts", any: ["gameStatus"] }, { file: "src/components/user-profile-modal.tsx", any: ["Playing"] }] },
   { id: 76, name: "Session invite capability gating", clauses: [{ file: "src/components/games-panel.tsx", any: ["invite", "provider"] }, { file: "src/app/api/features/games/route.ts", any: ["sameProviderSessionInviteReason"] }] },
   { id: 77, name: "Private game screenshots", clauses: [{ file: "src/app/api/features/games/screenshot/[id]/route.ts", any: ["userId"] }, { file: "src/components/games-panel.tsx", any: ["Save screenshot"] }] },
-  { id: 78, name: "Game session history", clauses: [{ file: "src/app/api/features/games/route.ts", any: ["session-failure", "sessions"] }, { file: "src/components/games-panel.tsx", any: ["Session history"] }] },
+  { id: 78, name: "Game session history", clauses: [{ file: "src/app/api/features/games/route.ts", any: ["session-failure", "sessions"] }, { file: "src/components/games-panel.tsx", any: ["Continue Playing"] }] },
   { id: 79, name: "Browser tab groups", clauses: [{ file: "src/components/browser-panel.tsx", any: ["tabGroups", "groupId"] }, { file: "src/app/api/features/browser/route.ts", any: ["save-groups"] }] },
   { id: 80, name: "Browser fresh launch", clauses: [{ file: "src/components/browser-panel.tsx", any: ["newTab(initialUrl)"] }, { file: "src/app/api/features/browser/route.ts", any: ["session: null"] }] },
   { id: 81, name: "Account browser bookmarks", clauses: [{ file: "src/components/browser-panel.tsx", any: ["save-bookmark"] }, { file: "src/app/api/features/browser/route.ts", any: ["browserBookmark"] }] },

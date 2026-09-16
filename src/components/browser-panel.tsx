@@ -9,6 +9,7 @@ import {
   ChevronDown, ChevronRight, Loader2, AlertCircle, FolderPlus, Download, EyeOff, Layers3, Trash2, PanelsTopLeft, Save,
 } from "lucide-react"
 import { QUICK_LINKS, SEARCH_ENGINES } from "@/lib/client-constants"
+import { useAuth } from "@/hooks/use-auth"
 import { useBrowser, searchEngine } from "@/hooks/use-browser"
 import { THEMES } from "@/lib/themes"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -242,14 +243,43 @@ function normalizeUrl(raw: string, engineId: string): string {
   return searchEngine(engineId).url + encodeURIComponent(v)
 }
 
+function BrowserAddressInput({ url, onNavigate }: { url: string; onNavigate: (value: string) => void }) {
+  const [value, setValue] = useState(url)
+  useEffect(() => setValue(url), [url])
+  return <form className="flex-1" onSubmit={(event) => { event.preventDefault(); onNavigate(value) }}><Input aria-label="Search or enter address" value={value} onChange={(event) => setValue(event.target.value)} onFocus={(event) => event.target.select()} placeholder="Search or enter address" className="h-8 text-sm bg-[var(--synnical-surface-2)] border-[var(--synnical-border)]" autoComplete="off" spellCheck={false} /></form>
+}
+
 type BrowserPanelProps = {
   initialUrl?: string
+  immersiveGame?: boolean
   onUrlChange?: (url: string) => void
   embedded?: boolean
   embeddedLabel?: string
 }
 
-export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, embeddedLabel = "page" }: BrowserPanelProps = {}) {
+export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, embeddedLabel = "page", immersiveGame = false }: BrowserPanelProps = {}) {
+  const { user } = useAuth()
+  const [inputCaptured, setInputCaptured] = useState(false)
+  const releaseControls = useCallback(() => {
+    (navigator as Navigator & { keyboard?: { unlock?: () => void } }).keyboard?.unlock?.()
+    document.documentElement.dataset.synnicalGameFocus = "0"
+    window.dispatchEvent(new CustomEvent("synnical-game-focus", { detail: { active: false } }))
+    setInputCaptured(false)
+  }, [])
+  const captureControls = async () => {
+    if (!immersiveGame) return
+    try { await (navigator as Navigator & { keyboard?: { lock?: () => Promise<void> } }).keyboard?.lock?.() }
+    catch { toast.info("Keyboard Lock is unavailable; browser-reserved shortcuts still apply") }
+    setInputCaptured(true); document.documentElement.dataset.synnicalGameFocus = "1"
+    window.dispatchEvent(new CustomEvent("synnical-game-focus", { detail: { active: true } }))
+  }
+  useEffect(() => {
+    if (!inputCaptured) return
+    const release = (event: KeyboardEvent) => { if (event.key === "Escape" || (event.ctrlKey && event.altKey && event.key.toLowerCase() === "r")) releaseControls() }
+    const blur = () => { if (document.visibilityState === "hidden") releaseControls() }
+    window.addEventListener("keydown", release, true); document.addEventListener("visibilitychange", blur)
+    return () => { window.removeEventListener("keydown", release, true); document.removeEventListener("visibilitychange", blur); releaseControls() }
+  }, [inputCaptured, releaseControls])
   const {
     searchEngineId, setSearchEngine, homepage, setHomepage,
     bookmarks, addBookmark, removeBookmark, replaceBookmarks,
@@ -482,6 +512,16 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
   }, [refreshBrowserFeatures])
 
   const viewportRef = useRef<HTMLDivElement>(null)
+  const tabLastActiveRef = useRef(new Map<string, number>())
+  const [panelVisible, setPanelVisible] = useState(true)
+  useEffect(() => {
+    const element = viewportRef.current
+    if (!element) return
+    const update = () => setPanelVisible(document.visibilityState === "visible" && element.getClientRects().length > 0)
+    const observer = new IntersectionObserver(update)
+    observer.observe(element); document.addEventListener("visibilitychange", update); update()
+    return () => { observer.disconnect(); document.removeEventListener("visibilitychange", update) }
+  }, [])
   const pendingNavigationRef = useRef<{ tabId: string; rawUrl: string } | null>(null)
   const frameMapRef = useRef(new Map<string, { frame: any; iframe: HTMLIFrameElement }>())
   const framePromiseRef = useRef(new Map<string, Promise<any | null>>())
@@ -679,6 +719,7 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
   // --- Navigate a specific tab. Keeping the id explicit avoids the stale-state
   // bug where a newly opened tab navigated the previously active tab. ---
   const navigateTab = useCallback(async (tabId: string, rawUrl: string) => {
+    if (!user) { setFrameError("Sign in to Synnical to browse websites."); return }
     setFrameError(null)
     const url = normalizeUrl(rawUrl, searchEngineId)
     if (!url) return
@@ -752,7 +793,7 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
       console.error("[Browser] Navigation error:", err)
       setFrameError(err instanceof Error ? err.message : "Navigation failed")
     }
-  }, [ensureFrame, searchEngineId, recordVisit, ctrlStatus, controller, retry, observeNavigation, embedded, temporaryProfile, refreshBrowserFeatures])
+  }, [user, ensureFrame, searchEngineId, recordVisit, ctrlStatus, controller, retry, observeNavigation, embedded, temporaryProfile, refreshBrowserFeatures])
 
   const navigate = useCallback((rawUrl: string) => {
     navigateTab(active.id, rawUrl)
@@ -769,10 +810,10 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
   // Frames are created lazily. This also restores the active page after a
   // permission-policy change removed its previous frame.
   useEffect(() => {
-    if (!active.url || active.frame) return
+    if (!panelVisible || !active.url || active.frame) return
     if (frameMapRef.current.has(active.id) || framePromiseRef.current.has(active.id)) return
     if (ctrlStatus === "ready") void navigateTab(active.id, active.url)
-  }, [active.id, active.url, active.frame, ctrlStatus, navigateTab])
+  }, [active.id, active.url, active.frame, ctrlStatus, navigateTab, panelVisible])
 
   useEffect(() => {
     if (ctrlStatus !== "ready" || !pendingNavigationRef.current) return
@@ -984,10 +1025,33 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
 
   const splitTab = splitTabId && splitTabId !== activeId ? tabs.find((tab) => tab.id === splitTabId) || null : null
   useEffect(() => {
-    if (!splitTab?.url || splitTab.frame || frameMapRef.current.has(splitTab.id) || framePromiseRef.current.has(splitTab.id)) return
+    if (!panelVisible || !splitTab?.url || splitTab.frame || frameMapRef.current.has(splitTab.id) || framePromiseRef.current.has(splitTab.id)) return
     if (ctrlStatus !== "ready") return
-    void ensureFrame(splitTab.id)
-  }, [splitTab?.id, splitTab?.url, splitTab?.frame, ctrlStatus, ensureFrame])
+    void navigateTab(splitTab.id, splitTab.url)
+  }, [splitTab?.id, splitTab?.url, splitTab?.frame, ctrlStatus, navigateTab, panelVisible])
+
+  useEffect(() => {
+    if (immersiveGame || embedded) return // Never discard a live embedded game session.
+    const now = Date.now()
+    if (panelVisible) { tabLastActiveRef.current.set(activeId, now); if (splitTabId) tabLastActiveRef.current.set(splitTabId, now) }
+    const timer = window.setInterval(() => {
+      const now = Date.now()
+      const idleLimit = document.documentElement.classList.contains("synnical-battery-perf") ? 90_000 : 180_000
+      for (const tab of tabs) {
+        if (panelVisible && (tab.id === activeId || tab.id === splitTabId)) { tabLastActiveRef.current.set(tab.id, now); continue }
+        if (!tabLastActiveRef.current.has(tab.id)) tabLastActiveRef.current.set(tab.id, now)
+        if (now - (tabLastActiveRef.current.get(tab.id) || now) < idleLimit) continue
+        const live = frameMapRef.current.get(tab.id)
+        if (!live || framePromiseRef.current.has(tab.id)) continue
+        try { if (Array.from(live.iframe.contentDocument?.querySelectorAll("audio,video") || []).some((element) => !(element as HTMLMediaElement).paused)) continue } catch { continue }
+        live.iframe.remove(); frameMapRef.current.delete(tab.id)
+        const timeout = navigationTimeoutRef.current.get(tab.id); if (timeout) clearTimeout(timeout)
+        navigationTimeoutRef.current.delete(tab.id)
+        updateTab(tab.id, { frame: null, iframeEl: null })
+      }
+    }, 10_000)
+    return () => window.clearInterval(timer)
+  }, [tabs, activeId, splitTabId, panelVisible, immersiveGame, embedded, updateTab])
 
   useEffect(() => {
     const safeZoom = Math.min(200, Math.max(50, zoomLevel))
@@ -1071,24 +1135,10 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
           <Home className="h-4 w-4" />
         </Button>
 
-        <form className="flex-1 flex items-center" onSubmit={(e) => { e.preventDefault(); navigate(active.input) }}>
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--synnical-muted)]" />
-            <Input
-              value={active.input}
-              onChange={(e) => updateTab(active.id, { input: e.target.value })}
-              placeholder="Search or enter address"
-              className="h-8 pl-8 pr-16 text-sm bg-[var(--synnical-surface-2)] border-[var(--synnical-border)]"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              {scramjetLoading && <Loader2 className="h-3 w-3 animate-spin text-[var(--synnical-accent)]" />}
-              {scramjetReady && <span className="h-2 w-2 rounded-full bg-emerald-400" title="Ready" />}
-              {scramjetError && <AlertCircle className="h-3 w-3 text-red-500" />}
-            </div>
-          </div>
-        </form>
+        <BrowserAddressInput key={active.id} url={active.input} onNavigate={navigate} />
+        {scramjetLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+        {scramjetError && <AlertCircle className="h-3 w-3 text-red-500" />}
+
 
         <Button
           variant="ghost"
@@ -1216,6 +1266,7 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
 
       {/* Viewport — Scramjet proxy area */}
       <div className="flex-1 relative min-h-0" ref={viewportRef}>
+        {immersiveGame && <button className="absolute right-3 top-3 z-50 rounded bg-black/80 px-3 py-2 text-xs text-white" onClick={() => inputCaptured ? releaseControls() : void captureControls()}>{inputCaptured ? "Release controls (Esc)" : "Capture game controls"}</button>}
         {splitTab && <div className="pointer-events-none absolute bottom-0 left-1/2 top-0 z-20 w-px bg-white/15" />}
         {!active.url && (
           <NewTabPage

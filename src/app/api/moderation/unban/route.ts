@@ -14,7 +14,8 @@ function activeUntil(createdAt: Date, duration: number | null): Date | null | fa
 export async function POST(req: NextRequest) {
   const actor = await getCurrentUser()
   if (!actor || (rank[actor.role] ?? -1) < rank.MOD) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  const { userId } = await req.json().catch(() => ({}))
+  const { userId, reason: rawReason } = await req.json().catch(() => ({}))
+  const reason = typeof rawReason === "string" ? rawReason.trim().slice(0, 500) : ""
   if (typeof userId !== "string" || !userId) return NextResponse.json({ error: "User required" }, { status: 400 })
   if (userId === actor.id) return NextResponse.json({ error: "You cannot unban your own account" }, { status: 409 })
 
@@ -50,13 +51,13 @@ export async function POST(req: NextRequest) {
     }
 
     await tx.user.update({ where: { id: userId }, data: { muted, mutedUntil } })
-    await tx.infraction.create({ data: { userId, issuerId: actor.id, type: "UNBAN", reason: `Ban revoked by @${actor.username}`, duration: 0 } })
+    await tx.infraction.create({ data: { userId, issuerId: actor.id, type: "UNBAN", reason: reason || `Ban revoked by @${actor.username}`, duration: 0 } })
     await tx.auditLog.create({ data: auditData({
       category: "MODERATION",
       action: "USER_UNBANNED",
       actor,
       target: { id: target.id, username: target.username },
-      reason: "Permanent ban revoked from Moderation",
+      reason: reason || "Permanent ban revoked from Moderation",
       before: { muted: target.muted, mutedUntil: target.mutedUntil?.toISOString() || null, banIds: permanentBans.map((row) => row.id), banTypes: permanentBans.map((row) => row.type) },
       after: { muted, mutedUntil: mutedUntil?.toISOString() || null, activePermanentBans: 0 },
       metadata: { revokedBans: revoked.count, removedIdentityBans: identities.count },

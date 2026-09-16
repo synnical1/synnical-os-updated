@@ -6,7 +6,7 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "react-markdown", "remark-gfm"],
   },
-  transpilePackages: ["@x8r/sapphire", "@mercuryworkshop/scramjet-controller"],
+  transpilePackages: ["@mercuryworkshop/scramjet-controller"],
   typescript: {
     ignoreBuildErrors: false,
   },

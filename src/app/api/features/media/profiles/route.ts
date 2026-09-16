@@ -10,6 +10,9 @@ import {
   profileDataJson,
   profileFromRecord,
 } from "@/lib/synnflix-profiles-server"
+import { unlink } from "node:fs/promises"
+import path from "node:path"
+import { uploadsDir } from "@/lib/uploads"
 import { SYNNFLIX_PROFILE_LIMIT, validSynnFlixAvatarKey } from "@/lib/synnflix-profiles"
 
 export const dynamic = "force-dynamic"
@@ -42,15 +45,16 @@ export async function POST(req: NextRequest) {
   if (action === "create") {
     const name = cleanName(body.name)
     if (!name) return fail("Profile name required")
-    const count = await db.featureRecord.count({ where: { userId: me.id, kind: MEDIA_PROFILE_KIND } })
-    if (count >= SYNNFLIX_PROFILE_LIMIT) return fail(`You can have up to ${SYNNFLIX_PROFILE_LIMIT} profiles`, 409)
     const profile = {
       name,
       avatarKey: validSynnFlixAvatarKey(body.avatarKey),
       avatarUrl: null,
       isKids: body.isKids === true,
     }
-    const record = await db.featureRecord.create({
+    const record = await db.$transaction(async (tx) => {
+      const count = await tx.featureRecord.count({ where: { userId: me.id, kind: MEDIA_PROFILE_KIND } })
+      if (count >= SYNNFLIX_PROFILE_LIMIT) return null
+      return tx.featureRecord.create({
       data: {
         userId: me.id,
         kind: MEDIA_PROFILE_KIND,
@@ -58,7 +62,9 @@ export async function POST(req: NextRequest) {
         title: `SynnFlix profile: ${name}`,
         dataJson: profileDataJson(profile),
       },
+      })
     })
+    if (!record) return fail(`You can have up to ${SYNNFLIX_PROFILE_LIMIT} profiles`, 409)
     return NextResponse.json({ profile: profileFromRecord(record) })
   }
 
@@ -85,20 +91,28 @@ export async function POST(req: NextRequest) {
   if (action === "delete") {
     const record = await ownedMediaProfile(me.id, body.profileId)
     if (!record) return fail("Profile not found", 404)
-    const profiles = await ensureMediaProfiles(me)
-    if (profiles.length <= 1) return fail("Keep at least one profile", 409)
-    const listIds = (await db.mediaList.findMany({ where: { userId: me.id, profileId: record.id }, select: { id: true } })).map((row) => row.id)
-    await db.$transaction([
-      ...(listIds.length ? [db.mediaListItem.deleteMany({ where: { listId: { in: listIds } } })] : []),
-      db.mediaList.deleteMany({ where: { userId: me.id, profileId: record.id } }),
-      db.mediaRating.deleteMany({ where: { userId: me.id, profileId: record.id } }),
-      db.mediaProgress.deleteMany({ where: { userId: me.id, profileId: record.id } }),
-      db.featureRecord.delete({ where: { id: record.id } }),
-    ])
-    const remaining = profiles.filter((profile) => profile.id !== record.id)
-    const preferred = await getPreference<string | null>(me.id, ACTIVE_MEDIA_PROFILE_PREFERENCE, null)
-    if (preferred === record.id) await setPreference(me.id, ACTIVE_MEDIA_PROFILE_PREFERENCE, remaining[0].id)
-    return NextResponse.json({ deleted: true, lastActiveProfileId: preferred === record.id ? remaining[0].id : preferred })
+    const result = await db.$transaction(async (tx) => {
+      const profiles = await tx.featureRecord.findMany({ where: { userId: me.id, kind: MEDIA_PROFILE_KIND }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] })
+      if (!profiles.some((profile) => profile.id === record.id)) return { error: "Profile not found", status: 404 } as const
+      if (profiles.length <= 1) return { error: "Keep at least one profile", status: 409 } as const
+      const listIds = (await tx.mediaList.findMany({ where: { userId: me.id, profileId: record.id }, select: { id: true } })).map((row) => row.id)
+      await tx.mediaListItem.deleteMany({ where: { listId: { in: listIds } } })
+      await tx.mediaList.deleteMany({ where: { userId: me.id, profileId: record.id } })
+      await tx.mediaRating.deleteMany({ where: { userId: me.id, profileId: record.id } })
+      await tx.mediaProgress.deleteMany({ where: { userId: me.id, profileId: record.id } })
+      await tx.featureRecord.deleteMany({ where: { userId: me.id, scopeKey: { startsWith: `${record.id}:` }, kind: { in: ["media-journal", "scene-note", "media-bingo"] } } })
+      await tx.featureRecord.delete({ where: { id: record.id } })
+      const remaining = profiles.filter((profile) => profile.id !== record.id)
+      const where = { userId_key: { userId: me.id, key: ACTIVE_MEDIA_PROFILE_PREFERENCE } }
+      const preference = await tx.userPreference.findUnique({ where })
+      const lastActiveProfileId = remaining.find((profile) => profile.id === preference?.value)?.id || remaining[0].id
+      await tx.userPreference.upsert({ where, update: { value: lastActiveProfileId }, create: { userId: me.id, key: ACTIVE_MEDIA_PROFILE_PREFERENCE, value: lastActiveProfileId } })
+      return { lastActiveProfileId } as const
+    })
+    if (result.error) return fail(result.error, result.status)
+    const avatar = profileFromRecord(record).avatarUrl?.split("/").pop()
+    if (avatar?.startsWith(`${me.id}-synnflix-${record.id}-`) && !avatar.includes("..")) await unlink(path.join(uploadsDir(), avatar)).catch(() => {})
+    return NextResponse.json({ deleted: true, lastActiveProfileId: result.lastActiveProfileId })
   }
 
   return fail("Unknown action", 404)

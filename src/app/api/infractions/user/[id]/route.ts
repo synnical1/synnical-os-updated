@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
+import { toSafeUser } from "@/lib/auth"
 
 // GET /api/infractions/user/[id] — get a user's infraction history (self or mod+)
 export async function GET(
@@ -25,5 +26,5 @@ export async function GET(
     orderBy: { createdAt: "desc" },
   })
 
-  return NextResponse.json({ infractions })
+  return NextResponse.json({ infractions: infractions.map((row) => ({ ...row, issuer: row.issuer ? toSafeUser(row.issuer) : null })) })
 }

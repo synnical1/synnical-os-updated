@@ -25,6 +25,7 @@ import { privacyViewFor } from "./privacy"
 import { isAccountLockedDown } from "./security-policy"
 import { ensureFriendshipBond, recordFriendshipMessage } from "./friendship-social"
 import { runAutomationTrigger, runDueAutomations } from "./automation-engine"
+import { allowedSocketOrigin } from "./server-request-auth"
 
 interface ClientUser {
   userId: string
@@ -108,9 +109,10 @@ type AuthedSocket = Socket & { user: ClientUser }
  */
 export function attachChat(httpServer: HTTPServer): IOServer {
   const io = new IOServer(httpServer, {
-    path: "/socket.io",
+    path: process.env.NEXT_PUBLIC_SOCKET_URL || "/socket.io",
     // Same-origin only: the app and the socket are served by this same process.
     cors: { origin: true, credentials: true, methods: ["GET", "POST"] },
+    allowRequest: (req, done) => done(null, allowedSocketOrigin(req)),
     pingTimeout: 60000,
     pingInterval: 25000,
     maxHttpBufferSize: 1e6,
@@ -137,6 +139,15 @@ export function attachChat(httpServer: HTTPServer): IOServer {
     activity: RichPresenceActivity | null
   }
   const presenceByUser = new Map<string, PresenceState>()
+  const activityBySocket = new Map<string, { userId: string; activity: RichPresenceActivity; updatedAt: number }>()
+  function latestActivityForUser(userId: string): RichPresenceActivity | null {
+    let latest: { activity: RichPresenceActivity; updatedAt: number } | null = null
+    for (const [id, entry] of activityBySocket) {
+      if (entry.userId === userId && online.has(id) && (!latest || entry.updatedAt >= latest.updatedAt)) latest = entry
+    }
+    return latest?.activity || null
+  }
+
   type CallMember = { socketId: string; userId: string; username: string; displayName: string; muted: boolean; video: boolean; screen: boolean }
   type CallRoom = { code: string; kind: "voice" | "video"; createdBy: string; createdAt: number; members: Map<string, CallMember> }
   const callRooms = new Map<string, CallRoom>()
@@ -168,6 +179,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
 
   const serializeHistoryMessage = (row: any, viewerUserId: string) => ({
     id: row.id, channelId: row.channelId, userId: row.userId, username: row.username,
+    clientNonce: row.clientNonce,
     content: row.content, deleted: row.deleted, edited: row.edited, gifUrl: row.gifUrl, imageUrl: row.imageUrl,
     voiceUrl: row.voiceUrl, voiceTranscript: row.voiceTranscript, messageType: row.messageType, threadRootId: row.threadRootId,
     replyToId: row.replyToId, replyToName: row.replyToName, replyToContent: row.replyToContent,
@@ -344,7 +356,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         deviceType: state?.deviceType || null,
         networkQuality: state?.networkQuality || null,
         onlineSince: state?.showOnlineDuration ? new Date(state.connectedAt).toISOString() : null,
-        activity: state?.activity || null,
+        activity: latestActivityForUser(u.userId),
       })
     }
     return users
@@ -590,7 +602,12 @@ export function attachChat(httpServer: HTTPServer): IOServer {
       next.deviceType = ["desktop", "mobile", "tablet", "unknown"].includes(String(payload.deviceType)) ? payload.deviceType as PresenceState["deviceType"] : null
       next.networkQuality = ["good", "fair", "poor", "unknown"].includes(String(payload.networkQuality)) ? payload.networkQuality as PresenceState["networkQuality"] : null
       next.showOnlineDuration = payload.showOnlineDuration === true
-      next.activity = normalizeRichPresenceActivity(payload.activity)
+      if (Object.prototype.hasOwnProperty.call(payload, "activity")) {
+        const activity = normalizeRichPresenceActivity(payload.activity)
+        if (activity) activityBySocket.set(socket.id, { userId: user.userId, activity, updatedAt: Date.now() })
+        else activityBySocket.delete(socket.id)
+      }
+      next.activity = latestActivityForUser(user.userId)
       presenceByUser.set(user.userId, next)
       void broadcastGlobalPresence()
       for (const [channelId, ids] of channelRooms.entries()) {
@@ -728,6 +745,15 @@ export function attachChat(httpServer: HTTPServer): IOServer {
           dmPeerId = other.userId
         }
 
+        if (normalizedClientNonce) {
+          const existing = await db.message.findUnique({ where: { userId_clientNonce: { userId: user.userId, clientNonce: normalizedClientNonce } }, include: { user: true, reactions: true } })
+          if (existing) {
+            if (existing.channelId !== channelId || existing.deleted) rejectSend({ code: "MESSAGE_NONCE_CONFLICT", message: "This message retry is no longer available." })
+            else socket.emit("message", serializeHistoryMessage(existing, user.userId))
+            return
+          }
+        }
+
         const text = typeof content === "string" ? content.trim() : ""
         // Only direct assets on GIPHY's official media CDN are accepted. This
         // blocks arbitrary tracking/image hosts while following GIPHY's rule
@@ -849,12 +875,14 @@ export function attachChat(httpServer: HTTPServer): IOServer {
 
         if (dmPeerId) await ensureFriendshipBond(user.userId, dmPeerId).catch(() => {})
 
+        let duplicateSend = false
         const created = await db.message.create({
           data: {
             channelId,
             userId: user.userId,
             username: user.username,
             content: text,
+            clientNonce: normalizedClientNonce,
             gifUrl: gif,
             imageUrl: image?.url || null,
             voiceUrl: voice?.url || null,
@@ -869,7 +897,19 @@ export function attachChat(httpServer: HTTPServer): IOServer {
             spoilerUntil: spoilerMeta?.until || null,
             ...(replySnapshot || {}),
           },
+        }).catch(async (error) => {
+          if (normalizedClientNonce && error?.code === "P2002") {
+            const existing = await db.message.findUnique({ where: { userId_clientNonce: { userId: user.userId, clientNonce: normalizedClientNonce } } })
+            if (existing && existing.channelId === channelId && !existing.deleted) { duplicateSend = true; return existing }
+          }
+          throw error
         })
+
+        if (duplicateSend) {
+          const row = await db.message.findUnique({ where: { id: created.id }, include: { user: true, reactions: true } })
+          if (row) socket.emit("message", serializeHistoryMessage(row, user.userId))
+          return
+        }
 
         await emitAuthorizedChannel(channelId, "message", {
           id: created.id, channelId: created.channelId, userId: user.userId,
@@ -1180,6 +1220,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
     socket.on("disconnect", () => {
       leaveCall(socket.id)
       online.delete(socket.id)
+      activityBySocket.delete(socket.id)
       if (![...online.values()].some((entry) => entry.userId === user.userId)) presenceByUser.delete(user.userId)
       setSocketClientCount(online.size)
       for (const [channelId, ids] of channelRooms.entries()) {

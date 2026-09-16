@@ -76,7 +76,8 @@ export async function GET(req: NextRequest) {
     const rows = await db.savedMessage.findMany({ where: { userId: me.id }, orderBy: { createdAt: "desc" }, take: 250 })
     const messageIds = rows.map((row) => row.messageId)
     const messages = messageIds.length ? await db.message.findMany({ where: { id: { in: messageIds }, deleted: false }, include: { user: true } }) : []
-    const byId = new Map(messages.map((message) => [message.id, message]))
+    const accessible = await Promise.all(messages.map(async (message) => await channelOr403(message.channelId, me) ? message : null))
+    const byId = new Map(accessible.filter((message) => message !== null).map((message) => [message.id, serializeFeatureMessage(message, me.id)]))
     return NextResponse.json({ saved: rows.map((row) => ({ ...row, message: byId.get(row.messageId) || null })).filter((row) => row.message) })
   }
 
@@ -102,7 +103,14 @@ export async function GET(req: NextRequest) {
     const rootId = rootCandidate.threadRootId || rootCandidate.id
     const root = rootCandidate.id === rootId ? rootCandidate : await db.message.findUnique({ where: { id: rootId }, include: { user: true } })
     const replies = await db.message.findMany({ where: { channelId: rootCandidate.channelId, threadRootId: rootId, deleted: false }, include: { user: true }, orderBy: { createdAt: "asc" }, take: 500 })
-    return NextResponse.json({ root, replies })
+    return NextResponse.json({ root: root && root.channelId === rootCandidate.channelId && !root.deleted ? serializeFeatureMessage(root, me.id) : null, replies: replies.map((message) => serializeFeatureMessage(message, me.id)) })
+  }
+
+  if (action === "poll-message") {
+    const messageId = id(req.nextUrl.searchParams.get("messageId"))
+    const poll = messageId ? await db.poll.findFirst({ where: { messageId } }) : null
+    if (!poll || !await channelOr403(poll.channelId, me)) return jsonError("Poll not found", 404)
+    return NextResponse.json({ poll: await serializePoll(poll, me.id) })
   }
 
   if (!channelId) return jsonError("channelId required")
@@ -137,7 +145,7 @@ export async function GET(req: NextRequest) {
     if (to && Number.isFinite(to.getTime())) where.createdAt = { ...(where.createdAt || {}), lte: to }
     if (media === "1") where.OR = [{ gifUrl: { not: null } }, { imageUrl: { not: null } }, { voiceUrl: { not: null } }]
     const messages = await db.message.findMany({ where, include: { user: true }, orderBy: { createdAt: "desc" }, take: 200 })
-    return NextResponse.json({ messages })
+    return NextResponse.json({ messages: messages.map((message) => serializeFeatureMessage(message, me.id)) })
   }
 
   if (action === "gallery") {
@@ -156,12 +164,6 @@ export async function GET(req: NextRequest) {
   if (action === "polls") {
     const polls = await db.poll.findMany({ where: { channelId }, orderBy: { createdAt: "desc" }, take: 100 })
     return NextResponse.json({ polls: await Promise.all(polls.map((poll) => serializePoll(poll, me.id))) })
-  }
-  if (action === "poll-message") {
-    const messageId = id(req.nextUrl.searchParams.get("messageId"))
-    const poll = messageId ? await db.poll.findFirst({ where: { messageId } }) : null
-    if (!poll || !await channelOr403(poll.channelId, me)) return jsonError("Poll not found", 404)
-    return NextResponse.json({ poll: await serializePoll(poll, me.id) })
   }
 
   if (action === "events") {

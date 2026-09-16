@@ -26,7 +26,9 @@ test("runtime batch: SynnFlix flushes progress when redirects hide or unload the
   assert.match(panel, /const genuinelyCompleted = credibleDuration > 0 && currentTime >= credibleDuration \* 0\.92/)
   assert.match(panel, /Provider ad\/pop-under navigation/)
   const media = read("src/app/api/features/media/route.ts")
-  assert.match(media, /replayingCompleted/)
+  assert.match(panel, /replayingCompleted/)
+  assert.match(panel, /clearProgress/)
+  assert.match(media, /action === "reset-progress"/)
   assert.match(media, /activePlayback/)
 })
 

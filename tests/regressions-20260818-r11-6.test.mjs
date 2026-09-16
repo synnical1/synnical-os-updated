@@ -107,6 +107,6 @@ test('r11.6: build metadata is bumped', () => {
   const pkg = JSON.parse(read('package.json'))
   const [major, minor, patch] = pkg.version.split('.').map(Number)
   assert.ok(major > 0 || minor > 7 || (minor === 7 && patch >= 6))
-  assert.match(info, /synnical-r23-synnical-os-r12-final-20260818/)
-  assert.match(info, /SYNNICAL_VERSION = "0\.8\.0"/)
+  assert.match(info, /synnical-recovered-20260915-839d810/)
+  assert.match(info, /SYNNICAL_VERSION = "0\.8\.1-recovery\.20260915"/)
 })

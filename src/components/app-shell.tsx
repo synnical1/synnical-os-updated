@@ -12,7 +12,6 @@ import { PresenceBridge } from "@/components/presence-bridge"
 import { AutomationBridge } from "@/components/automation-bridge"
 import { CommandPalette } from "@/components/command-palette"
 import { DesktopShell } from "@/components/desktop-shell"
-import { SecuritySetupScreen } from "@/components/security-setup-screen"
 import { YouTubeIcon, GeForceNowIcon } from "@/components/brand-app-icons"
 import { hydrateOsSettings } from "@/lib/os-settings"
 
@@ -47,10 +46,13 @@ import { BrowserPanel } from "@/components/browser-panel"
 
 export type Panel = "discover" | "chat" | "friends" | "moderation" | "temp-mail" | "browser" | "music" | "ai" | "games" | "shop" | "profile" | "settings" | "movies" | "synnime" | "drive" | "lab" | "spaces" | "market" | "automations" | "creator" | "calls" | "developer" | "files" | "youtube" | "geforce-now" | "linux-vm" | "auth"
 
+const SAFE_MODE_APPS = new Set<Panel>(["settings", "files", "profile", "auth"])
+
 const APP_NAV: { id: Panel; label: string; icon: ComponentType<{ className?: string }>; modOnly?: boolean; authOnly?: boolean; labOnly?: boolean }[] = [
   { id: "discover", label: "Search", icon: Search, authOnly: true },
   { id: "browser", label: "Browser", icon: Globe },
   { id: "games", label: "Games", icon: Gamepad2 },
+  { id: "friends", label: "Friends", icon: User, authOnly: true },
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "movies", label: "SynnFlix", icon: Clapperboard },
   { id: "synnime", label: "Synnime", icon: Tv },
@@ -67,6 +69,7 @@ const APP_NAV: { id: Panel; label: string; icon: ComponentType<{ className?: str
   { id: "temp-mail", label: "Temp Mail", icon: Mailbox },
   { id: "shop", label: "Shop", icon: ShoppingCart, authOnly: true },
   { id: "market", label: "Marketplace", icon: ShoppingBasket, authOnly: true },
+  { id: "creator", label: "Creator Studio", icon: PanelsTopLeft, authOnly: true },
   { id: "developer", label: "Developer", icon: Code2, authOnly: true },
   { id: "moderation", label: "Moderation", icon: Shield, modOnly: true },
   { id: "lab", label: "Synnical Lab", icon: FlaskConical, authOnly: true, labOnly: true },
@@ -98,6 +101,13 @@ function usePanelMountState() {
 }
 
 export function AppShell() {
+  const [bootMode, setBootMode] = useState<"normal" | "safe" | "recover" | null>(null)
+  const safeMode = bootMode === "safe"
+  useEffect(() => {
+    const safe = new URLSearchParams(window.location.search).get("safe") === "1"
+    const recover = new URLSearchParams(window.location.search).get("recover") === "1"
+    setBootMode(recover ? "recover" : safe ? "safe" : "normal")
+  }, [])
   const [panel, setPanel] = useState<Panel>("browser")
   const { mounted, markMounted } = usePanelMountState()
   const { user } = useAuth()
@@ -112,7 +122,7 @@ export function AppShell() {
 
   const isMod = user?.role === "OWNER" || user?.role === "HEAD_ADMIN" || user?.role === "ADMIN" || user?.role === "MOD"
   const gameFocusVisible = gameFocus && (panel === "games" || panel === "geforce-now")
-  const visibleApps = APP_NAV.filter((item) => (!item.modOnly || isMod) && (!item.authOnly || Boolean(user)) && (!item.labOnly || labVisible))
+  const visibleApps = APP_NAV.filter((item) => (!safeMode || SAFE_MODE_APPS.has(item.id)) && (!item.modOnly || isMod) && (!item.authOnly || Boolean(user)) && (!item.labOnly || labVisible))
   const visibleNav = visibleApps.filter((item) => CORE_NAV.has(item.id))
 
   useEffect(() => {
@@ -243,7 +253,7 @@ export function AppShell() {
     }
   }, [panel])
 
-  const renderDesktopPanel = (target: Panel, openPanel: (target: Panel) => void) => (
+  const renderDesktopPanel = (target: Panel, openPanel: (target: Panel) => void) => safeMode && !SAFE_MODE_APPS.has(target) ? null : (
     <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--synnical-accent)] border-t-transparent" /></div>}>
       {target === "discover" ? <ErrorBoundary name="Search"><DiscoveryPanel onPanel={openPanel} /></ErrorBoundary> : null}
       {target === "chat" ? <ErrorBoundary name="Chat">{user ? <ChatPanel /> : <AuthScreen embedded />}</ErrorBoundary> : null}
@@ -275,14 +285,16 @@ export function AppShell() {
     </Suspense>
   )
 
-  if (user?.securitySetupRequired) return <SecuritySetupScreen />
 
+  if (bootMode === null) return null
+  if (bootMode === "recover") return <main className="min-h-screen bg-black text-white p-8 space-y-4"><h1 className="text-2xl">Synnical Recovery</h1><p>Reset this browser's OS preferences or start with essential apps. Account records and uploads are kept.</p><button className="rounded border p-3" onClick={() => { for (const key of Object.keys(localStorage)) if (key.startsWith("synnical:os:") && !key.includes("settings-snapshots")) localStorage.removeItem(key); location.assign("/?safe=1") }}>Reset local OS preferences</button><a className="block underline" href="/?safe=1">Start Safe Mode</a><a className="block underline" href="/">Start normally</a></main>
   return (
     <>
-      <PresenceBridge />
-      <AutomationBridge />
+      {safeMode && <a href="/" className="fixed right-3 top-2 z-[30000] rounded bg-amber-950 px-3 py-1 text-xs text-white">Safe Mode · Exit</a>}
+      {!safeMode && <PresenceBridge />}
+      {!safeMode && <AutomationBridge />}
       <CommandPalette />
-      {osMode ? (
+      {osMode || safeMode ? (
         <DesktopShell
           apps={visibleApps}
           renderPanel={renderDesktopPanel}

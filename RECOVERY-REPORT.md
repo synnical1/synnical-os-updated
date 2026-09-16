@@ -1,0 +1,110 @@
+# Synnical recovery report — 2026-09-15
+
+## Outcome and provenance
+
+This source was recovered directly from **[synnical1/synnical-os-updated commit 839d810951898ef51e3df282cdc2d11ce15fb669](https://github.com/synnical1/synnical-os-updated/commit/839d810951898ef51e3df282cdc2d11ce15fb669)**, dated **2026-08-25**, titled **“Tighten music UI and add Synn VM route shell.”** The handoff ZIP was opened and `README-FIRST.md` read completely before changes. The August 21 fallback was extracted separately for comparison; it was never substituted as the latest source.
+
+Recovery identity: `synnical-recovered-20260915-839d810`, package version `0.8.1-recovery.20260915`. The recovery source is prepared for GitHub branch `recovery/20260915-arm64`. No production deployment was performed. The downloadable archive is `SYNNICAL-RECOVERED-LATEST-20260915.zip`; its separate `.sha256` file identifies the exact archive bytes.
+
+**GitHub publication is blocked, not completed.** The connected GitHub integration can read the repository, but its Git tree write returned HTTP 403, `Resource not accessible by integration`. A normal Git push also lacked authenticated CLI credentials. No recovery branch or pull request was created remotely and `main` was not changed. The finished source and local commits are preserved; publishing requires reconnecting GitHub with write access to this repository. A separate `SYNNICAL-RECOVERY-COMMITS.patch` preserves the recovery commits for replay onto the exact base if this workspace is unavailable. This is an access limitation, not a failed application check.
+
+**Validation:** all **295 repository tests pass**, with zero failures/skips/cancellations. Clean installation, Prisma, TypeScript, production build and the release gate pass. All seven proxy assets match the lockfile packages. All 21 live smoke groups pass (17 server/API and four headless browser groups); their results are recorded in `VALIDATION-REPORT.md`. This validates the exercised local paths; actual ARM64 deployment and configured external providers still require their own checks.
+
+## What changed between August 21 and August 25
+
+The actual source comparison found **18 files added, 6 removed, 67 changed, 350 unchanged**. The complete path lists are in `AUG21-TO-AUG25-DIFF.md`. Existing generated release manifests were not used as source authority.
+
+| Area | Newer source behavior retained |
+| --- | --- |
+| SynnFlix profiles | Who's Watching selector, account-owned multiple profiles, maximum 12, 100 stable avatars in a 10×10 atlas, uploaded custom avatar support |
+| SynnFlix state | `profileId` scopes lists, ratings and progress; progress drives history/Continue Watching; removal/reset and completed replay paths; close/pagehide/visibility progress flushing |
+| Settings | New `/api/features/settings` stores runtime settings per account; authentication hydrates runtime and OS preferences |
+| Browser | Updated Scramjet lifecycle/route reattachment, actual navigation observation, relative-link resolution, frame history, fresh-session reset, ad shielding and matching worker/runtime identifiers |
+| Chat | Optimistic outgoing rows, failed-message display, nonce reconciliation, sanitized chat image upload |
+| Games | Continue Playing retained, planner/backlog and Session History UI removed, structured provider/mail/queue errors and verification polling retained |
+| Desktop | Free icon positioning and disabled window restoration defaults/migration; entry-only 1500 ms boot; DEV recognition metadata; themes and profile decorations/effects retained |
+| Wallpapers | New static ink PNG is the actual default; old Sakura gallery is removed. The August 25 MP4 asset remains present but is in the retired-default set, so it is not falsely restored as the default |
+| Music | August 25's generic public UI labels preserved; internal provider names are retained where needed |
+| Synn VM | `/linux-vm` and its external-VM panel use `NEXT_PUBLIC_SYNN_VM_URL`; blank configuration renders the existing message |
+| Other additions | Synnime wraps the anime experience; Synn Drive is an experimental storage preview, not a working cloud synchronization backend |
+
+Semantic schema changes from the fallback were `Message.imageUrl`, the `ChatImageUpload` model, and `profileId` defaults/composite unique keys/indexes on MediaList, MediaRating and MediaProgress. Much of the schema diff is formatting. Profile metadata uses existing FeatureRecord/UserPreference storage rather than a new relational profile model. The full schema has 105 models.
+
+Configuration/runtime changes include newer Scramjet cache/version wiring, the optional VM URL, account settings endpoints, changed application registry/layout, Stratus mailbox/error behavior and package/lockfile changes. Neither source supplied a complete environment example. The old source README, build constants, npm version and generated manifest disagreed about the release identity; this recovery now labels itself consistently.
+
+The suspicious deletion was `/api/uploads/[...path]`: the newer upload writers and UI still generated those URLs, but the serving route was absent. The August 21 route established the intended functionality. It was recovered with safe file serving and video ranges; no newer UI was reverted.
+
+## Repairs applied
+
+1. **Restore uploads safely.** The route now delegates to `upload-serving.ts`, allowing only a single safe media filename. It denies nested paths, traversal, symlinks and executable content; opens with `O_NOFOLLOW`; verifies a regular file; streams media with HEAD and single byte-range support; and sets content-type, nosniff and restrictive content policy headers. Private screenshot folders cannot be reached through the generic route. The health panel now uses the same upload directory as writers/readers.
+
+2. **Protect account settings.** The server streams and bounds JSON before parsing, rejects malformed/nested/prototype-key/nonfinite/oversized values, limits merged state and performs the merge inside a transaction. A client-supplied account identity can reject a delayed write after a login change. Client hydration clears a previous account's state, ignores stale async replies, preserves edits made while loading, retries failed hydration/saves and flushes appropriately. OS settings hydration also tracks account epochs. A runtime race test verifies that account A's late response cannot overwrite account B or a newer edit.
+
+3. **Make SynnFlix profile/state operations safer.** Default profile creation uses a deterministic upsert; profile creation and last-profile deletion are transaction guarded. Explicit foreign/unknown profiles return 404 instead of silently using another active profile. Deletion cleans profile-scoped lists/items, ratings, progress and journal/scene/bingo records. Uploaded avatar cleanup only deletes that profile's own files; it cannot delete an inherited account picture. Playback updates serialize their read/merge/write and compare completion with the greatest known duration, so a short ad-duration event cannot mark a long film completed.
+
+4. **Fix chat integrity and authorization.** Added nullable `Message.clientNonce` plus unique `(userId, clientNonce)` to make retries idempotent. Confirmed history includes the nonce; pending/failed rows survive reconnect and reconcile by sender plus nonce without duplicate rows. Retry lookup occurs before consumed-media checks and repeated side effects. Socket event cleanup removes only each effect's own handlers; typing expiry timers reset and clean up correctly. The online-users event now reaches its existing desktop widget consumer. HTTP message history now enforces channel access and validates its date cursor.
+
+5. **Stop credential-hash exposure.** Search/thread/saved chat responses previously included raw nested user objects. They now use safe message serialization and current channel authorization. Infraction list/detail responses likewise sanitize users/issuers. Inline poll lookup was unreachable behind a mandatory channelId gate; it now performs its own message/channel authorization before that gate.
+
+6. **Harden concrete network/auth risks.** Wisp requires an authenticated same-origin session, denies permanent bans, restricts web destination ports and disables private/loopback/UDP access. The custom server captures Socket.IO's upgrade listener before installing its dispatcher, and polling/websocket checks preserve normal connections. The Browser gives guests a sign-in message when navigation requires the built-in proxy. Removed Caddy's arbitrary query-selected localhost reverse proxy. Owner verification rejects missing configuration, rate-limits attempts, bounds input and uses constant-time digest comparison. Registration bounds security answers.
+
+7. **Fix unsafe/misleading content handling.** Email HTML renders in an opaque sandbox with restrictive CSP instead of regex-based script removal in the main document. Mailbox parsing uses the provider's actual `hydra:member` array and encodes message IDs. Wallpaper uploads reject oversized input before buffering. Main profile/wallpaper cleanup only deletes files belonging to that account. Synn Drive now identifies its local button state as a saved shortcut, not an authenticated cloud connection.
+
+8. **Repair dependency/deployment hygiene.** Updated Next, Sharp and affected transitive packages; fixed Sharp's changed named type exports. npm audit went from 13 findings (one critical, five high, seven moderate) to zero reported findings. Removed the unused Sapphire extension dependency/config entry without removing runtime features; pinned Scramjet 2.0.67-alpha.2 directly so the preserved public assets have reproducible provenance. Controller remains 0.0.14. Added a seven-asset byte comparison script. Relevant advisories include [Next AVIF handling](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4), [Sharp/libheif](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c) and [deepmerge-ts](https://github.com/advisories/GHSA-ggr8-5vv4-36mx).
+
+9. **Make fresh installation explicit.** Added Node 22 engines/version hint, complete environment example/inventory check, safe SQLite bootstrap, disposable smoke tests, full test/release scripts, Nginx/logrotate examples and the ARM64 guide. Development starts the custom server instead of bypassing Socket.IO/Wisp with plain Next dev. Removed automatic `--accept-data-loss` from `db:push`. Fixed ignore rules that previously re-included node_modules/build output. PM2 retains one process, external logs/data and loopback binding with a realistic 2 GB restart threshold. Old installers remain historical and are prominently marked as such.
+
+10. **Complete Files.** Private screenshot APIs now support soft deletion, restore, validated display-name changes and permanent purge only after recycling. Owner checks apply to all methods. File reads reject unsafe paths/symlinks and use private/no-store caching. Screenshot uploads are decoded, metadata stripped and resized within 4096×4096 as WebP. Files now connects its Recycle Bin, rename/F2, ZIP export (100 MB bound), location pins and opt-in age-based cleanup. Unsupported native-folder operations stay explicitly unavailable rather than pretending to move browser records. Cleanup is off by default and runs while Files is open.
+
+11. **Repair security settings without forced password changes.** Removed the obsolete blocking password-migration screen and return 410 for its unsafe legacy endpoints. Those endpoints could replace a password without current-password confirmation; registration already finishes security setup with the password the user chose, and four pre-existing tests explicitly require the forced migration to be gone. Password-confirmed change-password, recovery-question/code and device controls remain. Recovery questions now have a working settings control. Optional 4–8 digit lock PINs are hashed, set/removed with password confirmation and verified only within an authenticated session. PIN retries are limited by account across changing IP headers; password verification has a separate account limit. PINs never authenticate a new sign-in.
+
+12. **Connect desktop settings and recovery.** Added startup-app and launcher controls, cursor controls, Quick Settings ordering, editable duplicate-checked shortcuts, optional search history, settings JSON import/export and five local restore points per account. Import is size-bounded and sanitized. Repair/restart uses the existing window lifecycle; browser cache cleanup preserves account records. Safe Mode (`/?safe=1`) restricts apps to essential account/settings/files surfaces; Recovery (`/?recover=1`) exposes a local OS reset. Creator Studio and Friends were rendered in source but missing from the launcher registry; both now have authenticated entries. Start search queues its query until the lazy Search panel mounts. What's New/update history use real build metadata. Recording a shortcut now prevents that same keystroke from triggering an OS action.
+
+13. **Repair Browser and composer runtime paths.** Address edits stay in the input component until navigation; actual frame navigation still updates the displayed URL. Inactive Browser frames suspend after three minutes (90 seconds under automatic low-battery mode), retaining URLs for activation; currently playing audio/video and embedded game sessions are excluded. Split views recreate/navigate their frames correctly. GeForce NOW has explicit capture/release controls using Keyboard Lock when supported; unavailable browser capabilities fall back gracefully. Ordinary Chat typing updates its ref immediately and debounces panel state while mentions/commands stay responsive.
+
+14. **Complete moderation and presence wiring.** Staff slash commands guide target/reason/duration confirmation and call the existing authorization-enforcing moderation APIs. Invalid mute durations are rejected, and timed bans are rejected explicitly because the existing identity-ban backend supports permanent bans; a timed mute is available. Unban stores the supplied audit reason. Rich activity is tracked per socket, chooses the newest active source, and falls back to another device after disconnect. Chat and profiles display it subject to existing privacy rules. Privacy cache invalidation now crosses the custom-server/compiled-Next module boundary, fixing stale socket privacy after a settings change.
+
+15. **Connect accessibility and media indicators.** Color filters, reduced transparency, caption size/background and interface zoom through 200% have controls and runtime CSS. Captions apply to Synnical-owned HTML video, not third-party players. Touch-keyboard themes and battery effect reduction now have CSS consumers. Calls and voice recording report capture start/stop to the existing privacy indicator/history surface. A failed SynnFlix replay reset now reports failure instead of silently starting with stale completed progress.
+
+## Requested feature audit: what was actually verified
+
+| Feature group | Verification and practical limit |
+| --- | --- |
+| 12 profiles / 100 avatars / atlas | Code/assets checked; unit coordinate/uniqueness test; live maximum/ownership/default-race tests |
+| Custom SynnFlix picture | Real Sharp decode, resize to 512×512 WebP, metadata stripping, malformed input rejection and inherited-picture preservation exercised |
+| Per-profile media data | Live API tests for lists, ratings, progress and reset/replay; history/Continue Watching UI wiring inspected |
+| Close/progress/replay UI | Provider listener, pagehide/visibility/blur/close paths and newer regression contracts inspected; actual external provider playback not reproduced |
+| Account settings | Server validation/isolation live tests plus client race test; OS hydrate/persist account guards inspected |
+| Browser/Scramjet | Worker activation/update/route wiring, unsandboxed intended proxy frame, actual-URL observation, relative links, back/forward, fresh-session and ad integration inspected; seven runtime/controller files match locked bytes; Wisp upgrades exercised. Address editing/fresh-window behavior tested in headless Chromium; real remote proxy navigation still requires a live network/provider check |
+| Chat / Socket.IO | Live websocket and polling, idempotent send, reconnect nonce history, safe HTTP message endpoints; optimistic/failed UI code and newer regressions checked |
+| Games | Existing panel/history/Continue Playing and structured provider/mail handling preserved and regression inspected. Cloud sessions/mail-provider verification were not run against a live provider |
+| Desktop / themes / effects | New icon/window/boot/DEV paths and profile decorations/themes preserved; settings/Files/recovery paths repaired; executed UI coverage listed in validation report |
+| Music | Newest commit's generic labels retained; provider-backed search/playback not externally verified |
+| Synn VM | Route production HTTP response and blank-configuration message tested; no actual VM deployed or configured |
+
+The audit covered the whole tracked tree inventory/change comparison, schema, environment/dependency/native requirements and practical authentication/file/network checks across API code. It was not a formal penetration test or a claim that every branch in every route executed. No obvious live credential was found in the reviewed source; a scanner match in minified libcurl was code, not a credential. Historical Git history was not scrubbed or represented as secret-free. If old keys ever existed in history, their owners must rotate them separately.
+
+## Database, uploads and environment
+
+No original production SQLite database or `/var/lib/synnical/uploads` contents were recovered. No accounts, messages, credits, history or files were fabricated. The final ZIP contains no database or uploads. Smoke-test users/files exist only in temporary test storage and are deleted.
+
+Use `DATABASE_URL=file:/var/lib/synnical/database/synnical.db`. `npm run db:init` exclusively creates a missing empty file and runs `prisma db push`; `npx prisma generate` and `npx prisma validate` are also documented. This source has no authoritative migration directory. For subsequent upgrades, take a consistent SQLite backup first and review `prisma db push` warnings; do not use `--accept-data-loss` or reset commands automatically. The recovery's only new relational schema field is nullable Message.clientNonce and its compound unique index. Existing older rows would remain null; no recovered production rows were available to test an actual upgrade.
+
+Create writable `/var/lib/synnical/uploads`, `/var/lib/synnical/media-approvals` and `/var/log/synnical` for the service user. Upload handlers recreate their target directories as needed; provisioning them explicitly ensures correct ownership.
+
+`.env.example` documents all 58 inventoried JS/TS variables plus six historical installer controls. Required production variables are `DATABASE_URL`, `OWNER_PASSWORD`, `IDENTITY_HASH_SECRET`. Networking uses `NODE_ENV`, `HOSTNAME`, `PORT`, `NEXT_PUBLIC_SOCKET_URL`; persistent data uses `UPLOAD_DIR`, `MEDIA_APPROVALS_DIR`. Feature categories cover TMDB, AI/moderation/transcription, music, Wisp/Netherlands SOCKS, Stratus/mail, VM, Giphy, WebRTC and ad integration. No real secret values are included. Public variables are build-time browser-visible values, including the Stratus site identifier; never put private provider credentials in them.
+
+## ARM64 and deployment
+
+Final dependency installation is reproducible with `npm ci --include=dev --include=optional` and the lockfile. Native components include Sharp/libvips, Next SWC, esbuild/tsx, Tailwind Oxide, Lightning CSS, watcher/resolver bindings and Prisma. ARM64 package variants are present; Prisma's `native` target selects the host platform. The included proxy WASM/browser assets are architecture-independent. Regenerate Prisma and build on the ARM64 host; no x86 node_modules or previous `.next` output ships. Ubuntu 24.04 ARM64 provides a suitable glibc/OpenSSL platform, but **native ARM64 execution remains to be verified on the actual VPS**. [Sharp's platform requirements](https://sharp.pixelplumbing.com/install/).
+
+`DEPLOY-ORACLE-ARM64.md` gives complete Node 22/npm/Prisma/SQLite/PM2/Nginx/TLS instructions using the requested directories, ownership, environment setup, first account/OWNER access, validation, reboot checks, backups and rollback. No deployment was attempted.
+
+## Remaining issues and release limits
+
+- No repository test failures remain. The suite includes historical source-contract checks as well as executable unit/integration tests; passing it does not prove every UI branch or every external service.
+- Live remote video, configured Games/mail/music/AI/TMDB services, camera/microphone hardware, a configured VM, Keyboard Lock across browsers, ARM64 hardware, PM2/systemd and Nginx/TLS still require verification on the target deployment. Missing credentials limit the corresponding optional services; their integrations remain in source.
+- Synn Drive remains a preview with no authenticated cloud sync. The VM route is a launcher for a separately secured VM. The dormant Turso path lacks adapter dependencies; the recovered deployment is explicitly SQLite.
+- Dependency audit results are a point-in-time check. Uploaded media/routes are materially safer, but this is not a guarantee against all vulnerabilities. Existing external integrations and the broad legacy feature surface still warrant operational monitoring.
+
+The source archive keeps source, lockfile, Prisma schema, tests, public assets, required scripts, configuration examples and documentation. It excludes `.git`, node_modules, `.next`, caches, TypeScript build metadata, logs, temporary artifacts, live environment/configuration, SQLite files and private uploads. Historical documents/manifests remain clearly subordinate to this report and the actual tree.

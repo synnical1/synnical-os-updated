@@ -59,8 +59,11 @@ export async function ensureMediaProfiles(user: ProfileOwner): Promise<SynnFlixP
     take: 20,
   })
   if (!records.length) {
-    const created = await db.featureRecord.create({
-      data: {
+    const created = await db.featureRecord.upsert({
+      where: { id: `media-default-${user.id}` },
+      update: {},
+      create: {
+        id: `media-default-${user.id}`,
         userId: user.id,
         kind: MEDIA_PROFILE_KIND,
         scopeKey: "synnflix",
@@ -80,12 +83,12 @@ export async function ensureMediaProfiles(user: ProfileOwner): Promise<SynnFlixP
   return records.map(profileFromRecord)
 }
 
-export async function resolveMediaProfile(user: ProfileOwner, requested: unknown): Promise<SynnFlixProfile> {
+export async function resolveMediaProfile(user: ProfileOwner, requested: unknown): Promise<SynnFlixProfile | null> {
   const profiles = await ensureMediaProfiles(user)
   const requestedId = typeof requested === "string" ? requested.trim().slice(0, 128) : ""
   if (requestedId) {
     const match = profiles.find((profile) => profile.id === requestedId)
-    if (match) return match
+    return match || null
   }
   const preferred = await getPreference<string | null>(user.id, ACTIVE_MEDIA_PROFILE_PREFERENCE, null)
   return profiles.find((profile) => profile.id === preferred) || profiles[0]

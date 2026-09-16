@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { recordGameSeconds, safeJson } from "@/lib/feature-platform"
-import { promises as fs } from "fs"
-import path from "path"
-import { uploadsDir } from "@/lib/uploads"
 import { runAutomationTrigger } from "@/lib/automation-engine"
 
 export const dynamic = "force-dynamic"
@@ -52,12 +49,13 @@ export async function GET(req: NextRequest) {
   // otherwise leave zombie rows marked active forever. Only the current,
   // recently-heartbeating session is allowed to remain active.
   await reconcileGameSessions({ id: me.id, gameStatusSessionId: me.gameStatusSessionId })
-  const [collections, items, sessions, presets, screenshots, history, favorites, socialRecords] = await Promise.all([
+  const [collections, items, sessions, presets, screenshots, recycleScreenshots, history, favorites, socialRecords] = await Promise.all([
     db.gameCollection.findMany({ where: { userId: me.id }, orderBy: { updatedAt: "desc" } }),
     db.gameCollectionItem.findMany({ where: { collectionId: { in: (await db.gameCollection.findMany({ where: { userId: me.id }, select: { id: true } })).map((row) => row.id) } }, orderBy: { createdAt: "desc" } }),
     db.gameSession.findMany({ where: { userId: me.id }, orderBy: { startedAt: "desc" }, take: 100 }),
     db.gamePreset.findMany({ where: { userId: me.id } }),
-    db.gameScreenshot.findMany({ where: { userId: me.id }, orderBy: { createdAt: "desc" }, take: 100 }),
+    db.gameScreenshot.findMany({ where: { userId: me.id, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 100 }),
+    db.gameScreenshot.findMany({ where: { userId: me.id, deletedAt: { not: null } }, orderBy: { deletedAt: "desc" }, take: 100 }),
     db.gameHistory.findMany({ where: { userId: me.id }, orderBy: { playedAt: "desc" }, take: 100 }),
     db.gameFavorite.findMany({ where: { userId: me.id }, orderBy: { createdAt: "desc" } }),
     db.featureRecord.findMany({ where: { userId: me.id, kind: { in: ["game-backlog", "game-goal", "game-journal", "game-plan", "game-match", "game-rivalry", "game-prediction", "game-clip-entry"] } }, orderBy: { updatedAt: "desc" }, take: 300 }),
@@ -88,6 +86,7 @@ export async function GET(req: NextRequest) {
     sessions,
     presets: presets.map((row) => ({ ...row, controller: JSON.parse(row.controllerJson || "{}"), audio: JSON.parse(row.audioJson || "{}") })),
     screenshots: screenshots.map((row) => ({ ...row, fileUrl: `/api/features/games/screenshot/${encodeURIComponent(row.id)}` })),
+    recycleScreenshots: recycleScreenshots.map((row) => ({ ...row, fileUrl: `/api/features/games/screenshot/${encodeURIComponent(row.id)}` })),
     history,
     favorites: favorites.map((row) => row.gameId),
     socialRecords: socialRecords.map((row) => ({ id: row.id, kind: row.kind, gameId: row.scopeKey, title: row.title, data: safeJson(row.dataJson, {}), visibility: row.visibility, createdAt: row.createdAt, updatedAt: row.updatedAt })),
@@ -236,10 +235,7 @@ export async function POST(req: NextRequest) {
     const id = clean(body.id, 128)
     const shot = await db.gameScreenshot.findFirst({ where: { id, userId: me.id } })
     if (!shot) return fail("Screenshot not found", 404)
-    await db.gameScreenshot.delete({ where: { id } })
-    const root = path.resolve(uploadsDir())
-    const full = path.resolve(root, shot.fileUrl)
-    if (full.startsWith(root + path.sep)) await fs.unlink(full).catch(() => undefined)
+    await db.gameScreenshot.updateMany({ where: { id, userId: me.id, deletedAt: null }, data: { deletedAt: new Date() } })
     return NextResponse.json({ deleted: true })
   }
   return fail("Unknown action", 404)

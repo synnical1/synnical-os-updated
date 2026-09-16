@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     if ((target !== "desktop" && target !== "lock") || !(file instanceof File)) {
       return NextResponse.json({ error: "Choose a desktop or lock-screen wallpaper" }, { status: 400 })
     }
+    if (file.size > MAX_VIDEO_BYTES) return NextResponse.json({ error: "Wallpaper must be 80 MB or smaller" }, { status: 413 })
     const input = Buffer.from(await file.arrayBuffer())
     const videoExt = videoExtension(file, input)
     const isVideo = Boolean(videoExt)
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
     await setPreference(user.id, "os.settings", next)
 
     const previousName = uploadName(previous)
-    if (previousName) {
+    if (previousName && previousName.startsWith(`${user.id}-os-`)) {
       const stillUsed = next.desktopWallpaper.includes(previousName) || next.lockWallpaper.includes(previousName)
       if (!stillUsed) await unlink(path.join(/* turbopackIgnore: true */ dir, previousName)).catch(() => {})
     }

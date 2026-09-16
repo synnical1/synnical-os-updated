@@ -76,7 +76,8 @@ export async function GET(
       }
 
       const listData = await listRes.json()
-      const messages: MailMessage[] = listData?.hydra?.member || listData?.member || []
+      const entries = listData?.["hydra:member"] || listData?.hydra?.member || listData?.member || []
+      const messages: MailMessage[] = Array.isArray(entries) ? entries : []
 
       if (messages.length === 0) {
         return NextResponse.json(
@@ -99,7 +100,7 @@ export async function GET(
           date: number
         } | null> => {
           try {
-            const detailRes = await fetch(`${base}/messages/${msg.id}`, {
+            const detailRes = await fetch(`${base}/messages/${encodeURIComponent(msg.id)}`, {
               headers: {
                 Accept: "application/json",
                 Authorization: `Bearer ${token}`,

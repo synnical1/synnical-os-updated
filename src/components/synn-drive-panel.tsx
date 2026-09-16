@@ -59,7 +59,7 @@ export function SynnDrivePanel() {
                   <p className="mt-1 text-xs leading-5 text-white/45">{provider.note}</p>
                 </div>
                 <div className="text-white/60">{provider.storage}</div>
-                <div className={provider.id === "terabox" ? "text-sky-200" : "text-emerald-200"}>{provider.id === "terabox" && connected ? "Connected" : provider.state}</div>
+                <div className={provider.id === "terabox" ? "text-sky-200" : "text-emerald-200"}>{provider.id === "terabox" && connected ? "Shortcut saved" : provider.state}</div>
               </div>
             ))}
           </div>
@@ -70,7 +70,7 @@ export function SynnDrivePanel() {
             <FlaskConical className="h-4 w-4 text-sky-200" />
             <h2 className="text-sm font-semibold">Experimental</h2>
           </div>
-          <p className="text-sm leading-6 text-white/55">Synn Drive cloud sync is being tested. Nothing here is required for the OS to run.</p>
+          <p className="text-sm leading-6 text-white/55">Cloud sync is not connected yet. You can open TeraBox and save a shortcut here; Synnical does not upload or sync your files.</p>
           <div className="mt-4 grid gap-2">
             <a
               href="https://www.terabox.com/"
@@ -87,7 +87,7 @@ export function SynnDrivePanel() {
               className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white hover:bg-white/[0.08]"
             >
               <CheckCircle2 className="h-4 w-4" />
-              Mark TeraBox Connected
+              Save TeraBox shortcut
             </button>
           </div>
         </aside>

@@ -15,24 +15,18 @@ module.exports = {
       args: "server.ts",
       cwd: "/var/www/synnical",
 
-      // Non-secret defaults. Anything defined in .env wins over these,
-      // so you can override per-machine without editing this file.
+      // Runtime secrets and host-specific values are loaded from .env by
+      // dotenv. PM2 supplies production mode and a loopback-only listen address.
       env: {
         NODE_ENV: "production",
-        PORT: 3000,
-        HOSTNAME: "0.0.0.0",
-        NEXT_PUBLIC_SOCKET_URL: "/socket.io",
-
-        // Keep uploads OUTSIDE the deploy directory so a re-deploy (or a
-        // `git clean`) can never wipe user avatars and voice notes.
-        UPLOAD_DIR: "/var/lib/synnical/uploads",
+        HOSTNAME: "127.0.0.1",
       },
 
       instances: 1, // Socket.IO keeps in-memory room state — do not cluster
       // without adding a Redis adapter first.
       exec_mode: "fork",
       autorestart: true,
-      max_memory_restart: "512M",
+      max_memory_restart: "2G",
       min_uptime: "20s",
       max_restarts: 10,
       restart_delay: 2000,

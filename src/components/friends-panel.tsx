@@ -400,18 +400,21 @@ function DMConversation({ channelId, other, onBack }: { channelId: string; other
     const socket = socketRef.current
     if (!socket || !connected) return
     socket.emit("join-channel", { channelId })
-    socket.on("message-history", (data: { channelId: string; messages: ChatMessage[] }) => {
+    const onHistory = (data: { channelId: string; messages: ChatMessage[] }) => {
       if (data.channelId === channelId) setMessages(data.messages)
-    })
-    socket.on("message", (msg: ChatMessage) => {
+    }
+    socket.on("message-history", onHistory)
+    const onMessage = (msg: ChatMessage) => {
       if (msg.channelId === channelId) setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
-    })
-    socket.on("message-deleted", (data: { id: string }) => {
+    }
+    socket.on("message", onMessage)
+    const onDeleted = (data: { id: string }) => {
       setMessages((prev) => prev.map((m) => m.id === data.id ? { ...m, deleted: true, content: "" } : m))
-    })
+    }
+    socket.on("message-deleted", onDeleted)
     return () => {
       socket.emit("leave-channel", { channelId })
-      socket.off("message-history"); socket.off("message"); socket.off("message-deleted")
+      socket.off("message-history", onHistory); socket.off("message", onMessage); socket.off("message-deleted", onDeleted)
     }
   }, [connected, channelId])
 

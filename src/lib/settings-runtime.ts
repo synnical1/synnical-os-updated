@@ -38,20 +38,41 @@ function localRuntimeSettings(): Record<string, SyncedSetting> {
   return settings
 }
 
+let accountSettingsEpoch = 0
+let hydrationRetryTimer: number | null = null
+let accountSettingsReady = false
+let flushInFlight = false
+
+function scheduleSettingsFlush(delay = 400) {
+  if (accountSettingsTimer !== null) window.clearTimeout(accountSettingsTimer)
+  accountSettingsTimer = window.setTimeout(() => {
+    accountSettingsTimer = null
+    void flushAccountSettings()
+  }, delay)
+}
+
 async function flushAccountSettings() {
-  if (!accountSettingsUserId || !Object.keys(pendingAccountSettings).length) return
+  if (!accountSettingsUserId || !accountSettingsReady || flushInFlight || !Object.keys(pendingAccountSettings).length) return
   const userId = accountSettingsUserId
+  const epoch = accountSettingsEpoch
   const settings = pendingAccountSettings
   pendingAccountSettings = {}
+  flushInFlight = true
   try {
-    await fetch("/api/features/settings", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ settings }),
+    const body = JSON.stringify({ settings, accountId: userId })
+    const response = await fetch("/api/features/settings", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" }, body,
+      keepalive: new TextEncoder().encode(body).byteLength < 60_000,
     })
+    if (!response.ok) throw new Error("Settings were not saved")
   } catch {
-    if (accountSettingsUserId === userId) pendingAccountSettings = { ...settings, ...pendingAccountSettings }
+    if (accountSettingsEpoch === epoch) pendingAccountSettings = { ...settings, ...pendingAccountSettings }
+  } finally {
+    if (accountSettingsEpoch === epoch) {
+      flushInFlight = false
+      if (Object.keys(pendingAccountSettings).length) scheduleSettingsFlush(2000)
+    }
   }
 }
 
@@ -59,57 +80,70 @@ function queueAccountSetting(key: string, value: unknown) {
   if (!accountSettingsUserId || accountSettingsHydrating) return
   if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") return
   pendingAccountSettings[key] = value
-  if (accountSettingsTimer !== null) window.clearTimeout(accountSettingsTimer)
-  accountSettingsTimer = window.setTimeout(() => {
-    accountSettingsTimer = null
-    void flushAccountSettings()
-  }, 400)
+  scheduleSettingsFlush()
 }
 
 export async function startAccountSettingsSync(userId: string): Promise<void> {
   if (typeof window === "undefined" || !userId) return
+  stopAccountSettingsSync()
   accountSettingsUserId = userId
+  const epoch = accountSettingsEpoch
   const local = localRuntimeSettings()
   let owner = ""
   try { owner = localStorage.getItem(SETTINGS_OWNER_KEY) || "" } catch {}
-
+  // Clear the previous account before any network wait, including failed GETs.
+  if (owner && owner !== userId) {
+    for (const key of Object.keys(local)) {
+      try { localStorage.removeItem(SETTINGS_PREFIX + key) } catch {}
+      window.dispatchEvent(new CustomEvent("synnical-setting-changed", { detail: { key } }))
+    }
+  }
+  window.addEventListener("pagehide", flushAccountSettings)
+  async function hydrate() {
+    if (accountSettingsEpoch !== epoch) return
   try {
     const response = await fetch("/api/features/settings", { credentials: "include", cache: "no-store" })
-    if (!response.ok || accountSettingsUserId !== userId) return
-    const body = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error("Settings hydration failed")
+    const body = await response.json()
+    if (accountSettingsEpoch !== epoch) return
     const remote = body?.settings && typeof body.settings === "object" ? body.settings as Record<string, unknown> : {}
     const remoteEntries = Object.entries(remote).filter(([, value]) => typeof value === "string" || typeof value === "number" || typeof value === "boolean") as Array<[string, SyncedSetting]>
-
     accountSettingsHydrating = true
-    if (owner && owner !== userId) {
-      for (const key of Object.keys(local)) localStorage.removeItem(SETTINGS_PREFIX + key)
-    }
     for (const [key, value] of remoteEntries) {
+      if (Object.prototype.hasOwnProperty.call(pendingAccountSettings, key)) continue
       localStorage.setItem(SETTINGS_PREFIX + key, JSON.stringify(value))
       window.dispatchEvent(new CustomEvent("synnical-setting-changed", { detail: { key, value } }))
     }
     localStorage.setItem(SETTINGS_OWNER_KEY, userId)
     accountSettingsHydrating = false
-
-    // The first account used on an existing installation adopts its current
-    // local preferences. Later accounts never inherit another user's values.
+    accountSettingsReady = true
     const canSeedLocal = !owner || owner === userId
-    const missing = canSeedLocal
-      ? Object.fromEntries(Object.entries(local).filter(([key]) => !(key in remote)))
-      : {}
-    if (Object.keys(missing).length) {
-      pendingAccountSettings = { ...pendingAccountSettings, ...missing }
-      await flushAccountSettings()
-    }
+    const missing = canSeedLocal ? Object.fromEntries(Object.entries(local).filter(([key]) => !(key in remote))) : {}
+    pendingAccountSettings = { ...missing, ...pendingAccountSettings }
+    await flushAccountSettings()
   } catch {
-    accountSettingsHydrating = false
+    // Retry without replacing edits queued while the account was offline.
+    if (accountSettingsEpoch === epoch) hydrationRetryTimer = window.setTimeout(() => { void hydrate() }, 3000)
+  } finally {
+    if (accountSettingsEpoch === epoch) accountSettingsHydrating = false
   }
+  }
+  await hydrate()
 }
 
 export function stopAccountSettingsSync(): void {
+  accountSettingsEpoch += 1
   accountSettingsUserId = ""
+  accountSettingsReady = false
+  accountSettingsHydrating = false
+  flushInFlight = false
   pendingAccountSettings = {}
-  if (typeof window !== "undefined" && accountSettingsTimer !== null) window.clearTimeout(accountSettingsTimer)
+  if (typeof window !== "undefined") {
+    if (accountSettingsTimer !== null) window.clearTimeout(accountSettingsTimer)
+    if (hydrationRetryTimer !== null) window.clearTimeout(hydrationRetryTimer)
+    hydrationRetryTimer = null
+    window.removeEventListener("pagehide", flushAccountSettings)
+  }
   accountSettingsTimer = null
 }
 
@@ -321,8 +355,16 @@ function applySpecialSetting(root: HTMLElement, key: string, value: string | num
     return
   }
 
+  if (key === "a11y.colorFilter") {
+    root.dataset.synnicalColorFilter = ["none", "grayscale", "sepia", "invert"].includes(String(value)) ? String(value) : "none"
+    return
+  }
+  if (key === "a11y.reduceTransparency") { root.classList.toggle("synnical-reduce-transparency", value === true); return }
+  if (key === "a11y.captionScale") { root.style.setProperty("--synnical-caption-scale", `${Math.max(75, Math.min(200, Number(value) || 100))}%`); return }
+  if (key === "a11y.captionBackground") { root.style.setProperty("--synnical-caption-background", value === "transparent" ? "transparent" : value === "white" ? "white" : "black"); root.style.setProperty("--synnical-caption-color", value === "white" ? "black" : "white"); return }
+
   if (key === "a11y.interfaceZoom") {
-    root.style.setProperty("--synnical-interface-zoom", String(Math.max(80, Math.min(125, Number(value) || 100)) / 100))
+    root.style.setProperty("--synnical-interface-zoom", String(Math.max(80, Math.min(200, Number(value) || 100)) / 100))
     return
   }
 
@@ -393,6 +435,10 @@ export function applyAllSettings(sections: RuntimeSettingSection[]) {
   applySpecialSetting(root, "a11y.messageSpacing", readSetting("a11y.messageSpacing", 4))
   applySpecialSetting(root, "a11y.focusThickness", readSetting("a11y.focusThickness", 2))
   applySpecialSetting(root, "a11y.interfaceZoom", readSetting("a11y.interfaceZoom", 100))
+  applySpecialSetting(root, "a11y.colorFilter", readSetting("a11y.colorFilter", "none"))
+  applySpecialSetting(root, "a11y.reduceTransparency", readSetting("a11y.reduceTransparency", false))
+  applySpecialSetting(root, "a11y.captionScale", readSetting("a11y.captionScale", 100))
+  applySpecialSetting(root, "a11y.captionBackground", readSetting("a11y.captionBackground", "black"))
   applySpecialSetting(root, "chat.msgDensity", readSetting("chat.msgDensity", "cozy"))
   applySpecialSetting(root, "a11y.fontScale", readSetting("a11y.fontScale", 100))
   applySpecialSetting(root, "privacy.tabCloak", "google-classroom")

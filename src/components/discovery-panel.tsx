@@ -1,5 +1,7 @@
 "use client"
 
+import { consumeGlobalSearch } from "@/lib/global-search"
+
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Search, User, MessageSquare, Gamepad2, Clapperboard, Music, Bot, Settings,
@@ -70,6 +72,12 @@ export function DiscoveryPanel({ onPanel }: { onPanel: (panel: Panel) => void })
   const [health, setHealth] = useState<HealthPayload | null>(null)
   const [healthError, setHealthError] = useState("")
   const [healthBusy, setHealthBusy] = useState(false)
+  useEffect(() => {
+    const receive = () => { const pending = consumeGlobalSearch(); if (pending !== null) setQuery(pending) }
+    receive()
+    window.addEventListener("synnical-global-search", receive)
+    return () => window.removeEventListener("synnical-global-search", receive)
+  }, [])
 
   useEffect(() => {
     const q = query.trim()

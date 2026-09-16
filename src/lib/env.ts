@@ -1,6 +1,6 @@
 // Environment variable validation — fails fast if missing required vars
 function required(name: string): string {
-  const val = process.env[name]
+  const val = process.env[name]?.trim()
   if (!val) {
     console.error(`[env] Missing required environment variable: ${name}`)
     console.error(`[env] Set it in .env or your hosting platform's environment variables.`)
@@ -31,6 +31,9 @@ export function validateEnv() {
 
   // Port — defaults to 3000
   const PORT = parseInt(optional("PORT", "3000"), 10)
+  if (!/^\d+$/.test(optional("PORT", "3000")) || PORT < 1 || PORT > 65535) {
+    throw new Error("PORT must be an integer between 1 and 65535")
+  }
 
   // AI completions use the shared provider pool. OpenRouter is the owner-requested
   // primary provider; Groq and Gemini are optional failover providers. OpenAI is
@@ -45,6 +48,7 @@ export function validateEnv() {
   // owner gate would accept an empty password.
   if (isProduction) {
     required("OWNER_PASSWORD")
+    required("IDENTITY_HASH_SECRET")
   } else if (!process.env.OWNER_PASSWORD) {
     console.warn("[env] OWNER_PASSWORD is unset — the owner gate is disabled until you set it in .env")
   }

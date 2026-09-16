@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentSession, hashPassword, hashSecurityAnswer, normalizeSecurityAnswer, verifyPassword } from "@/lib/auth-server"
-import { toSafeUser } from "@/lib/auth"
+import { consumeRequestLimit } from "@/lib/request-rate-limit"
 import { isAccountLockedDown, logSecurityEvent, makeRecoveryCodes, recoveryCodeHash, setAccountLockdown } from "@/lib/security-policy"
 
 export const dynamic = "force-dynamic"
@@ -29,6 +29,7 @@ async function state() {
   return {
     currentSessionId: current.id,
     lockdown,
+    pinConfigured: Boolean(current.user.lockPinHash),
     score,
     checklist: [
       { id: "password", label: "Account password is configured", complete: true },
@@ -72,45 +73,17 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const action = clean(body.action, 64)
 
-  if (action === "begin-security-setup") {
-    const newPassword = secret(body.newPassword)
-    const question = clean(body.securityQuestion, 180)
-    const answer = secret(body.securityAnswer, 220)
-    if (current.user.securitySetupCompletedAt) return fail("The one-time security migration is already complete", 409)
-    if (newPassword.length < 8 || newPassword.length > 256) return fail("New password must be 8-256 characters")
-    if (verifyPassword(newPassword, current.user.passwordHash)) return fail("Choose a new password that is different from your current password")
-    if (question.length < 8) return fail("Security question must be at least 8 characters")
-    const normalizedAnswer = normalizeSecurityAnswer(answer)
-    if (normalizedAnswer.length < 3) return fail("Security answer must be at least 3 characters")
-    const codes = makeRecoveryCodes(8)
-    await db.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: current.user.id },
-        data: {
-          passwordHash: hashPassword(newPassword),
-          passwordChangedAt: new Date(),
-          securityQuestion: question,
-          securityAnswerHash: hashSecurityAnswer(answer),
-          securitySetupCompletedAt: null,
-        },
-      })
-      await tx.recoveryCode.deleteMany({ where: { userId: current.user.id } })
-      for (const code of codes) await tx.recoveryCode.create({ data: { userId: current.user.id, codeHash: recoveryCodeHash(code) } })
-      await tx.session.deleteMany({ where: { userId: current.user.id, id: { not: current.id } } })
-    })
-    await logSecurityEvent(current.user.id, "security_setup_started", "Mandatory account security setup changed the password, saved a recovery question, generated recovery codes and signed out other devices.")
-    return NextResponse.json({ setupPendingConfirmation: true, newRecoveryCodes: codes })
+  // The mandatory one-time password migration has been removed. Recovery and
+  // password changes below always require the existing account password.
+  if (action === "begin-security-setup" || action === "complete-security-setup") {
+    return fail("Use password-confirmed account security settings", 410)
   }
-
-  if (action === "complete-security-setup") {
-    const [fresh, recoveryCount] = await Promise.all([
-      db.user.findUnique({ where: { id: current.user.id } }),
-      db.recoveryCode.count({ where: { userId: current.user.id, usedAt: null } }),
-    ])
-    if (!fresh?.securityQuestion || !fresh.securityAnswerHash || recoveryCount < 1) return fail("Finish password and recovery setup before continuing")
-    const updated = await db.user.update({ where: { id: current.user.id }, data: { securitySetupCompletedAt: new Date() } })
-    await logSecurityEvent(current.user.id, "security_setup_completed", "Mandatory account security setup was completed and recovery codes were confirmed saved.")
-    return NextResponse.json({ completed: true, user: toSafeUser(updated) })
+  if (action === "verify-pin") {
+    const rate = consumeRequestLimit(req, "lock-pin", 5, 15 * 60_000, current.user.id)
+    if (!rate.allowed) return NextResponse.json({ error: "Too many PIN attempts. Use your account password or try again later." }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } })
+    const pin = typeof body.pin === "string" ? body.pin : ""
+    if (!/^\d{4,8}$/.test(pin) || !current.user.lockPinHash || !verifyPassword(pin, current.user.lockPinHash)) return fail("PIN confirmation failed", 403)
+    return NextResponse.json({ verified: true })
   }
 
   if (action === "rename-session") {
@@ -124,13 +97,22 @@ export async function POST(req: NextRequest) {
   }
 
   const password = secret(body.password)
-  if (!["set-lockdown", "generate-recovery-codes", "revoke-session", "revoke-others", "trust-session", "untrust-session", "verify-password", "change-password", "change-security-question"].includes(action)) return fail("Unknown action", 404)
+  if (!["set-lockdown", "generate-recovery-codes", "revoke-session", "revoke-others", "trust-session", "untrust-session", "verify-password", "change-password", "change-security-question", "set-lock-pin", "remove-lock-pin"].includes(action)) return fail("Unknown action", 404)
+  const rate = consumeRequestLimit(req, "security-password", 15, 15 * 60_000, current.user.id)
+  if (!rate.allowed) return fail("Too many password attempts. Try again later.", 429)
   if (!password || !verifyPassword(password, current.user.passwordHash)) return fail("Password confirmation failed", 403)
 
   if (action === "verify-password") return NextResponse.json({ verified: true })
 
+  if (action === "set-lock-pin" || action === "remove-lock-pin") {
+    const pin = typeof body.pin === "string" ? body.pin : ""
+    if (action === "set-lock-pin" && !/^\d{4,8}$/.test(pin)) return fail("PIN must be 4–8 digits")
+    await db.user.update({ where: { id: current.user.id }, data: { lockPinHash: action === "set-lock-pin" ? hashPassword(pin) : null } })
+    await logSecurityEvent(current.user.id, "lock_pin_changed", action === "set-lock-pin" ? "A lock-screen PIN was configured." : "The lock-screen PIN was removed.")
+    return NextResponse.json(await state())
+  }
+
   if (action === "change-password") {
-    if (!current.user.securitySetupCompletedAt) return fail("Complete the one-time security setup before changing your password")
     const newPassword = secret(body.newPassword)
     if (newPassword.length < 8 || newPassword.length > 256) return fail("New password must be 8-256 characters")
     if (verifyPassword(newPassword, current.user.passwordHash)) return fail("Choose a password that is different from your current password")
@@ -144,12 +126,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "change-security-question") {
-    if (!current.user.securitySetupCompletedAt) return fail("Complete the one-time security setup first")
     const question = clean(body.securityQuestion, 180)
     const answer = secret(body.securityAnswer, 220)
     if (question.length < 8) return fail("Security question must be at least 8 characters")
     if (normalizeSecurityAnswer(answer).length < 3) return fail("Security answer must be at least 3 characters")
-    await db.user.update({ where: { id: current.user.id }, data: { securityQuestion: question, securityAnswerHash: hashSecurityAnswer(answer) } })
+    await db.user.update({ where: { id: current.user.id }, data: { securityQuestion: question, securityAnswerHash: hashSecurityAnswer(answer), securitySetupCompletedAt: new Date() } })
     await logSecurityEvent(current.user.id, "security_question_changed", "The account recovery question was changed.")
     return NextResponse.json(await state())
   }

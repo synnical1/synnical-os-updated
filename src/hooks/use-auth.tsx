@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react"
 import { api, type SafeUser } from "@/lib/api"
-import { hydrateOsSettings } from "@/lib/os-settings"
+import { hydrateOsSettings, beginOsSettingsSync, stopOsSettingsSync } from "@/lib/os-settings"
 import { startAccountSettingsSync, stopAccountSettingsSync } from "@/lib/settings-runtime"
 
 type AuthState = {
@@ -41,13 +41,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user?.id) {
       stopAccountSettingsSync()
+      stopOsSettingsSync()
       return
     }
+    beginOsSettingsSync(user.id)
     void Promise.all([
       startAccountSettingsSync(user.id),
       hydrateOsSettings(),
     ])
-    return () => stopAccountSettingsSync()
+    return () => { stopAccountSettingsSync(); stopOsSettingsSync() }
   }, [user?.id])
 
   const login = useCallback(async (username: string, password: string, recoveryCode?: string) => {

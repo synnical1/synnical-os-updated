@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# HISTORICAL installer: do not use for the September recovery / fresh ARM64 VPS.
+# Use DEPLOY-ORACLE-ARM64.md; this script assumes the previous release layout.
 set -Eeuo pipefail
 
 RELEASE_ID="synnical-main-batch1-full-validated-20260821"

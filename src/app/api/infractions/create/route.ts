@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
   const durationMin = typeof body.durationMin === "number" && Number.isFinite(body.durationMin) && body.durationMin > 0 ? Math.round(body.durationMin) : undefined
   if (!userId || !["WARN", "MUTE", "BAN"].includes(type) || !reason) return NextResponse.json({ error: "Invalid input" }, { status: 400 })
 
+  if (body.durationMin != null && (typeof body.durationMin !== "number" || !Number.isInteger(body.durationMin) || body.durationMin < 1 || body.durationMin > 525600)) return NextResponse.json({ error: "Duration must be 1–525600 whole minutes, or omitted for permanent" }, { status: 400 })
+  if (type === "BAN" && body.durationMin != null) return NextResponse.json({ error: "Bans are permanent; use a timed mute for temporary restrictions" }, { status: 400 })
+
   const target = await db.user.findUnique({ where: { id: userId } })
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 })
   const rank = (r: string) => r === "OWNER" ? 5 : r === "HEAD_ADMIN" ? 4 : r === "ADMIN" ? 3 : r === "MOD" ? 2 : 1

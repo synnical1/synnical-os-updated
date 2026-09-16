@@ -1,4 +1,4 @@
-import sharp from "sharp"
+import sharp, { type OverlayOptions, type Metadata } from "sharp"
 import { moderateChatMessage, type ChatModerationViolation } from "./chat-moderation"
 
 const DEFAULT_AUDIO_URL = "https://api.openai.com/v1/audio/transcriptions"
@@ -330,7 +330,7 @@ async function makeFrameContactSheets(buffer: Buffer, expectedPages: number): Pr
 
     const columns = 4
     const rows = Math.ceil(count / columns)
-    const composites: sharp.OverlayOptions[] = []
+    const composites: OverlayOptions[] = []
     for (let index = 0; index < count; index++) {
       const frame = first + index
       const start = index * bytesPerFrame
@@ -368,7 +368,7 @@ async function moderateAndSanitizeImageInner(buffer: Buffer, surface: ImageModer
     const maxMegabytes = Math.floor(PROFILE_UPLOAD_MAX_BYTES / (1024 * 1024))
     return blockedImage("AUTOMOD_IMAGE_UNSAFE", "invalid_image", `[AUTOMOD_IMAGE_UNSAFE] Image is empty or exceeds the ${maxMegabytes} MB limit.`)
   }
-  let metadata: sharp.Metadata
+  let metadata: Metadata
   try {
     metadata = await sharp(buffer, { animated: true, pages: -1, failOn: "error", limitInputPixels: MAX_ANIMATED_PIXELS }).metadata()
   } catch {

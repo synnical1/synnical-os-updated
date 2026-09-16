@@ -1087,7 +1087,8 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
     const exact = mediaFeatures?.progress?.find((row: any) => row.mediaType === "movie" && String(row.mediaId) === String(item.id) && Number(row.season || 0) === 0 && Number(row.episode || 0) === 0)
     const replayingCompleted = exact?.completed === true
     if (replayingCompleted) {
-      await mediaAction("reset-progress", { mediaType: "movie", mediaId: String(item.id), season: 0, episode: 0 }).catch(() => {})
+      try { await mediaAction("reset-progress", { mediaType: "movie", mediaId: String(item.id), season: 0, episode: 0 }) }
+      catch { toast.error("Could not reset playback progress. Please try again."); return }
       if (activeProfile?.id) clearProgress({ media: item, season: null, episode: null, episodeName: null }, activeProfile.id)
     }
     enterPlayerFullscreen()
@@ -1102,7 +1103,8 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
     const exact = mediaFeatures?.progress?.find((row: any) => row.mediaType === "tv" && String(row.mediaId) === String(item.id) && Number(row.season || 0) === episode.seasonNumber && Number(row.episode || 0) === episode.episodeNumber)
     const replayingCompleted = exact?.completed === true
     if (replayingCompleted) {
-      await mediaAction("reset-progress", { mediaType: "tv", mediaId: String(item.id), season: episode.seasonNumber, episode: episode.episodeNumber }).catch(() => {})
+      try { await mediaAction("reset-progress", { mediaType: "tv", mediaId: String(item.id), season: episode.seasonNumber, episode: episode.episodeNumber }) }
+      catch { toast.error("Could not reset playback progress. Please try again."); return }
       if (activeProfile?.id) clearProgress({ media: item, season: episode.seasonNumber, episode: episode.episodeNumber, episodeName: episode.name }, activeProfile.id)
     }
     enterPlayerFullscreen()

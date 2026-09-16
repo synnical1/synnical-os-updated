@@ -59,7 +59,9 @@ export async function POST(req: NextRequest) {
       data: { dataJson: profileDataJson({ ...current, avatarUrl: url }) },
     })
     const previous = uploadedName(current.avatarUrl)
-    if (previous && previous !== filename) await unlink(path.join(/* turbopackIgnore: true */ dir, previous)).catch(() => {})
+    if (previous && previous !== filename && previous.startsWith(`${me.id}-synnflix-${record.id}-`)) {
+      await unlink(path.join(/* turbopackIgnore: true */ dir, previous)).catch(() => {})
+    }
     return NextResponse.json({ profile: profileFromRecord(updated) })
   } catch (error) {
     console.error("[synnflix/profile-upload] failed", error)

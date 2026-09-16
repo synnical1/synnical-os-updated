@@ -91,8 +91,8 @@ test('r12 final: SynnFlix follows provider episode identity and feeds durable Co
   assert.match(flix, /const eventSeason = Number\(data\.season\)/)
   assert.match(flix, /const eventEpisode = Number\(data\.episode\)/)
   assert.match(flix, /eventPlayer = \{/)
-  assert.match(flix, /writeProgress\(eventPlayer, currentTime\)/)
-  assert.match(flix, /featureApi\.media\.action\("progress"/)
+  assert.match(flix, /writeProgress\(eventPlayer, activeProfile\.id, currentTime\)/)
+  assert.match(flix, /mediaAction\("progress"/)
   assert.match(media, /Math\.max\(existing\?\.currentTime \|\| 0, currentTime\)/)
   assert.match(flix, /ContinueWatchingRail/)
   assert.match(flix, /continueWatching/)
@@ -159,7 +159,7 @@ test('r12 final: Files has a real screenshot Recycle Bin with restore rename and
 test('r12 final: live wallpapers slideshow and window presentation controls are real settings', async () => {
   const settings = await importTs('src/lib/os-settings.ts')
   const wallpaper = read('src/app/api/features/os/wallpaper/route.ts')
-  const uploads = read('src/app/api/uploads/[...path]/route.ts')
+  const uploads = read('src/app/api/uploads/[...path]/route.ts') + read('src/lib/upload-serving.ts')
   const shell = read('src/components/desktop-shell.tsx')
   const sanitized = settings.sanitizeOsSettings({ wallpaperSlideshow: true, wallpaperShuffle: true, wallpaperSlideshowMinutes: 5, animationSpeed: 130, windowTransparency: 88, windowCornerRadius: 0 })
   assert.equal(sanitized.wallpaperSlideshow, true)
@@ -198,8 +198,8 @@ test('r12 final: auto-lock, Run and real Synnical Task Manager are wired', () =>
 test('r12 final: release identity is 0.8.0 r12 final', () => {
   const pkg = JSON.parse(read('package.json'))
   const info = read('src/lib/build-info.ts')
-  assert.equal(pkg.version, '0.8.0')
-  assert.match(info, /synnical-r23-synnical-os-r12-final-20260818/)
+  assert.equal(pkg.version, '0.8.1-recovery.20260915')
+  assert.match(info, /synnical-recovered-20260915-839d810/)
 })
 
 test('r12 final: optional PIN unlock is secure and never replaces password sign-in', () => {
@@ -396,23 +396,23 @@ test('r12 final: Whats New and update history are real installed-build surfaces'
   assert.match(shell, /What's new in Synnical OS/)
   assert.match(settings, /What's New/)
   assert.match(settings, /Update history/)
-  assert.match(settings, /0\.8\.0 · r12 Final/)
+  assert.match(settings, /Installed: \$\{SYNNICAL_VERSION\} · \$\{SYNNICAL_BUILD_DATE\}/)
 })
 
 test('r12 final: Files Recycle Bin auto-clean and F2 rename are real behaviors', () => {
   const files = read('src/components/synnical-files-panel.tsx')
   assert.match(files, /recycle-autoclean-days:v1/)
-  assert.match(files, /recycleAutoCleanDays/)
-  assert.match(files, /expired=recycleScreenshots\.filter/)
-  assert.match(files, /event\.key!=="F2"/)
-  assert.match(files, /renameSelected/)
+  assert.match(files, /autoCleanDays/)
+  assert.match(files, /expired\s*=\s*recycleScreenshots\.filter/)
+  assert.match(files, /event\.key === "F2"/)
+  assert.match(files, /renameScreenshot/)
 })
 
 test('r12 final: live wallpapers pause under Battery Saver or automatic low-end mode', () => {
   const shell = read('src/components/desktop-shell.tsx')
   const runtime = read('src/lib/settings-runtime.ts')
   assert.match(shell, /desktopVideoRef/)
-  assert.match(shell, /os\.batterySaver\|\|root\.classList\.contains\("synnical-perf-mode"\)/)
+  assert.match(shell, /os\.batterySaver\s*\|\|\s*root\.classList\.contains\("synnical-perf-mode"\)/)
   assert.match(shell, /video\.pause\(\)/)
   assert.match(runtime, /adaptiveLowEndDetected/)
   assert.match(runtime, /synnical-perf-mode/)

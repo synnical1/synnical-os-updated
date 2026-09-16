@@ -29,20 +29,6 @@ synnical.co.uk, www.synnical.co.uk {
 		Permissions-Policy "geolocation=()"
 	}
 
-	# Handle the XTransformPort query parameter for dynamic port proxying
-	@transform_port_query {
-		query XTransformPort=*
-	}
-
-	handle @transform_port_query {
-		reverse_proxy localhost:{query.XTransformPort} {
-			header_up Host {host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto https
-			header_up X-Real-IP {remote_host}
-		}
-	}
-
 	# Wisp proxy WebSocket — needs long timeouts and no buffering
 	@wisp path /wisp/*
 	handle @wisp {

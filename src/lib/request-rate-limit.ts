@@ -16,10 +16,11 @@ export function consumeRequestLimit(
   bucket: string,
   limit: number,
   windowMs: number,
+  accountId?: string,
 ): { allowed: boolean; retryAfterSeconds: number } {
   const now = Date.now()
   const cutoff = now - windowMs
-  const key = `${bucket}:${requestIdentity(req)}`
+  const key = `${bucket}:${accountId || requestIdentity(req)}`
   const recent = (windows.get(key) || []).filter((time) => time > cutoff)
 
   if (recent.length >= limit) {

@@ -55,10 +55,12 @@ test("credits start at zero and global reset has a durable exactly-once marker",
   assert.match(reset, /type: "GLOBAL_RESET"/)
   assert.match(reset, /beforeBalance: before/)
   const installer = read("install-full.sh")
-  assert.match(installer, /scripts\/one-time-coin-reset\.ts/)
-  assert.match(installer, /GLOBAL_CREDIT_RESET_VERIFIED/)
-  assert.match(installer, /RESET_MARKER_BEFORE/)
-  assert.match(installer, /current earned balances preserved unchanged/)
+  // August 25 delegates the historical installer; a fresh recovery must never
+  // reset earned balances. The durable reset utility itself is checked above.
+  assert.match(installer, /install-main-batch1\.sh/)
+  assert.doesNotMatch(installer, /one-time-coin-reset/)
+  assert.match(read("scripts/init-database.mjs"), /Existing SQLite files are never truncated/)
+  assert.doesNotMatch(read("scripts/init-database.mjs"), /coin-reset|accept-data-loss/)
 })
 
 test("normal UI avoids raw proxy timeout codes and unexplained watch-party ids", () => {
@@ -82,7 +84,7 @@ test("staff credit adjustments exist, obey hierarchy, and are audited", () => {
 
 test("watch parties never steal the provider play button", () => {
   const source = read("src/components/synnflix-panel.tsx")
-  assert.match(source, /buildPlayerUrl\(player, \{ progress: syncedProgress, autoplay: true \}\)/)
+  assert.match(source, /buildPlayerUrl\(player, activeProfile\.id, \{ progress: syncedProgress, autoplay: true \}\)/)
   assert.doesNotMatch(source, /\[player, syncedProgress, partyHeld\]/)
   assert.doesNotMatch(source, /partyHeld \? <div className="grid h-\[600px\]/)
   assert.match(source, /Sync to host/)
@@ -722,7 +724,7 @@ test("r11.3 removes the Tools container and promotes permitted apps to the deskt
   assert.match(shell, /id: "temp-mail"/)
   assert.match(shell, /id: "youtube", label: "YouTube"/)
   assert.match(shell, /id: "geforce-now", label: "GeForce NOW"/)
-  assert.match(desktop, /\{desktopApps\.map\(\(app, index\) =>/)
+  assert.match(desktop, /\{desktopApps\.map\(\(app\) =>/)
   assert.match(desktop, /Recycle Bin/)
 })
 
@@ -818,10 +820,9 @@ test("r11.1 Synnical Files is a real account-backed explorer surface, not a fake
   assert.match(files, /Recycle Bin/)
   assert.match(files, /Ctrl\+T/)
   assert.match(files, /Move to Recycle Bin/)
-  assert.match(files, /patchScreenshot\(menu\.item, "restore"\)/)
-  assert.match(files, /patchScreenshot\(item, "purge"\)/)
-  assert.match(files, /Cut requires a movable Synnical folder destination/)
-  assert.match(files, /Paste requires a writable Synnical folder destination/)
+  assert.match(files, /screenshotAction\(menu\.item, "restore"\)/)
+  assert.match(files, /screenshotAction\(item, item\.recycled \? "purge" : "recycle"\)/)
+  assert.match(files, /disabled title="Cut and Paste require a writable folder"/)
 })
 
 test("r11.1 taskbar, Start, Quick Settings and utilities use real Synnical state", () => {
@@ -864,15 +865,15 @@ test("r11.3 wallpaper personalization is account-backed for desktop and lock scr
   const route = read("src/app/api/features/os/wallpaper/route.ts")
   const settings = read("src/components/synnical-settings-app.tsx")
   const desktop = read("src/components/desktop-shell.tsx")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/sakura-samurai-2\.png"/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/synnical-static-ink-wallpaper\.png"/)
   assert.match(os, /desktopWallpaperFit/)
   assert.match(os, /lockUseDesktopWallpaper/)
   assert.match(os, /lockWallpaperFit/)
   assert.match(route, /sharp\(input/)
   assert.match(route, /resize\(\{ width: 3840, height: 2160/)
   assert.match(route, /setPreference\(user\.id, "os\.settings", next\)/)
-  assert.match(settings, /Browse photo or MP4/)
-  assert.match(settings, /Browse lock-screen photo/)
+  assert.match(settings, /Browse image or video/)
+  assert.match(settings, /Browse lock-screen image or video/)
   assert.match(settings, /Show notifications/)
   assert.match(desktop, /desktopWallpaperUrl/)
   assert.match(desktop, /os\.lockShowNotifications && notices\.length/)
@@ -946,8 +947,10 @@ test("r11.6 cloud account verification polls one sent code and respects provider
   assert.match(cloud, /async function sendProviderVerification/)
   assert.match(cloud, /providerVerificationCooldownUntil/)
   assert.match(cloud, /65_000/)
-  assert.match(cloud, /getVerificationCode\(mailJwt, 32\)/)
-  assert.match(cloud, /not spammed with a second code/)
+  assert.match(cloud, /getVerificationCode\(mailJwt, 40\)/)
+  // Verify the actual one-send flow, rather than wording in a deleted comment.
+  assert.equal((cloud.match(/await sendProviderVerification\(email, h, base\)/g) || []).length, 1)
+  assert.ok(cloud.indexOf("await sendProviderVerification(email, h, base)") < cloud.indexOf("await getVerificationCode(mailJwt, 40)"))
   assert.doesNotMatch(cloud, /resending to the same mailbox once|retrying once with a fresh mailbox/)
 })
 
@@ -959,7 +962,7 @@ test("r11.3 login goes directly to OS mode without a hidden five-W activation ga
     read("src/app/page.tsx"),
   ].join("\n")
   assert.match(shell, /readSetting\("layout\.osMode", true\)/)
-  assert.match(shell, /\{osMode \? \(/)
+  assert.match(shell, /\{osMode \|\| safeMode \? \(/)
   assert.doesNotMatch(source, /KeyW|keyCode\s*===\s*87|five times|5 times|press W/i)
   assert.doesNotMatch(source, /event\.key\.toLowerCase\(\)\s*!==\s*["']w["']/i)
   assert.doesNotMatch(source, /presses\s*\+=\s*1|presses\s*>=\s*5/i)
@@ -973,10 +976,10 @@ test("r11.3 Personalization, password change and lock recovery are wired end to 
   const desktop = read("src/components/desktop-shell.tsx")
   const security = read("src/app/api/features/security/route.ts")
   const recovery = read("src/app/api/auth/forgot-password/route.ts")
-  assert.equal(existsSync(new URL("../public/brand/wallpapers/sakura-samurai-2.png", import.meta.url)), true)
+  assert.equal(existsSync(new URL("../public/brand/wallpapers/synnical-static-ink-wallpaper.png", import.meta.url)), true)
   assert.match(settings, /THEMES\.map/)
-  assert.match(settings, /Browse photo or MP4/)
-  assert.match(settings, /Browse lock-screen photo/)
+  assert.match(settings, /Browse image or video/)
+  assert.match(settings, /Browse lock-screen image or video/)
   assert.match(settings, /Lock now/)
   assert.match(settings, /action: "change-password"/)
   assert.match(security, /action === "change-password"/)
@@ -1010,20 +1013,17 @@ test("r11.4 recognition badges are visible beside roles but never grant permissi
 })
 
 
-test("r11.4 uses wallpaper 2 by default and exposes all four original wallpapers", () => {
+// August 25 deliberately removed the Sakura gallery and introduced these assets.
+test("current wallpapers preserve the August 25 video and static fallback", () => {
   const os = read("src/lib/os-settings.ts")
-  const settings = read("src/components/synnical-settings-app.tsx")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/sakura-samurai-2\.png"/)
-  for (let index = 1; index <= 4; index += 1) {
-    const path = `../public/brand/wallpapers/sakura-samurai-${index}.png`
-    assert.equal(existsSync(new URL(path, import.meta.url)), true)
-    assert.match(os, new RegExp(`sakura-samurai-${index}\\.png`))
+  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/synnical-static-ink-wallpaper\.png"/)
+  assert.match(os, /BUILTIN_OS_WALLPAPERS = \[\] as const/)
+  for (const asset of ["synnical-default-wallpaper.mp4", "synnical-static-ink-wallpaper.png"]) {
+    assert.equal(existsSync(new URL(`../public/brand/wallpapers/${asset}`, import.meta.url)), true)
   }
-  assert.match(settings, /BUILTIN_OS_WALLPAPERS\.map/)
-  assert.match(settings, /Wallpaper 2 is the Synnical default/)
-  assert.match(settings, /Lock-screen wallpapers/)
-  assert.equal(existsSync(new URL("../public/brand/wallpapers/samurai-cherry-blossom.png", import.meta.url)), false)
+  for (let index = 1; index <= 4; index += 1) assert.equal(existsSync(new URL(`../public/brand/wallpapers/sakura-samurai-${index}.png`, import.meta.url)), false)
 })
+
 
 test("r11.4 chat quote, inline polls and hot-row callbacks are wired for real chat use", () => {
   const chat = read("src/components/chat-panel.tsx")

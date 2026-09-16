@@ -11,13 +11,14 @@ import {
 import { SettingsPanel as LegacySettingsPanel } from "@/components/settings-panel"
 import { useAuth } from "@/hooks/use-auth"
 import { useSystemStatus } from "@/hooks/use-system-status"
-import { OS_DEFAULTS, hydrateOsSettings, persistOsSettings, readOsSettings, type OsSettings, type WallpaperFit } from "@/lib/os-settings"
+import { OS_DEFAULTS, sanitizeOsSettings, hydrateOsSettings, persistOsSettings, readOsSettings, type OsSettings, type WallpaperFit } from "@/lib/os-settings"
 import { readSetting, writeSetting } from "@/lib/settings-runtime"
 import { SYNNICAL_BUILD, SYNNICAL_BUILD_DATE, SYNNICAL_VERSION } from "@/lib/build-info"
 import { cn } from "@/lib/utils"
 import { useBrowser } from "@/hooks/use-browser"
 import { THEMES } from "@/lib/themes"
 import { toast } from "sonner"
+import { SYNNICAL_APPS } from "@/lib/app-registry"
 
 type Category = "system" | "devices" | "network" | "personalization" | "apps" | "accounts" | "time" | "gaming" | "accessibility" | "privacy" | "update"
 type LegacySection = "account" | "profiles" | "privacy" | "apps" | "devices" | "connections" | "appearance" | "accessibility" | "presence" | "voice" | "notifications" | "keybinds" | "language" | "streamer" | "advanced" | "security" | "data" | "chat" | "games" | "browser" | "music" | "ai" | "performance" | "profile" | "legal"
@@ -101,6 +102,38 @@ export function SynnicalSettingsApp() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [revokeOthers, setRevokeOthers] = useState(true)
   const [passwordBusy, setPasswordBusy] = useState(false)
+  const [snapshots, setSnapshots] = useState<Array<{ id: string; at: string; settings: OsSettings }>>([])
+  useEffect(() => {
+    try { const saved = JSON.parse(localStorage.getItem(`synnical:os:settings-snapshots:v1:${user?.id}`) || "[]"); setSnapshots(Array.isArray(saved) ? saved.slice(0, 5).map((row) => ({ id: String(row.id), at: String(row.at), settings: sanitizeOsSettings(row.settings) })) : []) } catch { setSnapshots([]) }
+  }, [user?.id])
+  const createSettingsSnapshot = () => {
+    const next = [{ id: crypto.randomUUID(), at: new Date().toISOString(), settings: sanitizeOsSettings(os) }, ...snapshots].slice(0, 5)
+    localStorage.setItem(`synnical:os:settings-snapshots:v1:${user?.id}`, JSON.stringify(next)); setSnapshots(next)
+  }
+  const restoreSettingsSnapshot = async (settings: OsSettings) => {
+    const next = sanitizeOsSettings(settings); setOs(next); await persistOsSettings(next); toast.success("OS settings restored")
+  }
+  const exportSettings = () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify({ format: "synnical-os-settings-v1", settings: sanitizeOsSettings(os) }, null, 2)], { type: "application/json" }))
+    const a = document.createElement("a"); a.href = url; a.download = "synnical-os-settings.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 30_000)
+  }
+  const importSettings = async (file?: File) => {
+    if (!file) return
+    try {
+      if (file.size > 256 * 1024) throw new Error("Settings backup must be under 256 KiB")
+      const parsed = JSON.parse(await file.text())
+      if (parsed?.format !== "synnical-os-settings-v1" || !parsed.settings || typeof parsed.settings !== "object" || Array.isArray(parsed.settings)) throw new Error("Invalid Synnical settings backup")
+      const next = sanitizeOsSettings(parsed.settings)
+      createSettingsSnapshot(); await restoreSettingsSnapshot(next)
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Import failed") }
+  }
+  const repairApp = (panel: string) => window.dispatchEvent(new CustomEvent("synnical-repair-panel", { detail: { panel } }))
+  const clearBrowserCache = async () => {
+    try {
+      if ("caches" in window) for (const key of await caches.keys()) if (/synnical|scramjet/i.test(key)) await caches.delete(key)
+      window.dispatchEvent(new CustomEvent("synnical-browser-reset")); toast.success("Browser runtime cache cleared; account history and bookmarks kept")
+    } catch { toast.error("Browser cache could not be cleared") }
+  }
 
   useEffect(() => { hydrateOsSettings().then((next) => { setOs(next); writeSetting("layout.osMode", next.enabled); setLoaded(true) }) }, [user?.id])
   useEffect(() => {
@@ -129,7 +162,6 @@ export function SynnicalSettingsApp() {
     const next = { ...os, [key]: value }
     setOs(next)
     if (key === "enabled") writeSetting("layout.osMode", Boolean(value))
-    if (key === "batterySaver") writeSetting("performance.lowEndMode", Boolean(value))
     await persistOsSettings(next)
   }
   const patchNotificationRule = async (app: string, patch: Partial<{ enabled: boolean; priority: "normal" | "priority" | "urgent" }>) => {
@@ -189,7 +221,10 @@ export function SynnicalSettingsApp() {
 
   const personalization = <div className="space-y-2">
     <SectionHeader title="Personalization" subtitle="Background, colors, Start, taskbar, desktop and lock screen." />
-    <SettingCard icon={Wallpaper} title="Desktop background" desc="Upload your own image or video wallpaper."><div className="mt-3 grid gap-3 sm:grid-cols-[180px_1fr]"><WallpaperPreview src={os.desktopWallpaper} /><div className="space-y-2"><label className="flex cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-xs hover:bg-white/[0.09]">{wallpaperBusy === "desktop" ? "Uploading…" : "Browse image or video"}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif,video/mp4,video/webm,video/quicktime" disabled={Boolean(wallpaperBusy)} onChange={(e)=>{ const file=e.target.files?.[0]||null; void uploadWallpaper("desktop",file); e.currentTarget.value="" }} className="hidden" /></label><label className="flex items-center justify-between gap-3 text-xs text-white/60">Choose a fit<select value={os.desktopWallpaperFit} onChange={(e)=>patchOs("desktopWallpaperFit",e.target.value as WallpaperFit)} className="rounded border border-white/10 bg-[#111] px-2 py-1"><option value="fill">Fill</option><option value="fit">Fit</option><option value="stretch">Stretch</option><option value="center">Center</option><option value="tile">Tile</option></select></label><p className="text-[10px] leading-4 text-white/30">Uploaded images are re-encoded before use. Uploaded videos are stored privately with your account and played muted as live wallpapers.</p></div></div></SettingCard>
+    <SettingCard icon={MousePointer2} title="Cursor" desc="In-app pointer style and size."><div className="mt-2 flex gap-3"><select aria-label="Cursor theme" value={os.cursorTheme} onChange={(e) => void patchOs("cursorTheme", e.target.value as OsSettings["cursorTheme"])} className="bg-[#111]">{["system", "light", "dark", "crosshair"].map((value) => <option key={value}>{value}</option>)}</select><input aria-label="Cursor size" type="range" min={75} max={175} step={5} value={os.cursorSize} onChange={(e) => void patchOs("cursorSize", Number(e.target.value))} /><span>{os.cursorSize}%</span></div></SettingCard>
+    <SettingCard icon={Search} title="Search history" desc="Remember recent Start searches on this device." right={<Toggle label="Search history" value={os.startSearchHistory} onChange={(value) => void patchOs("startSearchHistory", value)} />} />
+    <SettingCard icon={SlidersHorizontal} title="Quick Settings order" desc="Move a control earlier in the Quick Settings panel."><div className="mt-2 flex flex-wrap gap-2">{os.quickSettingsOrder.map((id, index) => <button key={id} disabled={index === 0} onClick={() => { const next = [...os.quickSettingsOrder]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; void patchOs("quickSettingsOrder", next) }} className="rounded border border-white/20 p-2 text-xs disabled:opacity-40">↑ {id}</button>)}</div></SettingCard>
+    <SettingCard icon={Wallpaper} title="Desktop background" desc="Upload your own image or video wallpaper."><div className="mt-3 grid gap-3 sm:grid-cols-[180px_1fr]"><WallpaperPreview src={os.desktopWallpaper} /><div className="space-y-2"><label className="flex cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-xs hover:bg-white/[0.09]">{wallpaperBusy === "desktop" ? "Uploading…" : "Browse image or video"}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif,video/mp4,video/webm,video/quicktime" disabled={Boolean(wallpaperBusy)} onChange={(e)=>{ const file=e.target.files?.[0]||null; void uploadWallpaper("desktop",file); e.currentTarget.value="" }} className="hidden" /></label><label className="flex items-center justify-between gap-3 text-xs text-white/60">Choose a fit<select value={os.desktopWallpaperFit} onChange={(e)=>patchOs("desktopWallpaperFit",e.target.value as WallpaperFit)} className="rounded border border-white/10 bg-[#111] px-2 py-1"><option value="fill">Fill</option><option value="fit">Fit</option><option value="stretch">Stretch</option><option value="center">Center</option><option value="tile">Tile</option></select></label><p className="text-[10px] leading-4 text-white/30">Uploaded images are re-encoded before use. Uploaded videos are stored with unguessable media URLs associated with your account and played muted as live wallpapers.</p></div></div></SettingCard>
     <SettingCard icon={Palette} title="Colors & themes" desc="Choose a Synnical theme. Changes apply immediately across the OS."><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{THEMES.map((item)=><button key={item.id} onClick={()=>setTheme(item.id)} className={cn("rounded-xl border p-2 text-left transition-colors",theme===item.id?"border-sky-400/70 bg-sky-400/10":"border-white/10 bg-black/20 hover:bg-white/[0.05]")}><div className="flex gap-1">{item.colors.map((color)=><span key={color} className="h-5 flex-1 rounded" style={{backgroundColor:color}} />)}</div><span className="mt-2 block text-xs">{item.name}</span></button>)}</div></SettingCard>
     <SettingCard icon={PanelBottom} title="Taskbar" desc="Alignment, Search, Task View, Widgets and auto-hide."><div className="mt-3 grid gap-3 sm:grid-cols-2">
       <label className="flex items-center justify-between gap-3 text-xs text-white/60">Alignment<select value={os.taskbarAlignment} onChange={(e) => patchOs("taskbarAlignment", e.target.value as "center" | "left")} className="rounded border border-white/10 bg-[#111] px-2 py-1"><option value="center">Center</option><option value="left">Left</option></select></label>
@@ -250,6 +285,8 @@ export function SynnicalSettingsApp() {
   const apps = <div className="space-y-2"><SectionHeader title="Apps" subtitle="Synnical applications, startup behavior and defaults." />
     <SettingCard icon={AppWindow} title="Installed Synnical apps" desc="Every permitted app is available directly from the desktop, Start, Search and taskbar. There is no separate Tools folder in OS mode." />
     <SettingCard icon={Sparkles} title="Startup" desc="Synnical OS starts by default. App runtimes stay singleton to avoid duplicate sockets or background side effects." right={<Toggle value={os.enabled} onChange={(v) => patchOs("enabled", v)} label="Start in Synnical OS" />} />
+    <SettingCard icon={AppWindow} title="First-party app library" desc="Hide apps from the launcher and choose which apps open at startup (up to 12)."><div className="mt-3 space-y-2">{SYNNICAL_APPS.filter((app) => !("authOnly" in app) || user).map((app) => <div key={app.id} className="flex items-center gap-3 text-xs"><span className="flex-1">{app.label}</span><label><input type="checkbox" checked={!os.hiddenLauncherApps.includes(app.id)} onChange={(e) => void patchOs("hiddenLauncherApps", e.target.checked ? os.hiddenLauncherApps.filter((id) => id !== app.id) : [...os.hiddenLauncherApps, app.id])} /> Show</label><label><input type="checkbox" disabled={!os.startupApps.includes(app.id) && os.startupApps.length >= 12} checked={os.startupApps.includes(app.id)} onChange={(e) => void patchOs("startupApps", e.target.checked ? [...os.startupApps, app.id] : os.startupApps.filter((id) => id !== app.id))} /> Startup</label><button onClick={() => repairApp(app.id)} className="text-sky-300">Repair / restart app</button></div>)}</div></SettingCard>
+    <SettingCard icon={RefreshCcw} title="App maintenance" desc="Restarting an app discards its unsaved view state. Browser cache cleanup preserves account records."><button onClick={() => void clearBrowserCache()} className="mt-2 rounded border border-white/20 p-2 text-xs">Clear cache</button></SettingCard>
     <SettingCard icon={Settings2} title="App settings" desc="Chat, Browser, Music, AI and other Synnical app settings." onClick={() => openLegacy("apps", "App settings")} />
   </div>
 
@@ -259,6 +296,7 @@ export function SynnicalSettingsApp() {
     <SettingCard icon={Lock} title="Change password" desc="Confirm your current password, choose a new one, and optionally sign out other devices."><div className="mt-3 grid gap-2"><input type="password" autoComplete="current-password" value={currentPassword} onChange={(e)=>setCurrentPassword(e.target.value)} placeholder="Current password" className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs outline-none" /><input type="password" autoComplete="new-password" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} placeholder="New password" className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs outline-none" /><input type="password" autoComplete="new-password" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs outline-none" /><label className="flex items-center justify-between gap-3 text-xs text-white/60">Sign out other devices<Toggle value={revokeOthers} onChange={setRevokeOthers} label="Sign out other devices after password change" /></label><button disabled={passwordBusy || !currentPassword || !newPassword || !confirmPassword} onClick={()=>void changePassword()} className="rounded-lg bg-sky-500 px-3 py-2 text-xs font-semibold text-black disabled:opacity-40">{passwordBusy?"Changing password…":"Change password"}</button></div></SettingCard>
     <SettingCard icon={Shield} title="Security & recovery" desc="Recovery question, one-time recovery codes, sessions, trusted devices and account lockdown." onClick={() => openLegacy("security", "Security & recovery")} />
     <SettingCard icon={Globe2} title="Connected accounts" desc="Manage Synnical profile connections." onClick={() => openLegacy("connections", "Connections")} />
+    <SettingCard icon={HardDrive} title="Settings backup & restore" desc="OS preferences only; passwords and sessions are excluded. Uploaded wallpapers still require their original media server."><div className="mt-3 flex gap-3 text-xs"><button onClick={exportSettings}>Export JSON</button><label className="cursor-pointer">Import JSON<input type="file" accept="application/json,.json" className="hidden" onChange={(e) => { void importSettings(e.target.files?.[0]); e.currentTarget.value = "" }} /></label><button onClick={createSettingsSnapshot}>Create restore point</button></div>{snapshots.map((row) => <button key={row.id} className="mt-2 block text-xs text-sky-300" onClick={() => { if (window.confirm("Replace current OS preferences with this restore point?")) void restoreSettingsSnapshot(row.settings) }}>Restore {new Date(row.at).toLocaleString()}</button>)}</SettingCard>
     <SettingCard icon={Sparkles} title="Sync Synnical OS settings" desc={user ? "Core OS preferences are stored on your Synnical account and also cached locally." : "Sign in to sync OS preferences between devices."} />
   </div>
 
@@ -290,6 +328,8 @@ export function SynnicalSettingsApp() {
   const update = <div className="space-y-3"><SectionHeader title="Synnical Update" subtitle="Installed Synnical OS build and update status for this server." />
     <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6"><CheckCircle2 className="h-10 w-10 text-emerald-400" /><h2 className="mt-4 text-xl font-semibold">You're on the installed server build</h2><p className="mt-2 text-sm text-white/45">Synnical does not invent a remote update result. This page reports the build currently served by your Synnical server.</p><div className="mt-5 grid gap-2 rounded-xl border border-white/10 bg-black/20 p-4 text-xs"><div className="flex justify-between gap-4"><span className="text-white/35">Version</span><span>{SYNNICAL_VERSION}</span></div><div className="flex justify-between gap-4"><span className="text-white/35">Build</span><span className="truncate">{SYNNICAL_BUILD}</span></div><div className="flex justify-between gap-4"><span className="text-white/35">Build date</span><span>{SYNNICAL_BUILD_DATE}</span></div></div></div>
     <SettingCard icon={RefreshCcw} title="Check server health" desc="Open Synnical's real system health surface instead of a fake internet updater." onClick={() => window.dispatchEvent(new CustomEvent("synnical-open-panel", { detail: { panel: "discover" } }))} />
+    <SettingCard icon={Sparkles} title="What's New" desc="Recovery fixes connect Files, security, settings and desktop controls while preserving the August 25 Music and Synn VM changes." />
+    <SettingCard icon={Clock3} title="Update history" desc={`Installed: ${SYNNICAL_VERSION} · ${SYNNICAL_BUILD_DATE}. Recovery base: August 25, 2026 (839d810). Earlier installation history was not recovered.`} />
     <SettingCard icon={Info} title="About Synnical OS" desc={`Synnical OS ${SYNNICAL_VERSION}`} />
   </div>
 

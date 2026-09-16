@@ -321,6 +321,20 @@ const KEY = "synnical:os:settings:v4"
 const LEGACY_KEY = "synnical:os:settings:v3"
 const OWNER_KEY = "synnical:os:settings-owner:v1"
 
+let osAccountId = ""
+let osAccountEpoch = 0
+
+export function beginOsSettingsSync(accountId: string) {
+  osAccountId = accountId
+  osAccountEpoch += 1
+  if (typeof window === "undefined") return
+  let owner = ""
+  try { owner = localStorage.getItem(OWNER_KEY) || "" } catch {}
+  if (owner && owner !== accountId) writeOsSettings(OS_DEFAULTS)
+}
+
+export function stopOsSettingsSync() { osAccountId = ""; osAccountEpoch += 1 }
+
 export function readOsSettings(): OsSettings {
   if (typeof window === "undefined") return OS_DEFAULTS
   try {
@@ -361,10 +375,14 @@ export function writeOsSettings(settings: OsSettings) {
 
 export async function persistOsSettings(settings: OsSettings) {
   writeOsSettings(settings)
+  const accountId = osAccountId
+  const epoch = osAccountEpoch
+  if (!accountId) return settings
   try {
-    const res = await fetch("/api/features/os", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ settings }) })
+    const res = await fetch("/api/features/os", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ settings, accountId }) })
     if (!res.ok) return settings
     const body = await res.json().catch(() => null)
+    if (epoch !== osAccountEpoch) return settings
     const saved = sanitizeOsSettings(body?.settings || settings)
     writeOsSettings(saved)
     return saved
@@ -372,17 +390,20 @@ export async function persistOsSettings(settings: OsSettings) {
 }
 
 export async function hydrateOsSettings() {
+  const epoch = osAccountEpoch
+  const accountId = osAccountId
   const local = readOsSettings()
   try {
     const res = await fetch("/api/features/os", { credentials: "include", cache: "no-store" })
     if (!res.ok) return local
     const body = await res.json().catch(() => null)
-    if (!body?.signedIn) return local
+    if (!body?.signedIn || epoch !== osAccountEpoch || body.accountId !== accountId) return local
     let owner = ""
     try { owner = localStorage.getItem(OWNER_KEY) || "" } catch {}
     if (body.hasSaved !== true) {
       const seed = !owner || owner === body.accountId ? local : OS_DEFAULTS
       const saved = await persistOsSettings(seed)
+      if (epoch !== osAccountEpoch) return local
       try { localStorage.setItem(OWNER_KEY, String(body.accountId || "signed-in")) } catch {}
       return saved
     }

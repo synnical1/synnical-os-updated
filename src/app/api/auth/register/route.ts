@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     }
     const question = typeof securityQuestion === "string" ? securityQuestion.trim().slice(0, 180) : ""
     const answer = typeof securityAnswer === "string" ? securityAnswer : ""
+    if (answer.length > 256) return NextResponse.json({ error: "Security answer must be 256 characters or fewer" }, { status: 400 })
     if (question.length < 8) return NextResponse.json({ error: "Security question must be at least 8 characters" }, { status: 400 })
     if (normalizeSecurityAnswer(answer).length < 3) return NextResponse.json({ error: "Security answer must be at least 3 characters" }, { status: 400 })
     // Usernames have a deliberately small alphabet and are short enough for

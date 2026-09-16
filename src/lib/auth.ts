@@ -69,7 +69,7 @@ export function toSafeUser(u: {
     muted: u.muted,
     mutedUntil: u.mutedUntil ? u.mutedUntil.toISOString() : null,
     coins: u.coins ?? 0,
-    securitySetupRequired: !u.securitySetupCompletedAt,
+    securitySetupRequired: false,
   }
 }
 

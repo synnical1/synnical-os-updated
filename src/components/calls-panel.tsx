@@ -1,5 +1,7 @@
 "use client"
 
+import { announceMediaUsage } from "@/lib/media-usage"
+
 import { useCallback, useEffect, useRef, useState } from "react"
 import { io, type Socket } from "socket.io-client"
 import { PhoneCall, PhoneOff, Mic, MicOff, Video, VideoOff, MonitorUp, Copy, Users, Gauge, RadioTower } from "lucide-react"
@@ -61,6 +63,7 @@ export function CallsPanel() {
   }, [])
 
   const stopLocal = useCallback(() => {
+    announceMediaUsage("calls", {})
     for (const track of localStreamRef.current?.getTracks() || []) try { track.stop() } catch {}
     const screenTrack = screenTrackRef.current; screenTrackRef.current = null; if (screenTrack && screenTrack.readyState !== "ended") try { screenTrack.stop() } catch {}
     localStreamRef.current = null; cameraTrackRef.current = null; setLocalStream(null); if (localVideoRef.current) localVideoRef.current.srcObject = null
@@ -76,6 +79,8 @@ export function CallsPanel() {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("This browser does not expose microphone/camera access.")
     stopLocal()
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: kind === "video" ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } } : false })
+    announceMediaUsage("calls", { microphone:true, camera:kind === "video" })
+    for (const track of stream.getTracks()) track.addEventListener("ended", () => announceMediaUsage("calls", { microphone: stream.getAudioTracks().some((t) => t.readyState === "live"), camera: stream.getVideoTracks().some((t) => t.readyState === "live"), screen: Boolean(screenTrackRef.current) }))
     localStreamRef.current = stream; cameraTrackRef.current = stream.getVideoTracks()[0] || null; setLocalStream(stream); setMuted(false); setVideoEnabled(kind === "video")
     if (localVideoRef.current) localVideoRef.current.srcObject = stream
     return stream
@@ -156,6 +161,7 @@ export function CallsPanel() {
     try {
       const media=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false}); const track=media.getVideoTracks()[0]; if(!track) return; screenTrackRef.current = track
       for(const [id,pc] of pcsRef.current){ const sender=pc.getSenders().find(s=>s.track?.kind==="video"); if(sender) await sender.replaceTrack(track); else {pc.addTrack(track,media); await offerPeer(id)} }
+      announceMediaUsage("calls", { microphone: true, camera: Boolean(cameraTrackRef.current), screen: true })
       setScreen(true); socketRef.current?.emit("call-state",{screen:true,video:true}); track.onended=()=>void stopScreenShare()
       if(localVideoRef.current) localVideoRef.current.srcObject=media
     } catch (error) { if ((error as Error)?.name !== "NotAllowedError") toast.error("Screen sharing could not start") }
@@ -164,6 +170,7 @@ export function CallsPanel() {
     const sharing = screenTrackRef.current; screenTrackRef.current = null; if (sharing && sharing.readyState !== "ended") try { sharing.stop() } catch {}
     const camera=cameraTrackRef.current
     for(const [id,pc] of pcsRef.current){ const sender=pc.getSenders().find(s=>s.track?.kind==="video"); if(sender) await sender.replaceTrack(camera); else if(camera){pc.addTrack(camera,localStreamRef.current!);await offerPeer(id)} }
+    announceMediaUsage("calls", { microphone: Boolean(localStreamRef.current?.getAudioTracks().length), camera: Boolean(camera), screen: false })
     setScreen(false); socketRef.current?.emit("call-state",{screen:false,video:Boolean(camera?.enabled)}); if(localVideoRef.current) localVideoRef.current.srcObject=localStreamRef.current
   }
 

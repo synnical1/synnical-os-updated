@@ -594,21 +594,18 @@ function EmailBody({ body, format }: { body: string; format: string }) {
     )
   }
 
-  // If it looks like HTML, render with dangerouslySetInnerHTML (sanitized of
-  // scripts). Otherwise show as preformatted text.
+  // Email is untrusted HTML. Render it in an opaque-origin, scriptless frame;
+  // regex removal cannot safely sanitize HTML event handlers or SVG payloads.
   const isHtml = /<\/?[a-z][\s\S]*>/i.test(body)
 
   if (isHtml) {
-    // Strip <script> tags and event handlers — basic XSS hardening.
-    const cleaned = body
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
-      .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
-      .replace(/javascript:/gi, "")
     return (
-      <div
-        className="text-sm text-[#cccccc] prose prose-invert prose-sm max-w-none [&_a]:text-white [&_a]:underline"
-        dangerouslySetInnerHTML={{ __html: cleaned }}
+      <iframe
+        title="Email content"
+        sandbox=""
+        referrerPolicy="no-referrer"
+        className="h-[55vh] min-h-64 w-full rounded border-0 bg-white"
+        srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-src 'none'"><style>body{font:14px system-ui;overflow-wrap:anywhere;margin:16px}img{max-width:100%;height:auto}</style></head><body>${body}</body></html>`}
       />
     )
   }

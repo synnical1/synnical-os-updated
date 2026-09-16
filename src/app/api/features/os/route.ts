@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const body = await req.json().catch(() => ({}))
+  if (body?.accountId && body.accountId !== me.id) return NextResponse.json({ error: "Account changed; reload settings" }, { status: 409 })
   const current = await getPreference<Record<string, unknown>>(me.id, "os.settings", {})
   const patch = body?.settings && typeof body.settings === "object" ? body.settings as Record<string, unknown> : {}
   const settings = sanitizeOsSettings({ ...current, ...patch })

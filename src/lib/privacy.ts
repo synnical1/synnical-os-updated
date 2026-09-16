@@ -32,7 +32,12 @@ export type PrivacyView = {
 
 export const PRIVACY_KEY = "privacy.config.v1"
 
-const privacyCache = new Map<string, { expiresAt: number; value: PrivacyView }>()
+// The custom Socket.IO server and Next's compiled routes load separate module
+// instances. Share the cache so an API privacy change invalidates socket views.
+type PrivacyCache = Map<string, { expiresAt: number; value: PrivacyView }>
+const runtime = globalThis as typeof globalThis & { __synnicalPrivacyCache?: PrivacyCache }
+const privacyCache = runtime.__synnicalPrivacyCache || new Map<string, { expiresAt: number; value: PrivacyView }>()
+runtime.__synnicalPrivacyCache = privacyCache
 const PRIVACY_CACHE_MS = 15_000
 
 export function invalidatePrivacyCache(userId: string) {

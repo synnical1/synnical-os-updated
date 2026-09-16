@@ -1,5 +1,7 @@
 "use client"
 
+import { announceMediaUsage } from "@/lib/media-usage"
+
 import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Mic, Square, Loader2, Play, Pause } from "lucide-react"
@@ -55,6 +57,7 @@ export function VoiceRecorder({ onSent, disabled }: { onSent: (voiceUrl: string)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const releaseAudio = useCallback(() => {
+    announceMediaUsage("voice-message", {})
     sourceStreamRef.current?.getTracks().forEach((track) => track.stop())
     recorderStreamRef.current?.getTracks().forEach((track) => track.stop())
     sourceStreamRef.current = null
@@ -72,6 +75,7 @@ export function VoiceRecorder({ onSent, disabled }: { onSent: (voiceUrl: string)
 
     try {
       const sourceStream = await requestMicrophone()
+      announceMediaUsage("voice-message", { microphone:true })
       sourceStreamRef.current = sourceStream
 
       // Input Volume is a real recording gain control, not a decorative slider.

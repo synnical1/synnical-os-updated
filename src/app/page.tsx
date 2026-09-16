@@ -64,7 +64,7 @@ export default function Home() {
     )
   }
 
-  // Synnical OS is the direct landing experience. Authentication, mandatory
-  // security setup, and account-only apps are handled inside the shared shell.
+  // Synnical OS is the direct landing experience. Authentication and
+  // account-only apps are handled inside the shared shell.
   return <AppShell />
 }

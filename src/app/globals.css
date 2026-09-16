@@ -871,3 +871,16 @@ html.synnical-high-contrast {
   .synnical-settings-app > main { height: calc(100% - 218px); padding: 16px !important; }
   .synnical-os-root .synnical-os-window { min-width: 0 !important; border-radius: 6px !important; }
 }
+
+/* Accessibility preferences have explicit runtime consumers. */
+html[data-synnical-color-filter="grayscale"] { filter: grayscale(1); }
+html[data-synnical-color-filter="sepia"] { filter: sepia(.85); }
+html[data-synnical-color-filter="invert"] { filter: invert(1) hue-rotate(180deg); }
+.synnical-reduce-transparency [class*="backdrop-blur"],
+.synnical-reduce-transparency .synn-settings-card { backdrop-filter: none !important; background-color: var(--synnical-surface, #171719) !important; }
+video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--synnical-caption-background, black); color: var(--synnical-caption-color, white); }
+.synnical-battery-perf * { backdrop-filter: none !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+[data-keyboard-theme="light"] { background: #ededf2 !important; color: #15151a !important; }
+[data-keyboard-theme="light"] button { background: #fff !important; color: #15151a !important; border-color: #bbb !important; }
+[data-keyboard-theme="contrast"] { background: black !important; color: white !important; border: 2px solid yellow !important; }
+[data-keyboard-theme="contrast"] button { border: 1px solid white !important; }

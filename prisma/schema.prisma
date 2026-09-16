@@ -118,6 +118,7 @@ model Message {
   user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   username         String
   content          String
+  clientNonce      String?
   deleted          Boolean   @default(false)
   edited           Boolean   @default(false)
   editedAt         DateTime?
@@ -140,6 +141,7 @@ model Message {
 
   reactions MessageReaction[]
 
+  @@unique([userId, clientNonce])
   @@index([channelId, createdAt])
 }
 

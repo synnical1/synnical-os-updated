@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
-import { canModerate } from "@/lib/auth"
+import { canModerate, toSafeUser } from "@/lib/auth"
 
 // GET /api/infractions/list — list all infractions (mod+ only)
 // ?type=WARN filters by type
@@ -22,5 +22,5 @@ export async function GET(req: NextRequest) {
     take: 200,
   })
 
-  return NextResponse.json({ infractions })
+  return NextResponse.json({ infractions: infractions.map((row) => ({ ...row, user: toSafeUser(row.user), issuer: row.issuer ? toSafeUser(row.issuer) : null })) })
 }

@@ -60,7 +60,7 @@ test(
 
     assert.match(
       source,
-      /activity: state\?\.activity \|\| null/
+      /activity: latestActivityForUser\(u\.userId\)/
     )
   }
 )

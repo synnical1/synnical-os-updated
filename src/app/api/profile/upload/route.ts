@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     const previous = type === "banner" ? user.bannerUrl : user.pfpUrl
     if (previous?.startsWith("/api/uploads/")) {
       const oldName = path.basename(previous.split("?")[0])
-      if (oldName && oldName !== filename) {
+      if (oldName && oldName !== filename && oldName.startsWith(`${user.id}-${type}-`)) {
         await unlink(path.join(dir, oldName)).catch(() => {})
       }
     }

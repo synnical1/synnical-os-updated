@@ -1,5 +1,7 @@
 "use client"
 
+import { readOsSettings, persistOsSettings, sanitizeOsSettings, OS_DEFAULTS } from "@/lib/os-settings"
+
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useBrowser } from "@/hooks/use-browser"
@@ -842,6 +844,10 @@ function AppearanceSection() {
 /* ================================================================== */
 
 function AccessibilitySection() {
+  const [colorFilter, setColorFilter] = useLocalSetting<string>("a11y.colorFilter", "none")
+  const [reduceTransparency, setReduceTransparency] = useLocalSetting<boolean>("a11y.reduceTransparency", false)
+  const [captionScale, setCaptionScale] = useLocalSetting<number>("a11y.captionScale", 100)
+  const [captionBackground, setCaptionBackground] = useLocalSetting<string>("a11y.captionBackground", "black")
   const [reduceMotion, setReduceMotion] = useLocalSetting<boolean>("a11y.reduceMotion", false)
   const [highContrast, setHighContrast] = useLocalSetting<boolean>("a11y.highContrast", false)
   const [highLegibility, setHighLegibility] = useLocalSetting<boolean>("a11y.highLegibility", false)
@@ -857,6 +863,10 @@ function AccessibilitySection() {
   return (
     <div>
       <SectionTitle title="Accessibility" desc="Reading, focus, motion, pointer and interface controls with real global consumers." />
+      <SettingRow title="Color Filter" desc="Apply a visual filter to the Synnical interface."><select aria-label="Color Filter" className="bg-black" value={colorFilter} onChange={(e) => setColorFilter(e.target.value)}>{["none", "grayscale", "sepia", "invert"].map((value) => <option key={value}>{value}</option>)}</select></SettingRow>
+      <SettingRow title="Reduced Transparency" desc="Use opaque surfaces and remove backdrop blur."><Switch checked={reduceTransparency} onCheckedChange={setReduceTransparency} /></SettingRow>
+      <SettingRow title="Caption Size" desc="Applies to captions on Synnical-owned HTML video players; external provider captions use their own controls."><NumberSelect label="Caption size" value={captionScale} values={[75, 100, 125, 150, 200]} onChange={setCaptionScale} /></SettingRow>
+      <SettingRow title="Caption Background"><select aria-label="Caption Background" className="bg-black" value={captionBackground} onChange={(e) => setCaptionBackground(e.target.value)}>{["black", "white", "transparent"].map((value) => <option key={value}>{value}</option>)}</select></SettingRow>
       <SettingRow title="Reduced Animation" desc="Minimize ordinary interface motion while keeping explicit cosmetic preview areas animated.">
         <Switch checked={reduceMotion} onCheckedChange={setReduceMotion} />
       </SettingRow>
@@ -876,7 +886,7 @@ function AccessibilitySection() {
         </Select>
       </SettingRow>
       <SettingRow title="Interface Zoom" desc="Scale Synnical independently from the browser's own zoom level.">
-        <NumberSelect label="Interface zoom" value={interfaceZoom} values={[80, 90, 100, 110, 125]} onChange={setInterfaceZoom} />
+        <NumberSelect label="Interface zoom" value={interfaceZoom} values={[80, 90, 100, 110, 125, 150, 175, 200]} onChange={setInterfaceZoom} />
       </SettingRow>
       <SettingRow title="Line Spacing" desc="Adjust reading line height across text-heavy panels.">
         <NumberSelect label="Line spacing" value={lineSpacing} values={[120, 135, 150, 170, 190, 220]} onChange={setLineSpacing} />
@@ -1035,39 +1045,20 @@ function NotificationsSection() {
 /* ================================================================== */
 
 function KeybindsSection() {
-  const keybinds = [
-    { action: "Toggle Settings", keys: ["Ctrl", ","] },
-    { action: "Open Search", keys: ["Ctrl", "K"] },
-    { action: "Send Message", keys: ["Enter"] },
-    { action: "New Line in Message", keys: ["Shift", "Enter"] },
-    { action: "Toggle Chat Panel", keys: ["Alt", "1"] },
-    { action: "Toggle Friends Panel", keys: ["Alt", "2"] },
-    { action: "Toggle Browser Panel", keys: ["Alt", "3"] },
-    { action: "Toggle Gaming Panel", keys: ["Alt", "4"] },
-    { action: "Mute / Unmute (voice)", keys: ["Ctrl", "Shift", "M"] },
-    { action: "Log Out", keys: ["Ctrl", "Shift", "L"] },
-  ]
-
-  return (
-    <div>
-      <SectionTitle title="Keybinds" desc="Keyboard shortcuts available throughout Synnical." />
-      <p className="text-xs text-[var(--synnical-muted)] mb-4">Default keybinds are shown below. They are not currently customizable.</p>
-      <div className="space-y-1">
-        {keybinds.map((kb) => (
-          <div key={kb.action} className="flex items-center justify-between py-2.5 border-b border-[var(--synnical-border)] last:border-0">
-            <span className="text-sm text-[var(--synnical-text)]">{kb.action}</span>
-            <div className="flex items-center gap-1">
-              {kb.keys.map((k, i) => (
-                <kbd key={i} className="inline-flex h-6 min-w-6 items-center justify-center rounded border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] px-1.5 text-xs font-medium text-[var(--synnical-text)]">
-                  {k}
-                </kbd>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+  const [os, setOs] = useState(readOsSettings)
+  useEffect(() => { const changed = () => setOs(readOsSettings()); window.addEventListener("synnical-os-settings-changed", changed); return () => window.removeEventListener("synnical-os-settings-changed", changed) }, [])
+  const capture = (event: React.KeyboardEvent<HTMLInputElement>, action: keyof typeof OS_DEFAULTS.shortcuts) => {
+    event.stopPropagation()
+    if (["Control", "Alt", "Shift", "Meta"].includes(event.key)) return
+    event.preventDefault()
+    const key = event.key.length === 1 ? event.key.toUpperCase() : event.key
+    const combo = [event.ctrlKey && "Ctrl", event.altKey && "Alt", event.shiftKey && "Shift", event.metaKey && "Meta", key].filter(Boolean).join("+")
+    if (!/^(?:(?:Ctrl|Alt|Shift|Meta)\+){1,4}(?:[A-Za-z0-9.]|Escape|Tab|ArrowLeft|ArrowRight|ArrowUp|ArrowDown)$/.test(combo)) { toast.error("Use a modifier and a letter, digit, arrow, Escape or Tab"); return }
+    if (Object.entries(os.shortcuts).some(([id, value]) => id !== action && value.toLowerCase() === combo.toLowerCase())) { toast.error("This shortcut is already assigned"); return }
+    const next = sanitizeOsSettings({ ...os, shortcuts: { ...os.shortcuts, [action]: combo } })
+    setOs(next); void persistOsSettings(next)
+  }
+  return <div><SectionTitle title="Keybinds" desc="Custom global shortcuts for Synnical OS. Click a shortcut and press a key combination. Browser-reserved combinations may be unavailable; shortcuts pause while games capture input." />{(Object.keys(os.shortcuts) as Array<keyof typeof OS_DEFAULTS.shortcuts>).map((action) => <SettingRow key={action} title={action}><Input aria-label={`${action} shortcut`} value={os.shortcuts[action]} readOnly onKeyDown={(e) => capture(e, action)} className="w-48" /></SettingRow>)}<Button variant="outline" onClick={() => { const next = { ...os, shortcuts: OS_DEFAULTS.shortcuts }; setOs(next); void persistOsSettings(next) }}>Restore default shortcuts</Button></div>
 }
 
 /* ================================================================== */

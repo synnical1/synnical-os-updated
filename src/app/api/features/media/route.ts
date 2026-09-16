@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return fail("Unauthorized", 401)
   const profile = await resolveMediaProfile(me, req.nextUrl.searchParams.get("profileId"))
+  if (!profile) return fail("Profile not found", 404)
   const profileId = profile.id
   const partyId = clean(req.nextUrl.searchParams.get("partyId"), 128)
   const mediaType = req.nextUrl.searchParams.get("mediaType")
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const action = clean(body.action, 64)
   const profile = await resolveMediaProfile(me, body.profileId)
+  if (!profile) return fail("Profile not found", 404)
   const profileId = profile.id
 
   if (action === "create-list") {
@@ -126,6 +128,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reset: true })
   }
   if (action === "progress") {
+    if (body.activePlayback !== undefined && typeof body.activePlayback !== "boolean") return fail("activePlayback must be a boolean")
     const mediaType = body.mediaType; const mediaId = clean(body.mediaId, 40); const title = clean(body.title, 240)
     if (!validType(mediaType) || !mediaId) return fail("Valid media progress required")
     const season = positive(body.season) || 0; const episode = positive(body.episode) || 0
@@ -135,11 +138,13 @@ export async function POST(req: NextRequest) {
     const poster = clean(body.poster, 500) || null
     const backdrop = clean(body.backdrop, 500) || null
     const episodeName = clean(body.episodeName, 240) || null
-    const completed = body.completed === true || (duration > 0 && currentTime >= duration * 0.92)
     const predictionRaw = Number(body.ratingPrediction)
     const ratingPrediction = Number.isInteger(predictionRaw) && predictionRaw >= 1 && predictionRaw <= 10 ? predictionRaw : undefined
     const key = { userId_profileId_mediaType_mediaId_season_episode: { userId: me.id, profileId, mediaType, mediaId, season, episode } }
-    const existing = await db.mediaProgress.findUnique({ where: key })
+    const row = await db.$transaction(async (tx) => {
+    const existing = await tx.mediaProgress.findUnique({ where: key })
+    const credibleDuration = Math.max(existing?.duration || 0, duration)
+    const completed = body.completed === true || (credibleDuration > 0 && currentTime >= credibleDuration * 0.92)
     const playbackUpdate = hasPlaybackUpdate ? {
       // Durable playback progress is monotonic. A delayed ad/player event is
       // not allowed to rewind the furthest credible point reached.
@@ -147,10 +152,11 @@ export async function POST(req: NextRequest) {
       duration: Math.max(existing?.duration || 0, duration),
       completed: Boolean(existing?.completed || completed),
     } : {}
-    const row = await db.mediaProgress.upsert({
+    return tx.mediaProgress.upsert({
       where: key,
       update: { title, poster, backdrop, episodeName, ...playbackUpdate, ...(ratingPrediction ? { ratingPrediction } : {}) },
       create: { userId: me.id, profileId, mediaType, mediaId, season, episode, title, poster, backdrop, episodeName, currentTime, duration, completed, ...(ratingPrediction ? { ratingPrediction } : {}) },
+    })
     })
     return NextResponse.json({ progress: row })
   }
