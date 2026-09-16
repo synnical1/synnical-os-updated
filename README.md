@@ -48,29 +48,35 @@ Synnical OS r11.5 is the direct/default desktop experience: Start, taskbar/syste
 Production user state is intentionally not part of this repository/ZIP:
 
 - `.env` contains deployment secrets and stays on the server.
-- SQLite data stays under the deployment's `prisma/db` path.
+- The recovered Oracle/SQLite deployment uses `DATABASE_URL=file:/var/lib/synnical/database/synnical.db`; keep the database outside the source tree.
 - User uploads stay outside the deploy tree at `/var/lib/synnical/uploads` by default.
-- `stratus/sites.json` is operator configuration and is preserved by the installer. The browser-visible Stratus site key is synchronized into `NEXT_PUBLIC_STRATUS_API_KEY` at build time.
+- `stratus/sites.json` is private operator configuration and is intentionally not committed. The browser-visible Stratus site identifier is supplied through `NEXT_PUBLIC_STRATUS_API_KEY` at build time.
 - `node_modules` and `.next` are build/runtime products and are not shipped in the source ZIP.
 
 ## Safe database commands
 
+For a fresh recovered deployment, use:
+
 ```bash
+npm run db:init
 npm run db:generate
-npm run db:push
 ```
 
-`db:push` is deliberately non-destructive. The explicitly named `db:push:unsafe` exists for development/operator use only and should never be used casually against production.
+For later schema updates, back up SQLite first, review Prisma's warnings, then use `npm run db:push` only when the proposed change is understood. The recovery intentionally does **not** use `--accept-data-loss` automatically and does not define a `db:push:unsafe` script.
 
-## Release tests
+## Release validation
 
 ```bash
-npm run test:release
+npm run check:env
+npm run check:proxy
+npm run typecheck
+npm test
+npm run build
+npm run test:smoke
 ```
 
-This runs the 100-feature coverage/runtime suite and the bounded Stratus free-session state-machine tests.
+`npm run release:gate` runs Prisma validation, type checking, the complete repository test suite and the production build. The recovery validation recorded 295 passing repository tests and 21 passing live smoke groups; actual ARM64 deployment and configured external providers still require deployment-time verification.
 
-For the production deployment workflow, use [`DEPLOY-FULL.md`](DEPLOY-FULL.md). Do not copy individual old hotfix files into this release.
-
+For production deployment, use [`DEPLOY-ORACLE-ARM64.md`](DEPLOY-ORACLE-ARM64.md). `DEPLOY-FULL.md`, the old installer scripts and older release manifests are historical only and must not be used to deploy this recovery.
 
 r11.2 fixed the OS account-avatar type boundary found by VPS preflight by using the existing `SafeUser.pfpUrl` contract throughout desktop and Settings surfaces. r11.3 keeps that contract and adds service-pack regressions for the new OS/security/media/cloud wiring.
