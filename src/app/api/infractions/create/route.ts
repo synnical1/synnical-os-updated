@@ -5,6 +5,7 @@ import { canModerate } from "@/lib/auth"
 import { AUTO_PUNISHMENTS } from "@/lib/constants"
 import { banKnownIdentities } from "@/lib/identity-ban"
 import { auditData } from "@/lib/audit-log"
+import { canModerateTarget } from "@/lib/roles"
 
 // POST /api/infractions/create — warn/mute/ban a user (mod+ only)
 // body: { userId, type, reason, durationMin? }
@@ -25,8 +26,7 @@ export async function POST(req: NextRequest) {
 
   const target = await db.user.findUnique({ where: { id: userId } })
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 })
-  const rank = (r: string) => r === "OWNER" ? 5 : r === "HEAD_ADMIN" ? 4 : r === "ADMIN" ? 3 : r === "MOD" ? 2 : 1
-  if (rank(target.role) >= rank(me.role)) return NextResponse.json({ error: "Can't infract a user of equal or higher role" }, { status: 403 })
+  if (!canModerateTarget(me.role, target.role)) return NextResponse.json({ error: "Can't infract a user of equal or higher role" }, { status: 403 })
 
   const newWarnCount = type === "WARN" ? target.warnCount + 1 : target.warnCount
   const automatic = type === "WARN"
