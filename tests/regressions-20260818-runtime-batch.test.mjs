@@ -51,8 +51,8 @@ test("runtime batch: staff slash moderation is guided and server-backed", () => 
   assert.match(chat, /\/api\/moderation\/unban/)
   assert.match(chat, /Duration: 10m, 2h, 1d/)
   const unban = read("src/app/api/moderation/unban/route.ts")
-  assert.match(unban, /rawReason/)
-  assert.match(unban, /reason \|\| "Permanent ban revoked from Moderation"/)
+  assert.match(unban, /moderateAccount\(me\.id/)
+  assert.match(unban, /reason: body\.reason/); assert.match(read("src/lib/moderation-service.ts"), /"USER_UNBANNED"/)
 })
 
 test("runtime batch: rich presence flows from apps through presence privacy to chat and profiles", () => {

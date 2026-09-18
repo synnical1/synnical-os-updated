@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { useBrowser } from "@/hooks/use-browser"
+import { useSetting } from "@/lib/settings-runtime"
 import { applyTheme } from "@/lib/themes"
 
 /**
@@ -11,19 +12,16 @@ import { applyTheme } from "@/lib/themes"
  */
 export function ThemeApplier() {
   const theme = useBrowser(s => s.theme)
+  const [mode] = useSetting<string>("appearance.mode", "dark")
 
   // Apply theme
   useEffect(() => {
-    applyTheme(theme)
-  }, [theme])
+    applyTheme(theme, mode === "light" ? "light" : "dark")
+  }, [theme, mode])
 
   // Apply accessibility settings from localStorage
   useEffect(() => {
     const root = document.documentElement
-
-    // Media query listener state for darkModeAuto (managed across applySettings calls)
-    let mediaQuery: MediaQueryList | null = null
-    let mediaHandler: (() => void) | null = null
 
     const applySettings = () => {
       // Reduce motion
@@ -103,24 +101,6 @@ export function ThemeApplier() {
       const radiusScale = readThemeSetting<number>("theme.radius", 100)
       root.style.setProperty("--synnical-radius-scale", `${radiusScale / 100}`)
 
-      // 6. Dark mode auto — follow system prefers-color-scheme
-      const darkModeAuto = readThemeSetting<boolean>("theme.darkModeAuto", false)
-      if (darkModeAuto) {
-        if (!mediaQuery) {
-          mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
-          mediaHandler = () => {
-            const currentTheme = useBrowser.getState().theme
-            applyTheme(mediaQuery!.matches ? currentTheme : "monochrome")
-          }
-          mediaQuery.addEventListener("change", mediaHandler)
-          mediaHandler() // apply immediately for the current scheme
-        }
-      } else if (mediaQuery && mediaHandler) {
-        mediaQuery.removeEventListener("change", mediaHandler)
-        mediaQuery = null
-        mediaHandler = null
-      }
-
       // 7. Wallpaper — set body background image
       const wallpaper = readThemeSetting<string>("theme.wallpaper", "")
       if (wallpaper) {
@@ -144,9 +124,6 @@ export function ThemeApplier() {
     window.addEventListener("storage", applySettings)
     return () => {
       window.removeEventListener("storage", applySettings)
-      if (mediaQuery && mediaHandler) {
-        mediaQuery.removeEventListener("change", mediaHandler)
-      }
     }
   }, [])
 

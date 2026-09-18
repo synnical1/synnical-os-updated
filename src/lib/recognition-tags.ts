@@ -1,7 +1,9 @@
 export const NOTABLE_PERSON_TAG = "Notable Person"
 export const BIG_SITE_OWNER_TAG = "Big Site Owner"
 export const DEV_TAG = "DEV"
-export const RECOGNITION_TAGS = [NOTABLE_PERSON_TAG, BIG_SITE_OWNER_TAG, DEV_TAG] as const
+export const BETA_TESTER_TAG = "BETA TESTER"
+export const GOAT_TAG = "GOAT"
+export const RECOGNITION_TAGS = [NOTABLE_PERSON_TAG, BIG_SITE_OWNER_TAG, DEV_TAG, BETA_TESTER_TAG, GOAT_TAG] as const
 
 export type RecognitionTag = typeof RECOGNITION_TAGS[number]
 
@@ -11,6 +13,8 @@ export function canonicalRecognitionTag(value: unknown): RecognitionTag | null {
   if (normalized === NOTABLE_PERSON_TAG.toLowerCase()) return NOTABLE_PERSON_TAG
   if (normalized === BIG_SITE_OWNER_TAG.toLowerCase()) return BIG_SITE_OWNER_TAG
   if (normalized === DEV_TAG.toLowerCase()) return DEV_TAG
+  if (normalized === "beta tester") return BETA_TESTER_TAG
+  if (normalized === "goat") return GOAT_TAG
   return null
 }
 

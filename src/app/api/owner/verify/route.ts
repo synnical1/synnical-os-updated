@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   if (!OWNER_PASSWORD.trim()) return NextResponse.json({ error: "Owner verification is not configured" }, { status: 503 })
-  const rate = consumeRequestLimit(req, `owner-verify:${user.id}`, 5, 15 * 60_000)
+  const rate = consumeRequestLimit(req, "owner-verify", 5, 15 * 60_000, user.id)
   if (!rate.allowed) return NextResponse.json({ error: "Too many owner verification attempts" }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } })
   const { password } = await req.json().catch(() => ({}))
   if (typeof password !== "string") {

@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils"
 import { AUTO_PUNISHMENTS } from "@/lib/constants"
 import { useSetting } from "@/lib/settings-runtime"
 
-type InfractionType = "WARN" | "MUTE" | "BAN" | "AUTO_MUTE" | "AUTO_BAN"
+type InfractionType = "UNMUTE" | "UNBAN" | "AUTO_BLOCK" | "WARN" | "MUTE" | "BAN" | "AUTO_MUTE" | "AUTO_BAN"
 
 type Infraction = {
   id: string
@@ -60,6 +60,9 @@ const TYPE_TABS: { id: string; label: string }[] = [
 ]
 
 const TYPE_CONFIG: Record<InfractionType, { label: string; cls: string; Icon: typeof AlertTriangle }> = {
+  UNMUTE: { label: "Unmute", cls: "text-green-500", Icon: ShieldAlert },
+  UNBAN: { label: "Unban", cls: "text-green-500", Icon: ShieldAlert },
+  AUTO_BLOCK: { label: "Blocked content", cls: "text-orange-500", Icon: ShieldAlert },
   WARN: { label: "Warn", cls: "bg-amber-500/15 text-amber-500 border-amber-500/30", Icon: AlertTriangle },
   MUTE: { label: "Mute", cls: "bg-orange-500/15 text-orange-500 border-orange-500/30", Icon: ShieldAlert },
   BAN: { label: "Ban", cls: "bg-red-500/15 text-red-500 border-red-500/30", Icon: Ban },

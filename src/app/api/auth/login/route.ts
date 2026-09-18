@@ -5,7 +5,7 @@ import { verifyPassword, createSession, isUserPermanentlyBanned, isTrustedSvgCli
 import { consumeRecoveryCode, logSecurityEvent } from "@/lib/security-policy"
 import { toSafeUser } from "@/lib/auth"
 import { consumeRequestLimit } from "@/lib/request-rate-limit"
-import { rememberRequestIdentity } from "@/lib/request-identity"
+import { bannedRequestIdentity, rememberRequestIdentity } from "@/lib/request-identity"
 import { banKnownIdentities } from "@/lib/identity-ban"
 
 export async function POST(req: NextRequest) {
@@ -14,10 +14,12 @@ export async function POST(req: NextRequest) {
     if (!rate.allowed) {
       return NextResponse.json({ error: "Too many login attempts" }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } })
     }
+    if ((await bannedRequestIdentity(req)).banned) return NextResponse.json({ error: "This device is banned", code: "DEVICE_BANNED" }, { status: 403 })
     const { username, password, recoveryCode } = await req.json().catch(() => ({}))
     if (typeof username !== "string" || (typeof password !== "string" && typeof recoveryCode !== "string")) {
       return NextResponse.json({ error: "Invalid input" }, { status: 400 })
     }
+    if ((typeof password === "string" && password.length > 1024) || username.length > 64) return NextResponse.json({ error: "Invalid input" }, { status: 400 })
     const user = await db.user.findUnique({ where: { username: username.trim().toLowerCase() } })
     if (!user) return NextResponse.json({ error: "Wrong username or password" }, { status: 401 })
     const passwordOk = typeof password === "string" && password.length > 0 && verifyPassword(password, user.passwordHash)

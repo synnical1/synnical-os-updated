@@ -1,4 +1,6 @@
 import "server-only"
+import { requestDeviceHash } from "./request-identity"
+import { isDeviceBanned } from "./identity-ban"
 import { cookies, headers } from "next/headers"
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto"
 import type { NextRequest } from "next/server"
@@ -89,7 +91,8 @@ export async function createSession(userId: string, req?: NextRequest): Promise<
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_MS)
   const userAgent = (req?.headers.get("user-agent") || "").slice(0, 500)
   const deviceName = sessionDeviceName(req)
-  await db.session.create({ data: { token, userId, expiresAt, deviceName, userAgent, lastSeenAt: new Date() } })
+  const deviceHash = req ? await requestDeviceHash(req) : null
+  await db.session.create({ data: { deviceHash, token, userId, expiresAt, deviceName, userAgent, lastSeenAt: new Date() } })
   const store = await cookies()
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -114,6 +117,11 @@ export async function destroySession(): Promise<void> {
 
 export async function getCurrentSession() {
   const store = await cookies()
+  const requestHeaders = await headers()
+  const origin = requestHeaders.get("origin")
+  if (origin && !requestHeaders.get("authorization")) {
+    try { if (new URL(origin).host !== requestHeaders.get("host")) return null } catch { return null }
+  }
   const token = await requestSessionToken()
   if (!token) return null
   const session = await db.session.findUnique({ where: { token }, include: { user: true } })
@@ -123,7 +131,7 @@ export async function getCurrentSession() {
     store.delete(SESSION_COOKIE)
     return null
   }
-  if (await isUserPermanentlyBanned(session.user.id)) {
+  if (await isDeviceBanned(requestHeaders.get("cookie"), session.deviceHash) || await isUserPermanentlyBanned(session.user.id)) {
     await db.session.deleteMany({ where: { userId: session.user.id } }).catch(() => {})
     store.delete(SESSION_COOKIE)
     return null

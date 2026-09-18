@@ -65,7 +65,7 @@ test('r12 final: GeForce NOW owns Synnical input while immersive and uses Keyboa
   assert.match(browser, /synnical-game-focus/)
   assert.match(browser, /Release controls/)
   assert.match(shell, /dataset\.synnicalGameFocus === "1"/)
-  assert.match(appShell, /panel === "games" \|\| panel === "geforce-now"/)
+  assert.match(appShell, /<DesktopShell/); assert.doesNotMatch(appShell, /<TopBar/)
 })
 
 test('r12 final: Browser address typing stays local until navigation', () => {

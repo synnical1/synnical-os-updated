@@ -1,11 +1,11 @@
 "use client"
 import type { ReactNode } from "react"
 import type { Role } from "@/lib/api"
-import { BadgeCheck, Crown, Sparkles, Shield, Tag, Code2 } from "lucide-react"
+import { BadgeCheck, Crown, Sparkles, Shield, Tag, Code2, FlaskConical, Trophy } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AvatarDecoration, AvatarDecorationBackdrop } from "@/components/avatar-decorations"
 import { ProfileEffectLayer as ProfileEffectVisualLayer } from "@/components/profile-effects"
-import { BIG_SITE_OWNER_TAG, DEV_TAG, NOTABLE_PERSON_TAG, ordinaryTags, recognitionTags } from "@/lib/recognition-tags"
+import { BETA_TESTER_TAG, GOAT_TAG, BIG_SITE_OWNER_TAG, DEV_TAG, NOTABLE_PERSON_TAG, ordinaryTags, recognitionTags } from "@/lib/recognition-tags"
 
 const style: Record<Role, string> = {
   OWNER: "border-amber-300/70 bg-amber-400/15 text-amber-200 shadow-[0_0_14px_rgba(251,191,36,.6)]",
@@ -22,10 +22,12 @@ const roleMeta: Record<Exclude<Role, "MEMBER">, { label: string; icon: typeof Cr
   MOD: { label: "MOD", icon: BadgeCheck, className: "text-blue-100" },
 }
 
-const recognitionMeta: Record<typeof NOTABLE_PERSON_TAG | typeof BIG_SITE_OWNER_TAG | typeof DEV_TAG, { label: string; icon: typeof Sparkles; className: string }> = {
-  [NOTABLE_PERSON_TAG]: { label: "NOTABLE PERSON", icon: Sparkles, className: "border-fuchsia-300/70 bg-fuchsia-400/12 text-fuchsia-100 shadow-[0_0_12px_rgba(217,70,239,.45)]" },
+const recognitionMeta: Record<typeof NOTABLE_PERSON_TAG | typeof BIG_SITE_OWNER_TAG | typeof DEV_TAG | typeof BETA_TESTER_TAG | typeof GOAT_TAG, { label: string; icon: typeof Sparkles; className: string }> = {
+  [NOTABLE_PERSON_TAG]: { label: "NOTABLE PERSON", icon: Sparkles, className: "border-cyan-500/60 bg-cyan-500/15 text-cyan-400 shadow-[0_0_6px_#22d3ee44]" },
   [BIG_SITE_OWNER_TAG]: { label: "BIG SITE OWNER", icon: Crown, className: "border-cyan-300/70 bg-cyan-400/12 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,.45)]" },
-  [DEV_TAG]: { label: "DEV", icon: Code2, className: "border-emerald-300/70 bg-emerald-400/12 text-emerald-100 shadow-[0_0_12px_rgba(52,211,153,.45)]" },
+  [BETA_TESTER_TAG]: { label: "BETA TESTER", icon: FlaskConical, className: "border-green-500/50 bg-green-500/15 text-green-400 shadow-[0_0_6px_#22c55e44]" },
+  [GOAT_TAG]: { label: "GOAT", icon: Trophy, className: "border-pink-500/50 bg-pink-500/15 text-pink-400 shadow-[0_0_6px_#ec489944]" },
+  [DEV_TAG]: { label: "DEV", icon: Code2, className: "border-purple-500/60 bg-purple-500/15 text-purple-400 shadow-[0_0_6px_#a855f744]" },
 }
 
 export function RoleBadge({ role, tags, className }: { role: Role; tags?: string[] | null; className?: string }) {

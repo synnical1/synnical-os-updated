@@ -184,7 +184,7 @@ export function ProfilePanel() {
             className="h-40 sm:h-48 w-full bg-black"
             style={profileBg ? { background: profileBg } : undefined}
           >
-            {user.bannerUrl && <img src={user.bannerUrl} alt="Banner" className="w-full h-full object-cover" />}
+            {user.bannerUrl && <img data-image-viewer={user.bannerUrl} role="button" tabIndex={0} aria-label="Open uploaded image" src={user.bannerUrl} alt="Banner" className="w-full h-full object-cover" />}
           </div>
           <button
             onClick={() => bannerInput.current?.click()}

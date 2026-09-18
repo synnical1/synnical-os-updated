@@ -1,17 +1,4 @@
-"use client"
-
+import { Monitor, Sparkles } from "lucide-react"
 export function LinuxVmPanel() {
-  return (
-    <div className="relative h-full w-full min-h-0 min-w-0 overflow-hidden bg-black">
-      <iframe
-        src="/linux-vm/"
-        title="Synn VM"
-        className="absolute inset-0 h-full w-full border-0 bg-black"
-        allow="clipboard-read; clipboard-write; fullscreen; gamepad; microphone; camera"
-        allowFullScreen
-        referrerPolicy="strict-origin-when-cross-origin"
-        scrolling="no"
-      />
-    </div>
-  )
+  return <section className="flex h-full min-h-72 items-center justify-center bg-[var(--synnical-surface)] p-8 text-[var(--synnical-text)]"><div className="max-w-md text-center"><div className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl border border-[var(--synnical-border)] bg-[var(--synnical-accent-soft)]"><Monitor className="h-10 w-10 text-[var(--synnical-accent)]" /></div><p className="text-sm font-semibold tracking-widest">SynnVM</p><h1 className="mt-3 text-3xl font-bold">Coming Soon</h1><p className="mt-4 text-sm text-[var(--synnical-muted)]">A new workspace is on its way. Your virtual desktop will live right here.</p><Sparkles aria-hidden className="mx-auto mt-6 h-5 w-5 text-[var(--synnical-accent)]" /></div></section>
 }

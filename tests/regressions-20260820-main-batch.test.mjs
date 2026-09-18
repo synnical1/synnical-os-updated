@@ -114,7 +114,7 @@ test("main batch: Games rejects raw non-JSON responses and preserves game-focus 
   assert.match(games, /Cloud gaming returned an invalid service response/)
   assert.doesNotMatch(games, /text\.slice\(0,\s*240\)/)
   assert.match(games, /responseJson<unknown>\(response, "GAME_CATALOG"\)/)
-  assert.match(shell, /const gameFocusVisible = gameFocus && \(panel === "games" \|\| panel === "geforce-now"\)/)
+  assert.match(shell, /<DesktopShell/); assert.doesNotMatch(shell, /<TopBar/)
 })
 
 test("main batch: connection data remains server/account scoped", () => {

@@ -38,7 +38,7 @@ async function state() {
       { id: "names", label: "Name your signed-in devices", complete: sessions.length > 0 && namedSessions === sessions.length },
       { id: "trusted", label: "Mark this device as trusted", complete: currentTrusted },
     ],
-    sessions: sessions.map(({ token: _token, ...row }) => ({
+    sessions: sessions.map(({ token: _token, deviceHash: _deviceHash, ...row }) => ({
       ...row,
       current: row.id === current.id,
       trusted: isTrusted(row),

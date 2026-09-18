@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import { io, type Socket } from "socket.io-client"
+import { getChatSocket, setReadingChannel } from "@/lib/chat-realtime"
+import { type Socket } from "socket.io-client"
 import { api, type SafeUser, type FriendUser, type DM, type ChatMessage, type Role } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
@@ -87,22 +88,18 @@ export function FriendsPanel() {
 
   useEffect(() => {
     if (!user) { setOnlinePresence({}); return }
-    const socket = io({
-      path: process.env.NEXT_PUBLIC_SOCKET_URL || "/socket.io",
-      transports: ["websocket", "polling"],
-      withCredentials: true,
-      reconnection: true,
-    })
+    const socket = getChatSocket(user.id)
     const receive = (payload: { users?: FriendPresence[] }) => {
       const users = Array.isArray(payload?.users) ? payload.users : []
       const next: Record<string, FriendPresence> = {}
       for (const entry of users) if (entry?.userId) next[entry.userId] = entry
       setOnlinePresence(next)
     }
-    socket.on("connect", () => socket.emit("who-is-online"))
+    const connected = () => { socket.emit("who-is-online") }
+    socket.on("connect", connected)
+    connected()
     socket.on("online-users", receive)
-    socket.on("connect_error", () => setOnlinePresence({}))
-    return () => { socket.off("online-users", receive); socket.disconnect() }
+    return () => { socket.off("online-users", receive); socket.off("connect", connected) }
   }, [user?.id])
 
   const sendRequest = async () => {
@@ -376,25 +373,17 @@ function DMConversation({ channelId, other, onBack }: { channelId: string; other
     // Same-origin socket. NEXT_PUBLIC_SOCKET_URL is a PATH, so it belongs in
     // `path` — passing it as the URL made socket.io treat it as a namespace and
     // the handshake failed with "Invalid namespace".
-    const s = io({
-      path: process.env.NEXT_PUBLIC_SOCKET_URL || "/socket.io",
-      transports: ["websocket", "polling"],
-      withCredentials: true,
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    })
+    if (!user) return
+    const s = getChatSocket(user.id)
     socketRef.current = s
-    s.on("connect", () => setConnected(true))
-    s.on("disconnect", () => setConnected(false))
-    s.on("connect_error", (err) => {
-      setConnected(false)
-      console.error("[socket] connect_error:", err.message)
-    })
-    s.on("mute-error", (d: { message: string }) => toast.error(d.message))
-    return () => { s.disconnect() }
-  }, [])
+    const connected = () => setConnected(true)
+    const disconnected = () => setConnected(false)
+    const failed = (data: { message: string }) => toast.error(data.message)
+    s.on("connect", connected); s.on("disconnect", disconnected); s.on("mute-error", failed)
+    setConnected(s.connected)
+    return () => { s.off("connect", connected); s.off("disconnect", disconnected); s.off("mute-error", failed) }
+
+  }, [user?.id])
 
   useEffect(() => {
     const socket = socketRef.current
@@ -413,7 +402,6 @@ function DMConversation({ channelId, other, onBack }: { channelId: string; other
     }
     socket.on("message-deleted", onDeleted)
     return () => {
-      socket.emit("leave-channel", { channelId })
       socket.off("message-history", onHistory); socket.off("message", onMessage); socket.off("message-deleted", onDeleted)
     }
   }, [connected, channelId])
@@ -462,11 +450,23 @@ function DMConversation({ channelId, other, onBack }: { channelId: string; other
     }
   }
 
+  useEffect(() => {
+    const read = () => {
+      const visible = document.documentElement.dataset.synnicalPanel === "friends" && !document.hidden
+      setReadingChannel(visible ? channelId : null)
+      const last = messages.at(-1)
+      if (visible && last) void fetch("/api/features/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set-preference", channelId, lastReadMessageId: last.id }) })
+    }
+    read()
+    window.addEventListener("synnical-panel-changed", read); document.addEventListener("visibilitychange", read)
+    return () => { setReadingChannel(null); window.removeEventListener("synnical-panel-changed", read); document.removeEventListener("visibilitychange", read) }
+  }, [channelId, messages])
+
   const send = () => {
     const text = draft.trim()
     const socket = socketRef.current
     if (!text || !socket || !connected) return
-    socket.emit("send-message", { channelId, content: text })
+    socket.emit("send-message", { channelId, content: text, clientNonce: crypto.randomUUID() })
     setDraft("")
   }
 
@@ -512,7 +512,7 @@ function DMConversation({ channelId, other, onBack }: { channelId: string; other
               <div className={cn("max-w-[70%]", own && "text-right")}>
                 <p className="text-[10px] text-[var(--synnical-muted)] mb-0.5">{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                 {m.deleted ? <p className="text-xs italic text-[var(--synnical-muted)]">Message deleted</p> : (
-                  <p className={cn("text-sm rounded-lg px-3 py-1.5 inline-block", own ? "bg-[var(--synnical-accent)] text-black" : "bg-[var(--synnical-surface-2)] text-[var(--synnical-text)]")}>{m.content}</p>
+                  <><p className={cn("text-sm rounded-lg px-3 py-1.5 inline-block", own ? "bg-[var(--synnical-accent)] text-black" : "bg-[var(--synnical-surface-2)] text-[var(--synnical-text)]")}>{m.content}</p>{(m.imageUrl || m.gifUrl) && <img src={m.imageUrl || m.gifUrl || ""} data-image-viewer={m.imageUrl || m.gifUrl} role="button" tabIndex={0} aria-label="Open uploaded image" alt="Shared image" className="mt-2 max-h-64 max-w-full rounded object-contain" />}</>
                 )}
               </div>
             </div>

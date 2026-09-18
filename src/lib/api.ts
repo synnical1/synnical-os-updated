@@ -48,6 +48,7 @@ export type Channel = {
 }
 
 export type ChatMessage = {
+  mentionedUserIds?: string[]
   id: string
   /** Correlates an immediate local row with the durable server broadcast. */
   clientNonce?: string | null

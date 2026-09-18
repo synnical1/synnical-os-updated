@@ -1,5 +1,6 @@
 "use client"
 
+import { AppearanceModeControl } from "./appearance-mode-control"
 import { readOsSettings, persistOsSettings, sanitizeOsSettings, OS_DEFAULTS } from "@/lib/os-settings"
 
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -420,11 +421,11 @@ function AccountSection() {
 
       <form onSubmit={saveProfile} className="space-y-4">
         <FieldGroup label="Display Name" htmlFor="displayName">
-          <Input id="displayName" value={displayName}
+          <Input autoComplete="off" name="preferences-settings-panel-1" id="displayName" value={displayName}
             onChange={(e) => setDisplayName(e.target.value)} maxLength={32} />
         </FieldGroup>
         <FieldGroup label="Username" htmlFor="username" hint={`${user.role === "OWNER" || user.role === "HEAD_ADMIN" || user.role === "ADMIN" ? "1" : "2"}-20 characters, letters, numbers and underscores.`}>
-          <Input id="username" value={username}
+          <Input autoComplete="off" name="preferences-settings-panel-2" id="username" value={username}
             onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
             maxLength={20} minLength={user.role === "OWNER" || user.role === "HEAD_ADMIN" || user.role === "ADMIN" ? 1 : 2} placeholder="username" />
         </FieldGroup>
@@ -432,7 +433,7 @@ function AccountSection() {
           <StatusInput />
         </FieldGroup>
         <FieldGroup label="About Me" htmlFor="bio">
-          <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)}
+          <Textarea autoComplete="off" name="preferences-settings-panel-3" id="bio" value={bio} onChange={(e) => setBio(e.target.value)}
             maxLength={190} rows={3} placeholder="Tell people about yourself" />
         </FieldGroup>
         <Button type="submit" disabled={saving} className="bg-[var(--synnical-accent)] hover:bg-[var(--synnical-accent-hover)] text-black">
@@ -465,7 +466,7 @@ function StatusInput() {
 
   return (
     <div className="flex gap-2">
-      <Input value={status} onChange={(e) => setStatus(e.target.value)} maxLength={64}
+      <Input autoComplete="off" name="preferences-settings-panel-4" value={status} onChange={(e) => setStatus(e.target.value)} maxLength={64}
         placeholder="What are you up to?" onBlur={save} disabled={saving} />
       <Button type="button" size="sm" variant="secondary" onClick={save} disabled={saving}>
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set"}
@@ -504,7 +505,7 @@ function ProfilesSection() {
 
       <div className="space-y-4">
         <FieldGroup label="About Me" hint="Shown on your profile card.">
-          <Textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={190}
+          <Textarea autoComplete="off" name="preferences-settings-panel-5" value={bio} onChange={(e) => setBio(e.target.value)} maxLength={190}
             rows={3} placeholder="Tell people about yourself" />
           <Button type="button" size="sm" variant="secondary" onClick={saveBio} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Save Bio
@@ -778,11 +779,11 @@ function ConnectionsSection() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="conn-username">Username / Handle</Label>
-              <Input id="conn-username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Your username on that platform" maxLength={64} />
+              <Input autoComplete="off" name="preferences-settings-panel-6" id="conn-username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Your username on that platform" maxLength={64} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="conn-url">Profile URL (optional)</Label>
-              <Input id="conn-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" maxLength={200} />
+              <Input autoComplete="off" name="preferences-settings-panel-7" id="conn-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" maxLength={200} />
             </div>
             <div className="flex gap-2 pt-1">
               <Button size="sm" onClick={handleSave} disabled={!platformId || !username.trim()}>
@@ -812,20 +813,17 @@ function ConnectionsSection() {
 /* ================================================================== */
 
 function AppearanceSection() {
-  const [osMode, setOsMode] = useLocalSetting<boolean>("layout.osMode", false)
 
   return (
     <div>
-      <SectionTitle title="Appearance" desc="A fixed OLED interface with high-contrast controls." />
+      <SectionTitle title="Appearance" desc="Choose your base appearance independently of your accent theme." />
 
       <div className="settings-section-list">
         <SettingRow title="Interface" desc="True OLED black, white controls, static stars and moving meteors.">
           <span className="border border-[#303030] bg-black px-3 py-1.5 text-xs font-semibold text-white">OLED Black</span>
         </SettingRow>
 
-        <SettingRow title="Synnical Desktop" desc="Use the windowed OS-style desktop with a Start menu, taskbar, snapping, workspaces and persistent app windows.">
-          <Switch checked={osMode} onCheckedChange={setOsMode} />
-        </SettingRow>
+        <AppearanceModeControl />
 
         <SettingRow title="Browser tab" desc="The tab title and favicon stay on Google Classroom.">
           <div className="flex items-center gap-2 text-xs text-[#bdbdbd]">
@@ -1058,7 +1056,7 @@ function KeybindsSection() {
     const next = sanitizeOsSettings({ ...os, shortcuts: { ...os.shortcuts, [action]: combo } })
     setOs(next); void persistOsSettings(next)
   }
-  return <div><SectionTitle title="Keybinds" desc="Custom global shortcuts for Synnical OS. Click a shortcut and press a key combination. Browser-reserved combinations may be unavailable; shortcuts pause while games capture input." />{(Object.keys(os.shortcuts) as Array<keyof typeof OS_DEFAULTS.shortcuts>).map((action) => <SettingRow key={action} title={action}><Input aria-label={`${action} shortcut`} value={os.shortcuts[action]} readOnly onKeyDown={(e) => capture(e, action)} className="w-48" /></SettingRow>)}<Button variant="outline" onClick={() => { const next = { ...os, shortcuts: OS_DEFAULTS.shortcuts }; setOs(next); void persistOsSettings(next) }}>Restore default shortcuts</Button></div>
+  return <div><SectionTitle title="Keybinds" desc="Custom global shortcuts for Synnical OS. Click a shortcut and press a key combination. Browser-reserved combinations may be unavailable; shortcuts pause while games capture input." />{(Object.keys(os.shortcuts) as Array<keyof typeof OS_DEFAULTS.shortcuts>).map((action) => <SettingRow key={action} title={action}><Input autoComplete="off" name="preferences-settings-panel-8" aria-label={`${action} shortcut`} value={os.shortcuts[action]} readOnly onKeyDown={(e) => capture(e, action)} className="w-48" /></SettingRow>)}<Button variant="outline" onClick={() => { const next = { ...os, shortcuts: OS_DEFAULTS.shortcuts }; setOs(next); void persistOsSettings(next) }}>Restore default shortcuts</Button></div>
 }
 
 /* ================================================================== */
@@ -1426,7 +1424,7 @@ function UserManagementSection() {
       <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_140px_140px]">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--synnical-muted)]" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search username, display name, ID or role…" className="pl-8" />
+          <Input autoComplete="off" name="preferences-settings-panel-9" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search username, display name, ID or role…" className="pl-8" />
         </div>
         <Select value={roleFilter} onValueChange={(value) => { setRoleFilter(value); setPage(1) }}>
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1520,7 +1518,7 @@ function UserManagementSection() {
                     })}
                   </div> : null}
                   <div className="flex items-center gap-1.5 mt-1.5">
-                    <Input
+                    <Input autoComplete="off" name="preferences-settings-panel-10"
                       value={tagInput}
                       onChange={(e) => setTagInputs((p) => ({ ...p, [u.id]: e.target.value }))}
                       onKeyDown={(e) => {
@@ -1631,7 +1629,7 @@ function BookmarksSection() {
     <div>
       <SectionTitle title="Bookmarks" desc="Manage your saved browser bookmarks." />
       <div className="space-y-3">
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search bookmarks…" />
+        <Input autoComplete="off" name="preferences-settings-panel-11" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search bookmarks…" />
         {filtered.length === 0 ? (
           <div className="text-center py-10 text-xs text-[var(--synnical-muted)]">
             {bookmarks.length === 0 ? "No bookmarks yet. Save pages from the browser to see them here." : "No bookmarks match your search."}
@@ -1677,7 +1675,7 @@ function ActivityLogSection() {
       <SectionTitle title="Activity Log" desc="Your recent browsing history." />
       <div className="space-y-3">
         <div className="flex gap-2">
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search history…" className="flex-1" />
+          <Input autoComplete="off" name="preferences-settings-panel-12" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search history…" className="flex-1" />
           <Button size="sm" variant="outline" className="hover:text-red-400" onClick={() => { clearHistory(); toast.success("History cleared") }}>
             Clear All
           </Button>

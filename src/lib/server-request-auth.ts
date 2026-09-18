@@ -1,4 +1,5 @@
 import type { IncomingMessage } from "node:http"
+import { isDeviceBanned } from "./identity-ban"
 import { db } from "./db"
 import { SESSION_COOKIE } from "./constants"
 
@@ -12,7 +13,7 @@ export function allowedSocketOrigin(req: Pick<IncomingMessage, "headers">): bool
 }
 
 export async function authenticatedProxyRequest(req: IncomingMessage): Promise<boolean> {
-  if (!allowedSocketOrigin(req)) return false
+  if (!allowedSocketOrigin(req) || await isDeviceBanned(req.headers.cookie)) return false
   const bearer = /^Bearer\s+([a-f0-9]{64})$/i.exec(req.headers.authorization || "")?.[1]
   let cookie: string | undefined
   try {
@@ -22,7 +23,7 @@ export async function authenticatedProxyRequest(req: IncomingMessage): Promise<b
   const token = bearer || cookie
   if (!token || !/^[a-f0-9]{64}$/i.test(token)) return false
   const session = await db.session.findUnique({ where: { token }, include: { user: { select: { role: true } } } })
-  if (!session || session.expiresAt.getTime() <= Date.now()) return false
+  if (!session || session.expiresAt.getTime() <= Date.now() || await isDeviceBanned(req.headers.cookie, session.deviceHash)) return false
   if (["OWNER", "HEAD_ADMIN"].includes(session.user.role)) return true
   return !await db.infraction.findFirst({ where: { userId: session.userId, type: { in: ["BAN", "AUTO_BAN"] }, duration: null }, select: { id: true } })
 }

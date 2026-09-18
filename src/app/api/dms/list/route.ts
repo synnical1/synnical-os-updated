@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { moderationEvents } from "@/lib/moderation-events"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { toSafeUser } from "@/lib/auth"
@@ -51,7 +52,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const { userId } = await req.json()
+  const { userId } = await req.json().catch(() => ({}))
   if (typeof userId !== "string") {
     return NextResponse.json({ error: "userId required" }, { status: 400 })
   }
@@ -73,14 +74,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ id: existing.channelId, other: toSafeUser(other) })
   }
 
-  // Create new DM channel
+  // Deterministic channel name plus one transaction prevents racing duplicate DMs.
   const name = `dm_${[me.id, other.id].sort().join("_")}`
-  const channel = await db.channel.create({ data: { name, isDM: true } })
-  await db.membership.createMany({
-    data: [
-      { userId: me.id, channelId: channel.id },
-      { userId: other.id, channelId: channel.id },
-    ],
+  const channel = await db.$transaction(async tx => {
+    const channel = await tx.channel.upsert({ where: { name }, create: { name, isDM: true }, update: {} })
+    for (const userId of [me.id, other.id]) await tx.membership.upsert({ where: { userId_channelId: { userId, channelId: channel.id } }, create: { userId, channelId: channel.id }, update: {} })
+    return channel
   })
+  moderationEvents.emit("channels-change", { channelId: channel.id, userIds: [me.id, other.id] })
   return NextResponse.json({ id: channel.id, other: toSafeUser(other) })
 }

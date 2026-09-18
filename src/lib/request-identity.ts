@@ -24,29 +24,11 @@ function hashIdentity(kind: IdentityKind, raw: string): string {
   return createHmac("sha256", identitySecret()).update(`${kind}\0${raw}`).digest("hex")
 }
 
-function requestIp(req: NextRequest): string | null {
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-  const real = req.headers.get("x-real-ip")?.trim()
-  return forwarded || real || null
-}
-
-function passiveClientFingerprint(req: NextRequest): string | null {
-  const parts = [
-    req.headers.get("user-agent") || "",
-    req.headers.get("accept-language") || "",
-    req.headers.get("sec-ch-ua") || "",
-    req.headers.get("sec-ch-ua-platform") || "",
-    req.headers.get("sec-ch-ua-mobile") || "",
-  ]
-  if (!parts.some(Boolean)) return null
-  return parts.join("\n")
-}
-
 async function deviceCookieValue(req: NextRequest): Promise<string> {
-  const existing = req.cookies.get(DEVICE_COOKIE)?.value?.trim()
+  const store = await cookies()
+  const existing = store.get(DEVICE_COOKIE)?.value?.trim() || req.cookies.get(DEVICE_COOKIE)?.value?.trim()
   if (existing && /^[a-f0-9]{32,128}$/i.test(existing)) return existing
   const value = randomBytes(32).toString("hex")
-  const store = await cookies()
   store.set(DEVICE_COOKIE, value, {
     httpOnly: true,
     sameSite: "lax",
@@ -59,12 +41,8 @@ async function deviceCookieValue(req: NextRequest): Promise<string> {
 
 async function hashesForRequest(req: NextRequest): Promise<IdentityHash[]> {
   const hashes: IdentityHash[] = []
-  const ip = requestIp(req)
-  if (ip) hashes.push({ kind: "ip", valueHash: hashIdentity("ip", ip) })
   const device = await deviceCookieValue(req)
   hashes.push({ kind: "device", valueHash: hashIdentity("device", device) })
-  const client = passiveClientFingerprint(req)
-  if (client) hashes.push({ kind: "client", valueHash: hashIdentity("client", client) })
   return hashes
 }
 
@@ -87,4 +65,8 @@ export async function bannedRequestIdentity(req: NextRequest): Promise<{ banned:
     select: { kind: true },
   })
   return match ? { banned: true, kind: match.kind } : { banned: false }
+}
+
+export async function requestDeviceHash(req: NextRequest): Promise<string> {
+  return hashIdentity("device", await deviceCookieValue(req))
 }

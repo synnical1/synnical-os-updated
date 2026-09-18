@@ -1,4 +1,5 @@
 export const SYNNICAL_APPS = [
+  { id: "moderation", label: "User Management", aliases: ["staff", "moderation", "users"], authOnly: true, modOnly: true },
   { id: "discover", label: "Search", aliases: ["find", "global search"], authOnly: true },
   { id: "browser", label: "Browser", aliases: ["web", "proxy"] },
   { id: "games", label: "Games", aliases: ["gaming", "cloud games"] },
@@ -12,7 +13,7 @@ export const SYNNICAL_APPS = [
   { id: "ai", label: "AI Assistant", aliases: ["assistant", "synn ai"] },
   { id: "youtube", label: "YouTube", aliases: ["video", "youtube video"] },
   { id: "geforce-now", label: "GeForce NOW", aliases: ["nvidia", "cloud gaming", "gfn"] },
-  { id: "linux-vm", label: "Synn VM", aliases: ["linux", "vm", "desktop", "webtop"], authOnly: true },
+  { id: "linux-vm", label: "SynnVM", aliases: ["linux", "vm", "desktop", "webtop"], authOnly: true },
   { id: "drive", label: "Synn Drive", aliases: ["cloud", "storage", "drive", "files"], authOnly: true },
   { id: "files", label: "Synnical Files", aliases: ["files", "downloads", "screenshots", "explorer"], authOnly: true },
   { id: "automations", label: "Automations", aliases: ["routines", "rules"], authOnly: true },

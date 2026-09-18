@@ -63,7 +63,7 @@ try {
     if (attempt === 119) throw new Error("Server did not become ready")
   }
   await request("/")
-  assert.match((await request("/linux-vm")).text, /VM launcher is not configured/)
+  assert.match((await request("/linux-vm")).text, /Coming Soon/)
   assert.equal((await request("/api/auth/me")).json.user, null)
   await request("/api/features/settings", { status: 401 })
   pass("production server, root shell, VM fallback and anonymous authentication")
@@ -249,8 +249,20 @@ try {
   assert.deepEqual(deleted.map((response) => response.status).sort(), [200, 409])
   assert.equal((await request("/api/features/media/profiles", { cookie: a.cookie })).json.profiles.length, 1)
   pass("concurrent profile deletion always preserves one profile")
+  const { smokeUpgrade } = await import("./smoke-upgrade.mjs")
+  await smokeUpgrade({ request, db, a, b, channel, socket, event, pass, base, sockets })
   const browserModule = process.argv.find((arg) => arg.startsWith("--browser-module="))?.slice("--browser-module=".length)
-  if (browserModule) { const { smokeBrowser } = await import("./smoke-browser.mjs"); await smokeBrowser({ base, accounts, browserModule, pass }) }
+  if (browserModule) {
+    await db.message.createMany({ data: Array.from({ length: 80 }, (_, i) => ({ channelId: channel.id, userId: a.id, username: a.username, content: `History fixture ${i}` })) })
+    await db.message.create({ data: { channelId: channel.id, userId: b.id, username: b.username, content: "Uploaded image fixture", imageUrl: uploaded } })
+    const dm = (await request("/api/dms/list", { cookie: b.cookie, data: { userId: a.id } })).json
+    const incomingSocket = io(base, { autoConnect: false, transports: ["websocket"], extraHeaders: { Cookie: b.cookie }, reconnection: false })
+    sockets.push(incomingSocket); const ready = event(incomingSocket, "connect"); incomingSocket.connect(); await ready
+    for (const channelId of [channel.id, dm.id]) { const joined = event(incomingSocket, "message-history"); incomingSocket.emit("join-channel", { channelId, history: true }); await joined }
+    const incoming = async kind => { const received = event(incomingSocket, "message"); incomingSocket.emit("send-message", { channelId: kind === "dm" ? dm.id : channel.id, content: kind === "mention" ? `Hello @${a.username}` : `Ordinary ${kind} message`, clientNonce: randomBytes(16).toString("hex") }); return received }
+    const { smokeBrowser } = await import("./smoke-browser.mjs")
+    await smokeBrowser({ base, accounts, browserModule, pass, incoming, channelName: channel.name })
+  }
   console.log(`SMOKE PASSED: ${checks} groups; disposable data only.`)
 } finally {
   for (const socket of sockets) socket.disconnect()

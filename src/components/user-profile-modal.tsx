@@ -214,7 +214,7 @@ export function UserProfileModal({ userId, onClose }: { userId: string | null; o
         {user && !loading && (
           <ProfileCardFrame user={user}>
             <div className="relative h-[27%] min-h-[92px] max-h-[170px] overflow-hidden bg-black/20">
-              {user.bannerUrl && <img src={user.bannerUrl} alt="" className="h-full w-full object-cover" style={{ objectPosition: `${featureProfile?.profile?.bannerPositionX ?? 50}% ${featureProfile?.profile?.bannerPositionY ?? 50}%` }} loading={user.bannerIsGif ? "eager" : "lazy"} decoding={user.bannerIsGif ? "sync" : "async"} />}
+              {user.bannerUrl && <img data-image-viewer={user.bannerUrl} role="button" tabIndex={0} aria-label="Open uploaded image" src={user.bannerUrl} alt="" className="h-full w-full object-cover" style={{ objectPosition: `${featureProfile?.profile?.bannerPositionX ?? 50}% ${featureProfile?.profile?.bannerPositionY ?? 50}%` }} loading={user.bannerIsGif ? "eager" : "lazy"} decoding={user.bannerIsGif ? "sync" : "async"} />}
               {featureProfile?.profile?.profileAccentGradient && <div className="pointer-events-none absolute inset-0 opacity-25" style={{ background: featureProfile.profile.profileAccentGradient }} />}
             </div>
             <div className="relative px-4 pb-5" style={{ color: themeText }}>

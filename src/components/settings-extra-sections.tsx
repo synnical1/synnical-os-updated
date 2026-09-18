@@ -119,7 +119,7 @@ export function ChatSettingsSection() {
       <SettingRow title="Auto-Scroll" desc="Automatically scroll to new messages."><Switch checked={autoScroll} onCheckedChange={setAutoScroll} /></SettingRow>
       <SettingRow title="Typing Indicators" desc="Show when others are typing."><Switch checked={showTyping} onCheckedChange={setShowTyping} /></SettingRow>
       <SettingRow title="Mention Color" desc="Highlight color for @mentions.">
-        <input type="color" value={mentionColor} onChange={(e) => setMentionColor(e.target.value)} className="h-8 w-12 rounded border border-[var(--synnical-border)] bg-transparent cursor-pointer" />
+        <input autoComplete="off" name="preferences-settings-extra-sections-1" type="color" value={mentionColor} onChange={(e) => setMentionColor(e.target.value)} className="h-8 w-12 rounded border border-[var(--synnical-border)] bg-transparent cursor-pointer" />
       </SettingRow>
       <NumberSelectRow title="Message Length Warning" desc="Warn when approaching character limit." value={maxMsgWarn} min={100} max={2000} step={100} onChange={setMaxMsgWarn} />
       <SettingRow title="Show Deleted Messages" desc="Display placeholder text for deleted messages."><Switch checked={showDeleted} onCheckedChange={setShowDeleted} /></SettingRow>
@@ -254,7 +254,7 @@ export function PresenceSettingsSection() {
           </Select>
         </SettingRow>
         <SettingRow title="AFK Message" desc="Shown after five minutes without activity.">
-          <Input disabled={saving} value={config.afkMessage} onChange={(event) => setConfig({ ...config, afkMessage: event.target.value.slice(0, 80) })} onBlur={() => void save({ afkMessage: config.afkMessage })} className="w-52" maxLength={80} placeholder="Away" />
+          <Input autoComplete="off" name="preferences-settings-extra-sections-2" disabled={saving} value={config.afkMessage} onChange={(event) => setConfig({ ...config, afkMessage: event.target.value.slice(0, 80) })} onBlur={() => void save({ afkMessage: config.afkMessage })} className="w-52" maxLength={80} placeholder="Away" />
         </SettingRow>
         <SettingRow title="Share Current Section" desc="When enabled, people can see whether you're in Chat, Games, Movies, Music, Browser, and other Synnical sections. Off by default.">
           <Switch disabled={saving} checked={config.shareSection} onCheckedChange={(value) => void save({ shareSection: value })} />
@@ -356,7 +356,7 @@ export function BrowserSettingsSection() {
         </Select>
       </SettingRow>
       <SettingRow title="Homepage" desc="Page opened by Home and the Homepage new-tab option.">
-        <Input value={homepage} onChange={(e) => setHomepage(e.target.value)} placeholder="https://…" className="w-48" />
+        <Input autoComplete="off" name="preferences-settings-extra-sections-3" value={homepage} onChange={(e) => setHomepage(e.target.value)} placeholder="https://…" className="w-48" />
       </SettingRow>
       <SettingRow title="VPN Country" desc={netherlandsAvailable === true ? "Route Browser traffic through the configured Netherlands SOCKS5 exit." : "Netherlands requires a real server-side SOCKS5 exit; Synnical will never fake the location."}>
         <Select value={vpnCountry} onValueChange={changeVpnCountry}>
@@ -418,7 +418,7 @@ export function AISettingsSection() {
       <NumberSelectRow title="Temperature" desc="Creativity of responses (higher = more creative)." value={temperature} min={0} max={100} step={5} onChange={setTemperature} />
       <NumberSelectRow title="Max Tokens" desc="Maximum response length." value={maxTokens} min={256} max={8192} step={256} onChange={setMaxTokens} unit="" />
       <SettingRow title="System Prompt" desc="Custom instructions for the AI.">
-        <Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} placeholder="e.g. You are a helpful assistant…" rows={2} className="w-48" />
+        <Textarea autoComplete="off" name="preferences-settings-extra-sections-4" value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} placeholder="e.g. You are a helpful assistant…" rows={2} className="w-48" />
       </SettingRow>
       <SettingRow title="Stream Responses" desc="Show responses as they generate."><Switch checked={streamResponses} onCheckedChange={setStreamResponses} /></SettingRow>
       <SettingRow title="Show Token Count" desc="Display token usage per message."><Switch checked={showTokenCount} onCheckedChange={setShowTokenCount} /></SettingRow>
@@ -455,7 +455,7 @@ export function MailSettingsSection() {
         <Select value={mailFormat} onValueChange={setMailFormat}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="html">HTML</SelectItem><SelectItem value="text">Plain Text</SelectItem></SelectContent></Select>
       </SettingRow>
       <SettingRow title="Auto-Forward To" desc="Forward incoming mail to this address.">
-        <Input value={autoForward} onChange={(e) => setAutoForward(e.target.value)} placeholder="you@example.com" className="w-48" />
+        <Input autoComplete="off" name="preferences-settings-extra-sections-5" value={autoForward} onChange={(e) => setAutoForward(e.target.value)} placeholder="you@example.com" className="w-48" />
       </SettingRow>
     </div>
   )
@@ -529,7 +529,7 @@ export function ProfileSettingsSection() {
       <SettingRow title="Show Profile Statistics" desc="Display shared account statistics such as message count."><Switch checked={showStats} onCheckedChange={setShowStats} /></SettingRow>
       <SettingRow title="Show Connections on Cards" desc="Display connections that the profile owner has allowed you to see."><Switch checked={showConnections} onCheckedChange={setShowConnections} /></SettingRow>
       <SettingRow title="Profile Background" desc="Local background color used when viewing your profile editor.">
-        <input type="color" value={profileBg || "#1a1a2e"} onChange={(e) => setProfileBg(e.target.value)} className="h-8 w-12 rounded border border-[var(--synnical-border)] bg-transparent cursor-pointer" />
+        <input autoComplete="off" name="preferences-settings-extra-sections-6" type="color" value={profileBg || "#1a1a2e"} onChange={(e) => setProfileBg(e.target.value)} className="h-8 w-12 rounded border border-[var(--synnical-border)] bg-transparent cursor-pointer" />
       </SettingRow>
     </div>
   )
@@ -553,7 +553,7 @@ export function ThemeSettingsSection() {
     <div>
       <SectionTitle title="Theme" desc="Fine-tune visual appearance." />
       <SettingRow title="Custom CSS" desc="Add custom CSS to customize the look.">
-        <Textarea value={customCss} onChange={(e) => setCustomCss(e.target.value)} placeholder="/* Custom CSS here */" rows={3} className="w-48 font-mono text-xs" />
+        <Textarea autoComplete="off" name="preferences-settings-extra-sections-7" value={customCss} onChange={(e) => setCustomCss(e.target.value)} placeholder="/* Custom CSS here */" rows={3} className="w-48 font-mono text-xs" />
       </SettingRow>
       <NumberSelectRow title="Animation Speed" desc="Speed of UI animations." value={animSpeed} min={0} max={200} step={10} onChange={setAnimSpeed} />
       <NumberSelectRow title="Blur Intensity" desc="Backdrop blur strength." value={blurIntensity} min={0} max={200} step={10} onChange={setBlurIntensity} />
@@ -561,7 +561,7 @@ export function ThemeSettingsSection() {
       <NumberSelectRow title="Border Radius" desc="Roundness of UI elements." value={borderRadius} min={0} max={200} step={10} onChange={setBorderRadius} />
       <SettingRow title="Auto Dark Mode" desc="Switch theme based on system preference."><Switch checked={darkModeAuto} onCheckedChange={setDarkModeAuto} /></SettingRow>
       <SettingRow title="Custom Wallpaper" desc="Background image URL for the app.">
-        <Input value={wallpaper} onChange={(e) => setWallpaper(e.target.value)} placeholder="https://…" className="w-48" />
+        <Input autoComplete="off" name="preferences-settings-extra-sections-8" value={wallpaper} onChange={(e) => setWallpaper(e.target.value)} placeholder="https://…" className="w-48" />
       </SettingRow>
       <SettingRow title="Accent Gradient" desc="Use gradient for accent elements."><Switch checked={accentGradient} onCheckedChange={setAccentGradient} /></SettingRow>
     </div>

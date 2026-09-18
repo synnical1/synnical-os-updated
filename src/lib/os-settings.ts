@@ -1,10 +1,11 @@
 export type WallpaperFit = "fill" | "fit" | "stretch" | "center" | "tile"
 
 export const LEGACY_OS_WALLPAPER = "/brand/wallpapers/samurai-cherry-blossom.png"
-export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/synnical-static-ink-wallpaper.png"
+export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/thorfinn.webp"
 export const BUILTIN_OS_WALLPAPERS = [] as const
 const RETIRED_OS_WALLPAPERS = new Set([
   LEGACY_OS_WALLPAPER,
+  "/brand/wallpapers/synnical-static-ink-wallpaper.png",
   "/brand/wallpapers/synnical-default-wallpaper.mp4",
   "/brand/wallpapers/sakura-samurai-1.png",
   "/brand/wallpapers/sakura-samurai-2.png",
@@ -13,7 +14,6 @@ const RETIRED_OS_WALLPAPERS = new Set([
 ])
 
 export const OS_DEFAULTS = {
-  enabled: true,
   taskbarAlignment: "center" as "center" | "left",
   taskbarAutoHide: false,
   taskbarSize: "medium" as "small" | "medium" | "large",
@@ -135,7 +135,6 @@ export function sanitizeOsSettings(input: unknown): OsSettings {
   const widgetDefaultsVersion = num(value.widgetDefaultsVersion, 0, 1, 0)
   const widgetBool = (key: keyof OsSettings) => widgetDefaultsVersion >= 1 ? bool(key) : false
   return {
-    enabled: bool("enabled"),
     taskbarAlignment: oneOf(value.taskbarAlignment, ["center", "left"] as const, OS_DEFAULTS.taskbarAlignment),
     taskbarAutoHide: bool("taskbarAutoHide"),
     taskbarSize: oneOf(value.taskbarSize, ["small", "medium", "large"] as const, OS_DEFAULTS.taskbarSize),

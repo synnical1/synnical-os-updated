@@ -232,6 +232,14 @@ export async function POST(req: NextRequest) {
     const snoozedUntil = body.snoozedUntil === null ? null : body.snoozedUntil ? new Date(String(body.snoozedUntil)) : undefined
     const safeSnooze = snoozedUntil instanceof Date && Number.isFinite(snoozedUntil.getTime()) ? new Date(Math.min(snoozedUntil.getTime(), Date.now() + 90 * 86400000)) : snoozedUntil === null ? null : undefined
     const catchUpMessageId = body.catchUpMessageId === null ? null : id(body.catchUpMessageId) || undefined
+    let lastReadAt: Date | undefined
+    let lastReadMessageId: string | undefined
+    if (id(body.lastReadMessageId)) {
+      const read = await db.message.findFirst({ where: { id: id(body.lastReadMessageId), channelId }, select: { createdAt: true } })
+      if (!read) return jsonError("Read message does not belong to this channel")
+      lastReadAt = read.createdAt
+      lastReadMessageId = id(body.lastReadMessageId)
+    }
     const row = await db.channelPreference.upsert({
       where: { userId_channelId: { userId: me.id, channelId } },
       create: {
@@ -246,7 +254,7 @@ export async function POST(req: NextRequest) {
         ...(safeSnooze !== undefined ? { snoozedUntil: safeSnooze } : {}),
         ...(catchUpMessageId !== undefined ? { catchUpMessageId } : {}),
         ...(privateNote !== undefined ? { privateNote } : {}),
-        ...(id(body.lastReadMessageId) ? { lastReadMessageId: id(body.lastReadMessageId) } : {}),
+        ...(lastReadMessageId ? { lastReadMessageId, lastReadAt } : {}),
       },
       update: {
         ...(typeof body.pinned === "boolean" ? { pinned: body.pinned } : {}),
@@ -259,9 +267,17 @@ export async function POST(req: NextRequest) {
         ...(safeSnooze !== undefined ? { snoozedUntil: safeSnooze } : {}),
         ...(catchUpMessageId !== undefined ? { catchUpMessageId } : {}),
         ...(privateNote !== undefined ? { privateNote } : {}),
-        ...(id(body.lastReadMessageId) ? { lastReadMessageId: id(body.lastReadMessageId) } : {}),
+        // Updated below with a conditional write so a slower browser tab cannot
+        // move a read cursor backwards.
       },
     })
+    if (lastReadAt && lastReadMessageId) {
+      await db.channelPreference.updateMany({
+        where: { userId: me.id, channelId, OR: [{ lastReadAt: null }, { lastReadAt: { lt: lastReadAt } }] },
+        data: { lastReadAt, lastReadMessageId },
+      })
+      return NextResponse.json({ preference: await db.channelPreference.findUnique({ where: { userId_channelId: { userId: me.id, channelId } } }) })
+    }
     return NextResponse.json({ preference: row })
   }
 

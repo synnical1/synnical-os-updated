@@ -5,9 +5,9 @@ import { pathToFileURL } from "node:url"
 import path from "node:path"
 import sharp from "sharp"
 
-export async function smokeBrowser({ base, accounts, browserModule, pass }) {
+export async function smokeBrowser({ base, accounts, browserModule, pass, incoming, channelName }) {
   const { chromium } = await import(pathToFileURL(path.resolve(browserModule)).href)
-  const browser = await chromium.launch({ headless: true })
+  const browser = await chromium.launch({ headless: true, ...(process.env.SYNNICAL_CHROMIUM_PATH ? { executablePath: process.env.SYNNICAL_CHROMIUM_PATH, args: ["--no-sandbox", "--disable-dev-shm-usage", "--no-zygote", "--single-process"] } : {}) })
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true })
   const errors = []
   try {
@@ -24,7 +24,7 @@ export async function smokeBrowser({ base, accounts, browserModule, pass }) {
       const panel = page.locator(selector).last(); await panel.waitFor(); return panel
     }
     const settings = await open("Settings", ".synnical-settings-app")
-    await settings.getByRole("button", { name: "Personalization", exact: true }).click()
+    await settings.getByRole("button", { name: "Appearance", exact: true }).click()
     await settings.getByLabel("Cursor theme").selectOption("crosshair")
     await page.waitForFunction(() => JSON.parse(localStorage.getItem("synnical:os:settings:v4") || "{}").cursorTheme === "crosshair")
     await settings.getByRole("button", { name: "Accounts", exact: true }).click()
@@ -68,6 +68,9 @@ export async function smokeBrowser({ base, accounts, browserModule, pass }) {
     await page.reload({ waitUntil: "domcontentloaded" }); await page.locator(".synnical-os-root").waitFor()
     assert.equal(await page.locator(".synnical-os-window").count(), 0)
     pass("browser UI: address editing does not navigate; reload starts with no restored windows")
+
+    const { smokeBrowserUpgrade } = await import("./smoke-browser-upgrade.mjs")
+    await smokeBrowserUpgrade({ page, context, base, open, pass, incoming, channelName })
 
     await page.goto(base + "/?safe=1", { waitUntil: "domcontentloaded" })
     await page.getByRole("link", { name: /Safe Mode/ }).waitFor()

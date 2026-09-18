@@ -81,11 +81,11 @@ test('batch1: Focus rules, per-app notification priority and history are functio
 })
 
 test('batch1: Chat feeds the Synnical notification center instead of only browser notifications', () => {
-  const chat = read('src/components/chat-panel.tsx')
+  const chat = read('src/lib/chat-realtime.ts')
   assert.match(chat, /new CustomEvent\("synnical-os-notify"/)
   assert.match(chat, /panel: "chat"/)
-  assert.match(chat, /priority: pref\?\.priority \? "priority" : "normal"/)
-  assert.match(chat, /hiddenFromView/)
+  assert.match(chat, /priority: prefs\[message.channelId\]\?\.priority/)
+  assert.match(chat, /!visible/)
   const browser = read('src/components/browser-panel.tsx')
   const games = read('src/components/games-panel.tsx')
   assert.match(browser, /title: "Download complete"[\s\S]*panel: "browser"/)
@@ -116,13 +116,13 @@ test('batch1 emergency fix: every staff role is protected from automatic bans', 
 })
 
 test('batch1 emergency fix: staff moderation has a durable audited unban path', () => {
-  const route = read('src/app/api/moderation/unban/route.ts')
+  const route = read('src/app/api/moderation/unban/route.ts') + read('src/lib/moderation-service.ts')
   const panel = read('src/components/staff-accounts-panel.tsx')
   const users = read('src/app/api/roles/users/route.ts')
   assert.match(route, /type: \{ in: \["BAN", "AUTO_BAN"\] \}, duration: null/)
-  assert.match(route, /bannedIdentity\.deleteMany/)
+  assert.match(route, /bannedIdentity\.delete/)
   assert.match(route, /type: "UNBAN"/)
-  assert.match(route, /action: "USER_UNBANNED"/)
+  assert.match(route, /"USER_UNBANNED"/)
   assert.match(panel, /\/api\/moderation\/unban/)
   assert.match(panel, /target\.banned \? <Button[\s\S]*?>Unban<\/Button> : <Button[\s\S]*?>Ban<\/Button>/)
   assert.match(users, /banned:/)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
+import { mayModerate } from "@/lib/moderation-service"
 import { auditData } from "@/lib/audit-log"
 
 // DELETE /api/infractions/delete — delete an infraction record (admin+ only).
@@ -13,8 +14,11 @@ export async function DELETE(req: NextRequest) {
   const id = typeof body.id === "string" ? body.id : ""
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
 
-  const infraction = await db.infraction.findUnique({ where: { id }, include: { user: { select: { id: true, username: true } } } })
+  const infraction = await db.infraction.findUnique({ where: { id }, include: { user: { select: { id: true, username: true, role: true } } } })
   if (!infraction) return NextResponse.json({ error: "Infraction not found" }, { status: 404 })
+  if (!mayModerate(me, infraction.user)) return NextResponse.json({ error: "Cannot alter an equal or higher role's infractions" }, { status: 403 })
+  const active = infraction.duration === null || infraction.createdAt.getTime() + infraction.duration * 60_000 > Date.now()
+  if (active && ["BAN", "AUTO_BAN", "MUTE", "AUTO_MUTE"].includes(infraction.type)) return NextResponse.json({ error: "Revoke the restriction using Unban or Unmute before deleting its record" }, { status: 409 })
   await db.$transaction(async (tx) => {
     await tx.auditLog.create({ data: auditData({
       category: "MODERATION",
@@ -26,6 +30,7 @@ export async function DELETE(req: NextRequest) {
       after: { removed: true },
     }) })
     await tx.infraction.delete({ where: { id } })
+    if (infraction.type === "WARN") await tx.user.updateMany({ where: { id: infraction.userId, warnCount: { gt: 0 } }, data: { warnCount: { decrement: 1 } } })
   })
   return NextResponse.json({ ok: true })
 }

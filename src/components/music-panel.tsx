@@ -1,5 +1,7 @@
 "use client"
 
+import { useAuth } from "@/hooks/use-auth"
+import { MusicBackground } from "./music-background"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertCircle,
@@ -107,6 +109,19 @@ function SoundCloudWidget({ url, onBack }: { url: string; onBack: () => void }) 
 }
 
 export function MusicPanel() {
+  const { user } = useAuth()
+  const [library, setLibrary] = useState<{ favorites: MusicTrack[]; history: MusicTrack[] }>({ favorites: [], history: [] })
+  const [libraryView, setLibraryView] = useState<"browse" | "favorites" | "history">("browse")
+  const reloadLibrary = useCallback(async () => {
+    const response = await fetch("/api/music/library", { cache: "no-store" })
+    if (!response.ok) return
+    const data = await response.json()
+    setLibrary(data); setFavorites(new Set((data.favorites as MusicTrack[]).map(trackKey)))
+  }, [])
+  useEffect(() => { if (user) void reloadLibrary() }, [user?.id, reloadLibrary])
+
+  const [repeat, setRepeat] = useSetting<string>("music.repeat", "off")
+  const [shuffle, setShuffle] = useSetting<boolean>("music.shuffle", false)
   const [storedSource, setStoredSource] = useSetting<string>("music.source", "audius")
   const source: Source = ["audius", "bridge", "soundcloud", "cobalt", "radio", "social"].includes(storedSource) ? storedSource as Source : "audius"
   const [volume, setVolume] = useSetting<number>("music.volume", 100)
@@ -122,7 +137,7 @@ export function MusicPanel() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [position, setPosition] = useState(0)
   const [duration, setDuration] = useState(0)
-  const [favorites, setFavorites] = useState<Set<string>>(() => new Set(readSetting<string[]>("music.favorites", [])))
+  const [favorites, setFavorites] = useState<Set<string>>(() => new Set())
   const [soundCloudInput, setSoundCloudInput] = useState("")
   const [soundCloudUrl, setSoundCloudUrl] = useState("")
   const [cobaltInput, setCobaltInput] = useState("")
@@ -218,13 +233,13 @@ export function MusicPanel() {
       audio.load()
       void audio.play().catch(() => setIsPlaying(false))
     })
-  }, [tracks])
+  }, [tracks, reloadLibrary])
 
   const publishMusicActivity = useCallback(async () => {
     if (!musicFeatures) return
     const result = await featureApi.music.action("activity", { track: current, isPlaying, shareEnabled: musicFeatures?.activity?.shareEnabled !== false })
     if (result?.activity) setMusicFeatures((previous: any) => previous ? { ...previous, activity: result.activity } : previous)
-  }, [current, isPlaying, musicFeatures])
+  }, [current, isPlaying, Boolean(musicFeatures), musicFeatures?.activity?.shareEnabled])
 
   useEffect(() => {
     if (!musicFeatures) return
@@ -232,7 +247,7 @@ export function MusicPanel() {
       void publishMusicActivity().catch(() => undefined)
     }, 400)
     return () => window.clearTimeout(timer)
-  }, [publishMusicActivity, musicFeatures])
+  }, [publishMusicActivity, Boolean(musicFeatures)])
 
   const clearMusicActivity = useCallback(async () => {
     try {
@@ -293,6 +308,7 @@ export function MusicPanel() {
   }, [])
 
   const search = async () => {
+    setLibraryView("browse")
     const value = query.trim()
     if (!value) return source === "audius" ? void loadAudius() : undefined
     setLoading(true)
@@ -311,7 +327,12 @@ export function MusicPanel() {
     }
   }
 
-  const toggleFavorite = (track: MusicTrack) => {
+  const toggleFavorite = async (track: MusicTrack) => {
+    if (track.provider === "audius") {
+      const response = await fetch("/api/music/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "favorite", track, remove: favorites.has(trackKey(track)) }) });
+      if (!response.ok) { setError((await response.json()).error || "Could not save favorite"); return }
+      await reloadLibrary(); return
+    }
     const key = trackKey(track)
     const next = new Set(favorites)
     if (next.has(key)) next.delete(key)
@@ -324,9 +345,10 @@ export function MusicPanel() {
     if (!current || queue.length < 2) return
     const index = queue.findIndex((item) => trackKey(item) === trackKey(current))
     if (index < 0) return
-    const next = queue[(index + direction + queue.length) % queue.length]
+    const nextIndex = shuffle && direction === 1 ? (index + 1 + Math.floor(Math.random() * (queue.length - 1))) % queue.length : (index + direction + queue.length) % queue.length
+    const next = queue[nextIndex]
     if (next) playTrack(next, queue)
-  }, [current, queue, playTrack])
+  }, [current, queue, playTrack, shuffle])
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("synnical-media-state", { detail: { panel: "music", title: current?.title || "Music", subtitle: current?.artist || "", playing: isPlaying, canNext: Boolean(current && queue.length > 1), canPrevious: Boolean(current && queue.length > 1) } }))
@@ -387,6 +409,30 @@ export function MusicPanel() {
     }
   }
 
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !current) return
+    navigator.mediaSession.metadata = new MediaMetadata({ title: current.title, artist: current.artist, artwork: current.artwork ? [{ src: current.artwork }] : [] })
+    const actions: Partial<Record<MediaSessionAction, MediaSessionActionHandler>> = {
+      play: () => { void audioRef.current?.play().catch(() => setError("Playback was blocked")) },
+      pause: () => audioRef.current?.pause(),
+      nexttrack: () => stepQueue(1), previoustrack: () => stepQueue(-1),
+      seekto: detail => { if (audioRef.current && typeof detail.seekTime === "number") audioRef.current.currentTime = detail.seekTime },
+    }
+    for (const [action, handler] of Object.entries(actions)) try { navigator.mediaSession.setActionHandler(action as MediaSessionAction, handler!) } catch {}
+    return () => { for (const action of Object.keys(actions)) try { navigator.mediaSession.setActionHandler(action as MediaSessionAction, null) } catch {} }
+  }, [current, stepQueue])
+  useEffect(() => { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused" }, [isPlaying])
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (document.documentElement.dataset.synnicalPanel !== "music" || (event.target instanceof Element && event.target.closest("input,textarea,select,button,[contenteditable]"))) return
+      const audio = audioRef.current; if (!audio) return
+      if (event.code === "Space") { event.preventDefault(); if (audio.paused) void audio.play().catch(() => setError("Playback was blocked")); else audio.pause() }
+      if (event.key === "ArrowRight") audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5)
+      if (event.key === "ArrowLeft") audio.currentTime = Math.max(0, audio.currentTime - 5)
+    }
+    window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
   const bridgeAvailable = status.piped.available || status.invidious.available
 
   const currentStream = useMemo(() => current ? streamUrl(current) : "", [current])
@@ -396,15 +442,17 @@ export function MusicPanel() {
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-hidden bg-black text-white">
-      <header className="shrink-0 border-b border-white/10 bg-[#030303] px-5 py-4">
+    <section className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-black text-white"><MusicBackground />
+      <header className="shrink-0 border-b border-white/10 bg-black/35 px-5 py-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="mr-auto min-w-[180px]">
             <p className="text-[10px] font-bold uppercase tracking-[.2em] text-white/35">Synnical Music</p>
             <div className="mt-1 flex items-center gap-2"><Waves className="h-5 w-5" /><h1 className="text-xl font-semibold">Listen without leaving Synnical</h1></div>
           </div>
           <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-white/10 bg-black p-1">
-            <SourceButton active={source === "audius"} onClick={() => { setStoredSource("audius"); void loadAudius() }} icon={Waves} label="Home" />
+            <button className="px-3 text-xs" onClick={() => { setStoredSource("audius"); setLibraryView("favorites") }}>Favorites</button>
+            <button className="px-3 text-xs" onClick={() => { setStoredSource("audius"); setLibraryView("history") }}>Recently played</button>
+            <SourceButton active={source === "audius"} onClick={() => { setStoredSource("audius"); setLibraryView("browse"); void loadAudius() }} icon={Waves} label="Home" />
             <SourceButton active={source === "bridge"} onClick={() => setStoredSource("bridge")} icon={Server} label="Search" disabled={!bridgeAvailable} />
             <SourceButton active={source === "soundcloud"} onClick={() => setStoredSource("soundcloud")} icon={Music2} label="Import" />
             <SourceButton active={source === "cobalt"} onClick={() => setStoredSource("cobalt")} icon={ExternalLink} label="Link" disabled={!status.cobalt.available} />
@@ -418,7 +466,7 @@ export function MusicPanel() {
         <div className="flex shrink-0 items-center gap-2 border-b border-red-500/20 bg-red-950/25 px-5 py-2.5 text-xs text-red-200"><AlertCircle className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1">{error}</span><button onClick={() => setError("")} className="text-white/60 hover:text-white">Dismiss</button></div>
       ) : null}
 
-      <div className="shrink-0 border-b border-white/8 bg-[#050505] px-4 py-2">
+      <div className="shrink-0 border-b border-white/8 bg-black/40 px-4 py-2">
         <div className="mx-auto flex max-w-6xl items-center gap-2 overflow-x-auto">
           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-white/30">Playlists</span>
           {musicFeatures?.playlists?.map((playlist: any) => <button key={playlist.id} type="button" onClick={() => loadPlaylist(playlist)} className="shrink-0 rounded-full border border-white/10 px-3 py-1 text-[11px] text-white/60 hover:border-white/30 hover:text-white">{playlist.name} · {playlist.tracks?.length || 0}</button>)}
@@ -439,15 +487,15 @@ export function MusicPanel() {
 
             {source === "bridge" && !bridgeAvailable ? (
               <ProviderSetup title="Search source is not configured" detail="This music source is unavailable in the current build." />
-            ) : loading && tracks.length === 0 ? (
+            ) : loading && libraryView === "browse" && tracks.length === 0 ? (
               <div className="grid min-h-[320px] place-items-center text-white/40"><Loader2 className="h-6 w-6 animate-spin" /></div>
-            ) : tracks.length === 0 ? (
+            ) : (libraryView === "browse" ? tracks : library[libraryView]).length === 0 ? (
               <div className="grid min-h-[320px] place-items-center text-sm text-white/35">No tracks to show.</div>
             ) : (
               <>
                 <div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/35">{source === "audius" && !query.trim() ? "Featured" : "Results"}</p><h2 className="mt-1 text-lg font-semibold">{source === "audius" ? "Home" : "Search"}</h2></div>{source === "audius" ? <span className="text-[10px] text-white/30">{status.audius.authenticated ? "Enhanced access enabled" : "Public catalog"}</span> : null}</div>
-                <div className="overflow-hidden rounded-xl border border-white/10 bg-[#050505]">
-                  {tracks.map((track, index) => <TrackRow key={trackKey(track)} track={track} index={index} active={Boolean(current && trackKey(current) === trackKey(track))} favorite={favorites.has(trackKey(track))} onPlay={() => playTrack(track, tracks)} onFavorite={() => toggleFavorite(track)} />)}
+                <div className="overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                  {(libraryView === "browse" ? tracks : library[libraryView]).map((track, index) => <TrackRow key={trackKey(track)} track={track} index={index} active={Boolean(current && trackKey(current) === trackKey(track))} favorite={favorites.has(trackKey(track))} onPlay={() => playTrack(track, libraryView === "browse" ? tracks : library[libraryView])} onFavorite={() => toggleFavorite(track)} />)}
                 </div>
               </>
             )}
@@ -456,7 +504,7 @@ export function MusicPanel() {
 
         {source === "soundcloud" && (
           <div className="mx-auto max-w-3xl p-6 pb-32">
-            <div className="rounded-2xl border border-white/10 bg-[#070707] p-6">
+            <div className="rounded-2xl border border-white/10 bg-black/40 p-6">
               <Music2 className="h-7 w-7 text-orange-300" />
               <h2 className="mt-4 text-xl font-semibold">Link player</h2>
               <p className="mt-2 text-sm leading-6 text-white/45">Paste a track, playlist, or artist URL from a supported music service. Synnical opens the official embed instead of routing it through the browser.</p>
@@ -468,26 +516,26 @@ export function MusicPanel() {
         {source === "cobalt" && (
           <div className="mx-auto max-w-3xl p-6 pb-32">
             {status.cobalt.available ? (
-              <div className="rounded-2xl border border-white/10 bg-[#070707] p-6"><ExternalLink className="h-7 w-7" /><h2 className="mt-4 text-xl font-semibold">Direct link import</h2><p className="mt-2 text-sm leading-6 text-white/45">Paste a supported media URL and Synnical will resolve it into the player.</p><div className="mt-5 flex gap-2 rounded-xl border border-white/10 bg-black p-2"><input value={cobaltInput} onChange={(event) => setCobaltInput(event.target.value)} placeholder="Paste a supported media URL" className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none" /><button onClick={() => void resolveCobalt()} disabled={loading} className="rounded-lg bg-white px-4 py-2 text-sm text-black disabled:opacity-40">Resolve audio</button></div></div>
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-6"><ExternalLink className="h-7 w-7" /><h2 className="mt-4 text-xl font-semibold">Direct link import</h2><p className="mt-2 text-sm leading-6 text-white/45">Paste a supported media URL and Synnical will resolve it into the player.</p><div className="mt-5 flex gap-2 rounded-xl border border-white/10 bg-black p-2"><input value={cobaltInput} onChange={(event) => setCobaltInput(event.target.value)} placeholder="Paste a supported media URL" className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none" /><button onClick={() => void resolveCobalt()} disabled={loading} className="rounded-lg bg-white px-4 py-2 text-sm text-black disabled:opacity-40">Resolve audio</button></div></div>
             ) : <ProviderSetup title="Import source is not configured" detail="This music source is unavailable in the current build." />}
           </div>
         )}
 
         {source === "radio" && (
-          <div className="mx-auto max-w-3xl p-6 pb-32"><div className="overflow-hidden rounded-xl border border-white/10 bg-[#050505]">{RADIO_STATIONS.map((station, index) => <button key={station.url} onClick={() => { setRadioIndex(index); const synthetic: MusicTrack = { id: `radio-${index}`, provider: "cobalt", title: station.name, artist: station.owner, duration: 0, sourceUrl: station.url }; playTrack(synthetic, [synthetic]) }} className={cn("flex w-full items-center gap-3 border-b border-white/8 px-4 py-3 text-left last:border-0 hover:bg-white/[.04]", radioIndex === index && current?.id === `radio-${index}` && "bg-white/10")}><span className="grid h-9 w-9 place-items-center rounded-full bg-white/10"><Play className="h-4 w-4" fill="currentColor" /></span><span><strong className="block text-sm">{station.name}</strong><small className="text-white/40">{station.owner}</small></span></button>)}</div></div>
+          <div className="mx-auto max-w-3xl p-6 pb-32"><div className="overflow-hidden rounded-xl border border-white/10 bg-black/40">{RADIO_STATIONS.map((station, index) => <button key={station.url} onClick={() => { setRadioIndex(index); const synthetic: MusicTrack = { id: `radio-${index}`, provider: "cobalt", title: station.name, artist: station.owner, duration: 0, sourceUrl: station.url }; playTrack(synthetic, [synthetic]) }} className={cn("flex w-full items-center gap-3 border-b border-white/8 px-4 py-3 text-left last:border-0 hover:bg-white/[.04]", radioIndex === index && current?.id === `radio-${index}` && "bg-white/10")}><span className="grid h-9 w-9 place-items-center rounded-full bg-white/10"><Play className="h-4 w-4" fill="currentColor" /></span><span><strong className="block text-sm">{station.name}</strong><small className="text-white/40">{station.owner}</small></span></button>)}</div></div>
         )}
 
         {source === "social" && <MusicSocialPanel />}
       </div>
 
-      {queueOpen ? <div className="absolute bottom-[76px] right-4 z-30 max-h-[45vh] w-[min(420px,calc(100%-2rem))] overflow-y-auto rounded-xl border border-white/12 bg-[#070707]/98 p-2 shadow-2xl">
+      {queueOpen ? <div className="absolute bottom-[76px] right-4 z-30 max-h-[45vh] w-[min(420px,calc(100%-2rem))] overflow-y-auto rounded-xl border border-white/12 bg-black/95 p-2 shadow-2xl">
         <div className="mb-2 flex items-center justify-between px-2"><strong className="text-xs">Queue · drag to reorder</strong><button onClick={() => setQueueOpen(false)} className="text-xs text-white/40">Close</button></div>
         {queue.length ? queue.map((track, index) => <div key={`${trackKey(track)}:${index}`} draggable onDragStart={() => setDragQueueIndex(index)} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (dragQueueIndex !== null) reorderQueue(dragQueueIndex, index); setDragQueueIndex(null) }} className={cn("flex cursor-grab items-center gap-2 rounded-lg px-2 py-2 text-xs hover:bg-white/5", current && trackKey(current) === trackKey(track) && "bg-white/8")}>
           <span className="w-5 text-white/30">{index + 1}</span><span className="min-w-0 flex-1"><strong className="block truncate">{track.title}</strong><small className="block truncate text-white/35">{track.artist}</small></span><button onClick={() => playTrack(track, queue)} className="rounded p-1 hover:bg-white/10"><Play className="h-3.5 w-3.5" /></button>
         </div>) : <p className="p-4 text-center text-xs text-white/35">Queue is empty.</p>}
       </div> : null}
 
-      <div className="absolute bottom-0 left-0 right-0 z-20 border-t border-white/10 bg-[#050505]/95 px-4 py-3 backdrop-blur-xl">
+      <div className="absolute bottom-0 left-0 right-0 z-20 border-t border-white/10 bg-black/40/95 px-4 py-3 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           <div className="flex min-w-0 w-[min(32vw,310px)] items-center gap-3">
             <div className="h-11 w-11 shrink-0 overflow-hidden rounded-md bg-[#111]">{current?.artwork ? <img src={current.artwork} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center"><Music2 className="h-5 w-5 text-white/25" /></div>}</div>
@@ -495,13 +543,13 @@ export function MusicPanel() {
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="mb-2 flex items-center justify-center gap-2"><button onClick={() => stepQueue(-1)} disabled={!current || queue.length < 2} className="rounded-full p-1.5 text-white/55 hover:text-white disabled:opacity-20"><SkipBack className="h-4 w-4" fill="currentColor" /></button><button onClick={() => { const audio = audioRef.current; if (!audio || !current) return; if (audio.paused) void audio.play(); else audio.pause() }} disabled={!current} className="grid h-9 w-9 place-items-center rounded-full bg-white text-black disabled:opacity-30">{isPlaying ? <Pause className="h-4 w-4" fill="currentColor" /> : <Play className="ml-0.5 h-4 w-4" fill="currentColor" />}</button><button onClick={() => stepQueue(1)} disabled={!current || queue.length < 2} className="rounded-full p-1.5 text-white/55 hover:text-white disabled:opacity-20"><SkipForward className="h-4 w-4" fill="currentColor" /></button></div>
+            <div className="mb-2 flex items-center justify-center gap-2"><button className="text-xs" aria-pressed={shuffle} onClick={() => setShuffle(!shuffle)}>Shuffle{shuffle ? " on" : ""}</button><button className="text-xs" aria-label={`Repeat: ${repeat}`} onClick={() => setRepeat(repeat === "off" ? "all" : repeat === "all" ? "one" : "off")}>Repeat: {repeat}</button><button onClick={() => stepQueue(-1)} disabled={!current || queue.length < 2} className="rounded-full p-1.5 text-white/55 hover:text-white disabled:opacity-20"><SkipBack className="h-4 w-4" fill="currentColor" /></button><button onClick={() => { const audio = audioRef.current; if (!audio || !current) return; if (audio.paused) void audio.play().catch(() => setError("Playback was blocked. Try again.")); else audio.pause() }} disabled={!current} className="grid h-9 w-9 place-items-center rounded-full bg-white text-black disabled:opacity-30">{isPlaying ? <Pause className="h-4 w-4" fill="currentColor" /> : <Play className="ml-0.5 h-4 w-4" fill="currentColor" />}</button><button onClick={() => stepQueue(1)} disabled={!current || queue.length < 2} className="rounded-full p-1.5 text-white/55 hover:text-white disabled:opacity-20"><SkipForward className="h-4 w-4" fill="currentColor" /></button></div>
             <div className="flex items-center gap-2 text-[10px] text-white/35"><span className="w-9 text-right">{formatDuration(position)}</span><input type="range" min={0} max={Math.max(1, duration || current?.duration || 1)} value={Math.min(position, Math.max(1, duration || current?.duration || 1))} onChange={(event) => { const next = Number(event.target.value); setPosition(next); if (audioRef.current) audioRef.current.currentTime = next }} className="min-w-0 flex-1 accent-white" aria-label="Playback position" /><span className="w-9">{formatDuration(duration || current?.duration || 0)}</span></div>
           </div>
 
           <div className="hidden w-[180px] items-center justify-end gap-2 sm:flex"><Volume2 className="h-4 w-4 text-white/45" /><input type="range" min={0} max={100} value={volume} onChange={(event) => setVolume(Number(event.target.value))} className="w-24 accent-white" aria-label="Music volume" /><button type="button" onClick={() => setQueueOpen((value) => !value)} className="rounded p-1 text-white/45 hover:text-white" aria-label="Open queue"><ListMusic className="h-4 w-4" /></button></div>
         </div>
-        <audio ref={audioRef} src={currentStream} preload="metadata" onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)} onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : current?.duration || 0)} onEnded={() => stepQueue(1)} onError={() => { if (current) setError("That audio source could not be played. Try another track or source."); setIsPlaying(false) }} className="hidden" />
+        <audio ref={audioRef} src={currentStream} preload="metadata" onPlay={() => { setIsPlaying(true); if (current?.provider === "audius") void fetch("/api/music/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "history", track: current }) }).then(response => { if (response.ok) void reloadLibrary() }).catch(() => {}) }} onPause={() => setIsPlaying(false)} onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)} onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : current?.duration || 0)} onEnded={() => { const audio = audioRef.current; if (repeat === "one" && audio) { audio.currentTime = 0; void audio.play().catch(() => setError("Playback was interrupted")) } else if (repeat === "all" || shuffle || (current && queue.findIndex(track => trackKey(track) === trackKey(current)) < queue.length - 1)) stepQueue(1); else setIsPlaying(false) }} onError={() => { if (current) setError("That audio source could not be played. Try another track or source."); setIsPlaying(false) }} className="hidden" />
       </div>
     </section>
   )
@@ -516,5 +564,5 @@ function TrackRow({ track, index, active, favorite, onPlay, onFavorite }: { trac
 }
 
 function ProviderSetup({ title, detail }: { title: string; detail: string }) {
-  return <div className="rounded-2xl border border-white/10 bg-[#070707] p-6"><Server className="h-7 w-7 text-white/60" /><h2 className="mt-4 text-lg font-semibold">{title}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">{detail}</p></div>
+  return <div className="rounded-2xl border border-white/10 bg-black/40 p-6"><Server className="h-7 w-7 text-white/60" /><h2 className="mt-4 text-lg font-semibold">{title}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">{detail}</p></div>
 }

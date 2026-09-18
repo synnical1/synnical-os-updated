@@ -2,7 +2,9 @@
 
 import * as React from "react"
 import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
-import { io, type Socket } from "socket.io-client"
+import { getChatSocket, setReadingChannel, useChatUnread } from "@/lib/chat-realtime"
+import { type Socket } from "socket.io-client"
+import { messageNotification } from "@/lib/chat-mentions"
 import { api, type Channel, type ChatMessage, type SafeUser, type Role } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
@@ -326,7 +328,9 @@ export function ChatPanel() {
   const [gifError, setGifError] = useState("")
   const [imageUploading, setImageUploading] = useState(false)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
-  const [unreadByChannel, setUnreadByChannel] = useState<Record<string, number>>({})
+  const [chatVisible, setChatVisible] = useState(false)
+  const seenMessageIds = useRef(new Set<string>())
+  const { unread: unreadByChannel, mentions: mentionsByChannel } = useChatUnread()
   const [reportingMessage, setReportingMessage] = useState<ChatMessage | null>(null)
   const [reportCategory, setReportCategory] = useState("HARASSMENT")
   const [reportReason, setReportReason] = useState("")
@@ -395,26 +399,21 @@ export function ChatPanel() {
   useEffect(() => {
     const publishVisibility = (visible: boolean) => {
       chatVisibleRef.current = visible
-      const active = activeChannelRef.current
-      if (visible && active) {
-        setUnreadByChannel((current) => current[active] ? { ...current, [active]: 0 } : current)
-      }
+      setChatVisible(visible)
+      setReadingChannel(visible ? activeChannelRef.current : null)
     }
     publishVisibility(document.documentElement.dataset.synnicalPanel === "chat" && document.visibilityState === "visible")
     const receive = (event: Event) => publishVisibility(Boolean((event as CustomEvent<{ visible?: boolean }>).detail?.visible))
+    const visibility = () => publishVisibility(document.documentElement.dataset.synnicalPanel === "chat" && !document.hidden)
+    document.addEventListener("visibilitychange", visibility)
     window.addEventListener("synnical-chat-visibility", receive)
-    return () => window.removeEventListener("synnical-chat-visibility", receive)
+    return () => { document.removeEventListener("visibilitychange", visibility); window.removeEventListener("synnical-chat-visibility", receive) }
   }, [])
 
-  const unreadTotal = React.useMemo(() => Object.values(unreadByChannel).reduce((sum, count) => sum + count, 0), [unreadByChannel])
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent("synnical-chat-unread", { detail: { total: unreadTotal } }))
-  }, [unreadTotal])
-
-  useEffect(() => {
-    if (!activeChannel || !chatVisibleRef.current) return
-    setUnreadByChannel((current) => current[activeChannel] ? { ...current, [activeChannel]: 0 } : current)
-  }, [activeChannel])
+    setReadingChannel(chatVisible ? activeChannel : null)
+    return () => setReadingChannel(null)
+  }, [activeChannel, chatVisible])
 
   // One-time migration for the pre-settings sound toggle. After migration the
   // shared setting is the single source of truth for both Chat and Settings.
@@ -468,6 +467,7 @@ export function ChatPanel() {
     const res = await fetch("/api/features/chat", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set-preference", channelId, ...patch }) })
     const body = await res.json().catch(() => ({}))
     if (!res.ok) { void loadChannelPreferences(); throw new Error(body?.error || "Could not save chat preference") }
+    window.dispatchEvent(new Event("synnical-chat-preferences-changed"))
     if (body.preference) {
       setChannelPrefs((current) => ({ ...current, [channelId]: body.preference }))
       prefsRef.current = { ...prefsRef.current, [channelId]: body.preference }
@@ -480,7 +480,7 @@ export function ChatPanel() {
     if (!last) return
     const timer = window.setTimeout(() => { void setChannelPreference(activeChannel, { lastReadMessageId: last.id }).catch(() => {}) }, 1800)
     return () => window.clearTimeout(timer)
-  }, [activeChannel, messages, setChannelPreference])
+  }, [activeChannel, messages, setChannelPreference, chatVisible])
 
   const loadChannels = useCallback(async () => {
     try {
@@ -514,24 +514,15 @@ export function ChatPanel() {
     // the handshake then fails with "Invalid namespace" and the client retries
     // forever, which is what caused the permanent "reconnecting…" state.
     joinedPublicChannelsRef.current.clear()
-    const s = io({
-      path: process.env.NEXT_PUBLIC_SOCKET_URL || "/socket.io",
-      transports: ["websocket", "polling"],
-      withCredentials: true,
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    })
+    if (!user) return
+    const s = getChatSocket(user.id)
     setSocket(s)
-    s.on("connect", () => setConnected(true))
-    s.on("disconnect", () => setConnected(false))
-    s.on("connect_error", (err) => {
-      setConnected(false)
-      // Surface the reason instead of silently looping forever.
-      console.error("[socket] connect_error:", err.message)
-    })
-    s.on("mute-error", (data: { message: string; clientNonce?: string }) => {
+    const onConnect = () => setConnected(true)
+    const onDisconnect = () => setConnected(false)
+    s.on("connect", onConnect)
+    s.on("disconnect", onDisconnect)
+    setConnected(s.connected)
+    const onMuteError = (data: { message: string; clientNonce?: string }) => {
       if (data.clientNonce) {
         clearPendingMessageTimer(data.clientNonce)
         setMessages((current) => current.map((candidate) => candidate.clientNonce === data.clientNonce
@@ -539,9 +530,10 @@ export function ChatPanel() {
           : candidate))
       }
       toast.error(data.message)
-    })
-    return () => { s.disconnect() }
-  }, [clearPendingMessageTimer])
+    }
+    s.on("mute-error", onMuteError)
+    return () => { s.off("connect", onConnect); s.off("disconnect", onDisconnect); s.off("mute-error", onMuteError) }
+  }, [clearPendingMessageTimer, user?.id])
 
   // The member rail is global, not limited to whichever channel is open.
   useEffect(() => {
@@ -568,7 +560,7 @@ export function ChatPanel() {
   useEffect(() => {
     if (!socket || !connected || !user) return
     let cancelled = false
-    api.listDMs().then(({ dms }) => {
+    const load = () => { void api.listDMs().then(({ dms }) => {
       if (cancelled) return
       const mapped: DmInfo[] = dms.map((d) => ({
         id: d.id,
@@ -579,8 +571,10 @@ export function ChatPanel() {
       dmRef.current = mapped
       // Silently join each DM channel so we receive its messages
       for (const d of mapped) socket.emit("join-channel", { channelId: d.id, history: false })
-    }).catch(() => { /* ignore — non-critical */ })
-    return () => { cancelled = true }
+    }).catch(() => { /* Retry on reconnect or the next channel event. */ }) }
+    load()
+    socket.on("dm-created", load)
+    return () => { cancelled = true; socket.off("dm-created", load) }
   }, [socket, connected, user])
 
   // Join the active channel and bind its event handlers
@@ -642,12 +636,15 @@ export function ChatPanel() {
     socket.on("older-message-history", onOlderHistory)
 
     const onMessage = (msg: ChatMessage) => {
+      if (seenMessageIds.current.has(msg.id)) return
+      seenMessageIds.current.add(msg.id)
+      if (seenMessageIds.current.size > 2000) seenMessageIds.current.delete(seenMessageIds.current.values().next().value!)
       const myId = userIdRef.current
       const fromSelf = !!myId && msg.userId === myId
       const active = activeChannelRef.current
       const pref = prefsRef.current[msg.channelId]
-      const mentionedMe = containsExactMention(msg.content || "", usernameRef.current)
-      const shouldNotify = !pref || pref.notificationLevel === "all" || (pref.notificationLevel === "mentions" && mentionedMe)
+      const mentionedMe = messageNotification(msg, myId || "")
+      const shouldNotify = mentionedMe && pref?.notificationLevel !== "mute"
       // Append to active channel view only if it belongs to the active channel
       if (msg.channelId === active) {
         const el = scrollRef.current
@@ -666,63 +663,17 @@ export function ChatPanel() {
           return prev.some((candidate) => candidate.id === msg.id) ? prev : [...prev, msg]
         })
       }
-      if (!fromSelf && (!chatVisibleRef.current || msg.channelId !== active)) {
-        setUnreadByChannel((current) => ({
-          ...current,
-          [msg.channelId]: Math.min(999, (current[msg.channelId] || 0) + 1),
-        }))
-      }
-      // DM notification: message arrived in a DM channel we're not currently viewing
-      if (msg.channelId !== active && !fromSelf && shouldNotify) {
-        const dm = dmRef.current.find((d) => d.id === msg.channelId)
-        if (dm) {
-          const senderName = msg.displayName || msg.username
-          const preview = msg.content
-            ? msg.content.length > 80 ? msg.content.slice(0, 80) + "…" : msg.content
-            : msg.imageUrl ? "[Image]" : msg.gifUrl ? "[GIF]" : ""
-          toast(`${senderName} → ${dm.otherName}: ${preview}`, {
-            description: "Direct message",
-          })
-        }
-      }
-      if (!fromSelf && mentionedMe) {
-        const senderName = msg.displayName || msg.username
-        const preview = msg.content.length > 100 ? `${msg.content.slice(0, 100)}…` : msg.content
-        toast(`${senderName} mentioned you`, { description: preview })
-      }
-      const hiddenFromView = !chatVisibleRef.current || msg.channelId !== active
-      if (!fromSelf && shouldNotify && hiddenFromView) {
-        const senderName = msg.displayName || msg.username || "Synnical"
-        const body = msg.content
-          ? (msg.content.length > 120 ? `${msg.content.slice(0, 120)}…` : msg.content)
-          : msg.imageUrl ? "Sent an image" : msg.gifUrl ? "Sent a GIF" : "New message"
-        window.dispatchEvent(new CustomEvent("synnical-os-notify", {
-          detail: {
-            title: `Message from ${senderName}`,
-            body,
-            panel: "chat",
-            priority: pref?.priority ? "priority" : "normal",
-          },
-        }))
-      }
+      if (shouldNotify && soundRef.current) playMessageSound(pref?.notificationSound || "default")
 
-      // Desktop notifications are shown only when the incoming message is not
-      // already visible in the active chat panel. The Settings toggle requests
-      // permission; this path never nags for browser permission on its own.
-      if (!fromSelf && shouldNotify && readSetting("notifications.desktop", false) && typeof Notification !== "undefined" && Notification.permission === "granted" && hiddenFromView) {
-        const senderName = msg.displayName || msg.username || "Synnical"
-        const body = msg.content
-          ? (msg.content.length > 120 ? `${msg.content.slice(0, 120)}…` : msg.content)
-          : msg.imageUrl ? "Sent an image" : msg.gifUrl ? "Sent a GIF" : "New message"
-        try { new Notification(`Message from ${senderName}`, { body }) } catch { /* browser rejected notification */ }
-      }
-
-      // Sound for any non-self message when the shared notification toggle is on.
-      if (!fromSelf && shouldNotify && soundRef.current) {
-        playMessageSound(pref?.notificationSound || "default")
-      }
     }
     socket.on("message", onMessage)
+    const onBotCommand = (result: { clientNonce?: string; message: string; ok: boolean }) => {
+      if (result.clientNonce) { clearPendingMessageTimer(result.clientNonce); setMessages(rows => rows.filter(row => row.clientNonce !== result.clientNonce)) }
+      if (result.ok) toast.success(`Synnbot: ${result.message}`)
+      else toast.error(`Synnbot: ${result.message}`)
+    }
+    socket.on("bot-command-result", onBotCommand)
+
 
     const onDeleted = (data: { id: string; channelId: string }) => {
       if (data.channelId !== activeChannelRef.current) return
@@ -785,6 +736,7 @@ export function ChatPanel() {
       socket.off("message-history", onHistory)
       socket.off("older-message-history", onOlderHistory)
       socket.off("message", onMessage)
+      socket.off("bot-command-result", onBotCommand)
       socket.off("message-deleted", onDeleted)
       socket.off("message-edited", onEdited)
       socket.off("message-reactions", onReactions)
@@ -1393,7 +1345,6 @@ export function ChatPanel() {
     socket.emit("publish-poll-message", { messageId })
   }, [socket])
 
-  if (!user) return null
   const activeDm = dmChannels.find((d) => d.id === activeChannel)
   const activeName = channels.find((c) => c.id === activeChannel)?.name || activeDm?.otherName || "No channel selected"
   const onlineIds = useMemo(() => new Set(onlineUsers.map(entry => entry.userId)), [onlineUsers])
@@ -1412,7 +1363,7 @@ export function ChatPanel() {
   // Keep the giant message tree out of the composer render path. Typing now
   // updates only the draft/composer unless message data or message actions
   // actually changed, instead of rebuilding hundreds of React elements per key.
-  const renderedMessageRows = useMemo(() => messages.map((m) => (
+  const renderedMessageRows = useMemo(() => !user ? [] : messages.map((m) => (
     <MessageRow
       key={m.id}
       m={m}
@@ -1436,6 +1387,7 @@ export function ChatPanel() {
     />
   )), [messages, user, editingId, editContent, startEdit, cancelEdit, saveEdit, deleteMessage, startReply, jumpToMessage, quoteMessage, reportMessage, openDM, handleMentionClick, toggleReaction, openMessageTools, toggleSavedMessage])
 
+  if (!user) return null
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       {/* Channel list */}
@@ -1500,7 +1452,7 @@ export function ChatPanel() {
                   <button type="button" onClick={() => setActiveChannel(c.id)} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left">
                     <Hash className="h-3.5 w-3.5 shrink-0" /><span className="min-w-0 flex-1 truncate">{c.name}</span>
                     {(c.audience || channelAudienceFromRoleList(c.allowedRoles)) === "STAFF" && <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center" aria-label="Staff-only channel" title="Staff only"><Lock className="h-3 w-3" aria-hidden="true" /></span>}
-                    {(unreadByChannel[c.id] || 0) > 0 && <span className="grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{unreadByChannel[c.id] > 99 ? "99+" : unreadByChannel[c.id]}</span>}
+                    {mentionsByChannel[c.id] ? <span aria-label="Unread mention" className="grid h-4 w-4 place-items-center rounded-full bg-red-600 text-xs font-bold text-white">!</span> : (unreadByChannel[c.id] || 0) > 0 ? <span aria-label="Unread messages" className="h-2 w-2 rounded-full bg-[var(--synnical-accent)]" /> : null}
                   </button>
                   {canManageChannels(user.role) && <button type="button" onClick={() => void deleteChannel(c)} className="mr-1 rounded p-1 opacity-0 hover:bg-red-500/10 hover:text-red-400 group-hover/channel:opacity-100" aria-label={`Delete ${c.name}`} title="Delete channel"><Trash2 className="h-3 w-3" /></button>}
                 </div>
@@ -1509,7 +1461,7 @@ export function ChatPanel() {
           </div>
           {dmChannels.length > 0 && <div className="border-t border-[var(--synnical-border)] p-1.5">
             <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--synnical-muted)]">Direct messages</p>
-            {dmGroups.map(([folder, list]) => <div key={folder} className="mb-2"><p className="px-2 py-1 text-[9px] uppercase tracking-wide text-[#555]">{folder}</p>{list.map((dm) => <div key={dm.id} className={cn("group/dm flex items-center rounded-md", activeChannel === dm.id ? "bg-[var(--synnical-accent)]/10 text-[var(--synnical-accent)]" : "text-[var(--synnical-muted)] hover:bg-[var(--synnical-surface-2)]")}><button type="button" onClick={() => setActiveChannel(dm.id)} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left">{channelPrefs[dm.id]?.pinned ? <Pin className="h-3 w-3 shrink-0" fill="currentColor" /> : <MessageSquare className="h-3.5 w-3.5 shrink-0" />}<span className="min-w-0 flex-1 truncate text-xs">{dm.otherName}</span>{(unreadByChannel[dm.id] || 0) > 0 && <span className="grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{unreadByChannel[dm.id] > 99 ? "99+" : unreadByChannel[dm.id]}</span>}</button><DropdownMenu><DropdownMenuTrigger asChild><button className="mr-1 rounded p-1 opacity-0 hover:bg-white/5 group-hover/dm:opacity-100" aria-label={`Manage ${dm.otherName}`}><MoreVertical className="h-3 w-3" /></button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => void setChannelPreference(dm.id, { pinned: !channelPrefs[dm.id]?.pinned }).catch((e) => toast.error(e.message))}><Pin className="mr-2 h-3.5 w-3.5" />{channelPrefs[dm.id]?.pinned ? "Unpin" : "Pin DM"}</DropdownMenuItem><DropdownMenuItem onClick={() => void setChannelPreference(dm.id, { priority: !channelPrefs[dm.id]?.priority }).catch((e) => toast.error(e.message))}><Star className="mr-2 h-3.5 w-3.5" />{channelPrefs[dm.id]?.priority ? "Remove priority" : "Priority inbox"}</DropdownMenuItem><DropdownMenuItem onClick={() => void setChannelPreference(dm.id, { dealLater: !channelPrefs[dm.id]?.dealLater }).catch((e) => toast.error(e.message))}><Bookmark className="mr-2 h-3.5 w-3.5" />{channelPrefs[dm.id]?.dealLater ? "Clear deal later" : "Deal with later"}</DropdownMenuItem><DropdownMenuItem onClick={() => { const current = channelPrefs[dm.id]?.snoozedUntil && new Date(channelPrefs[dm.id]!.snoozedUntil!).getTime() > Date.now(); if (current) { void setChannelPreference(dm.id,{snoozedUntil:null}).catch((e)=>toast.error(e.message)); return } const hours = Number(window.prompt("Snooze for how many hours?", "8")); if (Number.isFinite(hours) && hours > 0) void setChannelPreference(dm.id,{snoozedUntil:new Date(Date.now()+Math.min(hours,2160)*3600000).toISOString()}).catch((e) => toast.error(e.message)) }}><CalendarDays className="mr-2 h-3.5 w-3.5" />{channelPrefs[dm.id]?.snoozedUntil && new Date(channelPrefs[dm.id]!.snoozedUntil!).getTime() > Date.now() ? "Unsnooze" : "Snooze..."}</DropdownMenuItem><DropdownMenuItem onClick={() => { const folderName = window.prompt("DM folder", channelPrefs[dm.id]?.folder || "DMs"); if (folderName !== null) void setChannelPreference(dm.id, { folder: folderName.trim().slice(0,60) || "DMs" }).catch((e) => toast.error(e.message)) }}><Folder className="mr-2 h-3.5 w-3.5" />Move to folder...</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>)}</div>)}
+            {dmGroups.map(([folder, list]) => <div key={folder} className="mb-2"><p className="px-2 py-1 text-[9px] uppercase tracking-wide text-[#555]">{folder}</p>{list.map((dm) => <div key={dm.id} className={cn("group/dm flex items-center rounded-md", activeChannel === dm.id ? "bg-[var(--synnical-accent)]/10 text-[var(--synnical-accent)]" : "text-[var(--synnical-muted)] hover:bg-[var(--synnical-surface-2)]")}><button type="button" onClick={() => setActiveChannel(dm.id)} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left">{channelPrefs[dm.id]?.pinned ? <Pin className="h-3 w-3 shrink-0" fill="currentColor" /> : <MessageSquare className="h-3.5 w-3.5 shrink-0" />}<span className="min-w-0 flex-1 truncate text-xs">{dm.otherName}</span>{mentionsByChannel[dm.id] ? <span aria-label="Unread mention" className="grid h-4 w-4 place-items-center rounded-full bg-red-600 text-xs font-bold text-white">!</span> : (unreadByChannel[dm.id] || 0) > 0 ? <span aria-label="Unread messages" className="h-2 w-2 rounded-full bg-[var(--synnical-accent)]" /> : null}</button><DropdownMenu><DropdownMenuTrigger asChild><button className="mr-1 rounded p-1 opacity-0 hover:bg-white/5 group-hover/dm:opacity-100" aria-label={`Manage ${dm.otherName}`}><MoreVertical className="h-3 w-3" /></button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => void setChannelPreference(dm.id, { pinned: !channelPrefs[dm.id]?.pinned }).catch((e) => toast.error(e.message))}><Pin className="mr-2 h-3.5 w-3.5" />{channelPrefs[dm.id]?.pinned ? "Unpin" : "Pin DM"}</DropdownMenuItem><DropdownMenuItem onClick={() => void setChannelPreference(dm.id, { priority: !channelPrefs[dm.id]?.priority }).catch((e) => toast.error(e.message))}><Star className="mr-2 h-3.5 w-3.5" />{channelPrefs[dm.id]?.priority ? "Remove priority" : "Priority inbox"}</DropdownMenuItem><DropdownMenuItem onClick={() => void setChannelPreference(dm.id, { dealLater: !channelPrefs[dm.id]?.dealLater }).catch((e) => toast.error(e.message))}><Bookmark className="mr-2 h-3.5 w-3.5" />{channelPrefs[dm.id]?.dealLater ? "Clear deal later" : "Deal with later"}</DropdownMenuItem><DropdownMenuItem onClick={() => { const current = channelPrefs[dm.id]?.snoozedUntil && new Date(channelPrefs[dm.id]!.snoozedUntil!).getTime() > Date.now(); if (current) { void setChannelPreference(dm.id,{snoozedUntil:null}).catch((e)=>toast.error(e.message)); return } const hours = Number(window.prompt("Snooze for how many hours?", "8")); if (Number.isFinite(hours) && hours > 0) void setChannelPreference(dm.id,{snoozedUntil:new Date(Date.now()+Math.min(hours,2160)*3600000).toISOString()}).catch((e) => toast.error(e.message)) }}><CalendarDays className="mr-2 h-3.5 w-3.5" />{channelPrefs[dm.id]?.snoozedUntil && new Date(channelPrefs[dm.id]!.snoozedUntil!).getTime() > Date.now() ? "Unsnooze" : "Snooze..."}</DropdownMenuItem><DropdownMenuItem onClick={() => { const folderName = window.prompt("DM folder", channelPrefs[dm.id]?.folder || "DMs"); if (folderName !== null) void setChannelPreference(dm.id, { folder: folderName.trim().slice(0,60) || "DMs" }).catch((e) => toast.error(e.message)) }}><Folder className="mr-2 h-3.5 w-3.5" />Move to folder...</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>)}</div>)}
           </div>}
         </div>
       </aside>
@@ -1968,7 +1920,7 @@ function ChatToolsPanel({ open, onClose, activeChannel, activeName, draft, setDr
       <div className="min-h-0 flex-1 overflow-y-auto p-4 custom-scroll">
         {loading && <div className="mb-3 flex items-center gap-2 text-xs text-[#777]"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading…</div>}
         {tab === "channel" && <div className="space-y-5">
-          <section><h3 className="text-sm font-semibold">Notifications & draft sync</h3><div className="mt-2 grid gap-2 sm:grid-cols-3"><label className="text-xs text-[#777]">Level<select value={channelPreference?.notificationLevel || "all"} onChange={(e) => void setPreference({ notificationLevel: e.target.value }).catch((x) => toast.error(x.message))} className="mt-1 h-9 w-full rounded-md border border-[#222] bg-black px-2 text-white"><option value="all">All</option><option value="mentions">Mentions only</option><option value="mute">Muted</option></select></label><label className="text-xs text-[#777]">Sound<select value={channelPreference?.notificationSound || "default"} onChange={(e) => void setPreference({ notificationSound: e.target.value }).catch((x) => toast.error(x.message))} className="mt-1 h-9 w-full rounded-md border border-[#222] bg-black px-2 text-white"><option value="default">Default</option><option value="soft">Soft</option><option value="bright">Bright</option><option value="low">Low</option><option value="pulse">Pulse</option></select></label>{canManageChannels(currentUser.role) && !activeChannel?.startsWith("dm-") && <label className="text-xs text-[#777]">Slow mode seconds<div className="mt-1 flex gap-1"><Input type="number" min={0} max={21600} value={slowMode} onChange={(e) => setSlowMode(e.target.value)} /><Button size="sm" onClick={() => activeChannel && void post({ action: "set-slowmode", channelId: activeChannel, seconds: Number(slowMode) }).then(() => toast.success("Slow mode saved")).catch((e) => toast.error(e.message))}>Set</Button></div></label>}</div><p className="mt-2 text-[11px] text-[#555]">Your current composer draft is synced to this account automatically.</p></section>
+          <section><h3 className="text-sm font-semibold">Notifications & draft sync</h3><div className="mt-2 grid gap-2 sm:grid-cols-3"><label className="text-xs text-[#777]">Level<select value={channelPreference?.notificationLevel || "all"} onChange={(e) => void setPreference({ notificationLevel: e.target.value }).catch((x) => toast.error(x.message))} className="mt-1 h-9 w-full rounded-md border border-[#222] bg-black px-2 text-white"><option value="all">Mentions</option><option value="mentions">Mentions only</option><option value="mute">Muted</option></select></label><label className="text-xs text-[#777]">Sound<select value={channelPreference?.notificationSound || "default"} onChange={(e) => void setPreference({ notificationSound: e.target.value }).catch((x) => toast.error(x.message))} className="mt-1 h-9 w-full rounded-md border border-[#222] bg-black px-2 text-white"><option value="default">Default</option><option value="soft">Soft</option><option value="bright">Bright</option><option value="low">Low</option><option value="pulse">Pulse</option></select></label>{canManageChannels(currentUser.role) && !activeChannel?.startsWith("dm-") && <label className="text-xs text-[#777]">Slow mode seconds<div className="mt-1 flex gap-1"><Input type="number" min={0} max={21600} value={slowMode} onChange={(e) => setSlowMode(e.target.value)} /><Button size="sm" onClick={() => activeChannel && void post({ action: "set-slowmode", channelId: activeChannel, seconds: Number(slowMode) }).then(() => toast.success("Slow mode saved")).catch((e) => toast.error(e.message))}>Set</Button></div></label>}</div><p className="mt-2 text-[11px] text-[#555]">Your current composer draft is synced to this account automatically.</p></section>
           <section><div className="flex items-center gap-2"><h3 className="mr-auto text-sm font-semibold">Conversation organisation</h3><Button size="sm" variant="outline" onClick={() => void exportConversation()}>Export archive</Button></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="text-xs text-[#777]">Private conversation note<Textarea className="mt-1" value={channelPreference?.privateNote || ""} onChange={(e)=>void setPreference({privateNote:e.target.value}).catch(()=>{})} rows={2} placeholder="Only you can see this note" /></label><div className="rounded-lg border border-[#222] bg-black/30 p-3 text-xs"><p><strong>{conversationStats?.count ?? 0}</strong> messages · <strong>{conversationStats?.mediaCount ?? 0}</strong> media</p>{conversationStats?.firstMessage && <p className="mt-1 text-[#666]">First message: {new Date(conversationStats.firstMessage.createdAt).toLocaleDateString()}</p>}{channelPreference?.catchUpMessageId ? <Button size="sm" variant="ghost" className="mt-2" onClick={()=>onJumpToMessage(channelPreference.catchUpMessageId!)}>Jump to my catch-up marker</Button> : null}</div></div>{conversationStats?.topWords?.length ? <div className="mt-2 flex flex-wrap gap-1">{conversationStats.topWords.slice(0,12).map((row:any)=><span key={row.word} className="rounded-full border border-[#222] px-2 py-1 text-[10px] text-[#777]">{row.word} · {row.count}</span>)}</div> : null}</section>
           <section><h3 className="flex items-center gap-2 text-sm font-semibold"><ImageIcon className="h-4 w-4" />Shared media</h3><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{(gallery.media || []).slice(0,24).map((item:any)=><button key={`${item.messageId}:${item.type}`} onClick={() => onJumpToMessage(item.messageId)} className="rounded-lg border border-[#222] bg-black/40 p-2 text-left text-xs"><p className="truncate">{item.type === "gif" ? "GIF" : item.type === "image" ? "Image" : "Voice"} · @{item.username}</p>{item.transcript && <p className="mt-1 line-clamp-2 text-[10px] text-[#666]">{item.transcript}</p>}</button>)}</div></section>
           <section><h3 className="flex items-center gap-2 text-sm font-semibold"><Link2 className="h-4 w-4" />Shared links</h3><div className="mt-2 space-y-1">{(gallery.links || []).slice(0,40).map((item:any)=><a key={`${item.messageId}:${item.url}`} href={item.url} target="_blank" rel="noreferrer" className="block truncate rounded-md border border-[#222] bg-black/40 px-2 py-1.5 text-xs text-[var(--synnical-accent)]">{item.url}</a>)}</div></section>
@@ -2102,7 +2054,7 @@ const MessageRow = React.memo(function MessageRow({
   const own = m.userId === currentUser.id
   const role = (m.role || "MEMBER") as Role
   const name = m.displayName || m.username
-  const mentioned = !own && containsExactMention(m.content || "", currentUser.username)
+  const mentioned = messageNotification(m, currentUser.id)
 
   const markdownComponents: Components = {
     a: ({ node: _node, ...props }) => {
@@ -2297,6 +2249,7 @@ const MessageRow = React.memo(function MessageRow({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={m.imageUrl}
+                data-image-viewer={m.imageUrl} role="button" tabIndex={0} aria-label="Open image"
                 alt="Image message"
                 className="mt-1 block min-h-24 max-h-80 max-w-full rounded-sm border border-[var(--synnical-border)] bg-[#080808] object-contain"
                 loading="lazy"
@@ -2307,6 +2260,7 @@ const MessageRow = React.memo(function MessageRow({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={m.gifUrl}
+                data-image-viewer={m.gifUrl} role="button" tabIndex={0} aria-label="Open GIF"
                 alt="GIF message"
                 className="mt-1 block min-h-24 max-h-64 max-w-full rounded-sm border border-[var(--synnical-border)] bg-[#080808] object-contain"
                 loading="lazy"

@@ -83,6 +83,7 @@ model Session {
   token        String    @unique
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceHash   String?
   deviceName   String    @default("")
   userAgent    String    @default("")
   trustedAt    DateTime?
@@ -119,6 +120,7 @@ model Message {
   username         String
   content          String
   clientNonce      String?
+  mentionedUserIds String @default("[]")
   deleted          Boolean   @default(false)
   edited           Boolean   @default(false)
   editedAt         DateTime?
@@ -391,6 +393,7 @@ model ChannelPreference {
   notificationSound String    @default("default")
   draft             String    @default("")
   lastReadMessageId String?
+  lastReadAt DateTime?
   priority          Boolean   @default(false)
   snoozedUntil      DateTime?
   dealLater         Boolean   @default(false)

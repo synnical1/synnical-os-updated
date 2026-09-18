@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { toSafeUser, canManageRoles, canManageTags, isOwnerLevel } from "@/lib/auth"
+import { mayModerate } from "@/lib/moderation-service"
+import { publishModeration } from "@/lib/moderation-events"
 import { ROLES, type Role } from "@/lib/constants"
 import { auditData } from "@/lib/audit-log"
 import { canonicalRecognitionTag, recognitionTags } from "@/lib/recognition-tags"
@@ -12,7 +14,7 @@ export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const body = await req.json()
+  const body = await req.json().catch(() => ({}))
   const { userId, role, tag, action } = body
 
   // --- Tag management (owner/admin/mod) ---
@@ -27,6 +29,7 @@ export async function POST(req: NextRequest) {
     const target = await db.user.findUnique({ where: { id: userId } })
     if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 })
 
+    if (me.role !== "OWNER" && !mayModerate(me, target)) return NextResponse.json({ error: "Cannot change tags for yourself or an equal or higher role" }, { status: 403 })
     let tags: string[] = []
     try { tags = JSON.parse(target.tags || "[]") } catch { tags = [] }
 
@@ -63,7 +66,8 @@ export async function POST(req: NextRequest) {
       }) })
       return user
     })
-    return NextResponse.json({ user: toSafeUser(updated) })
+    publishModeration(userId, "ROLE")
+  return NextResponse.json({ user: toSafeUser(updated) })
   }
 
   // --- Role assignment (owner/admin only) ---
@@ -112,6 +116,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Only the owner can change a Head Admin" }, { status: 403 })
   }
 
+  if (me.role !== "OWNER" && !mayModerate(me, target)) return NextResponse.json({ error: "Cannot change an equal or higher role" }, { status: 403 })
   const updated = await db.$transaction(async (tx) => {
     const user = await tx.user.update({ where: { id: userId }, data: { role } })
     await tx.auditLog.create({ data: auditData({
@@ -124,5 +129,6 @@ export async function POST(req: NextRequest) {
     }) })
     return user
   })
+  publishModeration(userId, "ROLE")
   return NextResponse.json({ user: toSafeUser(updated) })
 }

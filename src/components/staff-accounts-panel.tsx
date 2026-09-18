@@ -1,5 +1,6 @@
 "use client"
 
+import { UserManagementDetails } from "./user-management-details"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { SafeUser } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
@@ -29,6 +30,7 @@ type Tab = "members" | "actions" | "media" | "audit"
 
 export function StaffAccountsPanel() {
   const { user } = useAuth()
+  const [selected, setSelected] = useState<SafeUser | null>(null)
   const [tab, setTab] = useState<Tab>("members")
   const [users, setUsers] = useState<SafeUser[]>([])
   const [total, setTotal] = useState(0)
@@ -85,20 +87,24 @@ export function StaffAccountsPanel() {
     }
   }, [])
 
+  useEffect(() => { const refresh = () => { void loadUsers() }; window.addEventListener("synnical-moderation-updated", refresh); return () => window.removeEventListener("synnical-moderation-updated", refresh) }, [loadUsers])
+
   useEffect(() => { if (tab === "members") void loadUsers() }, [tab, loadUsers])
   useEffect(() => { if (tab === "media") void loadMedia() }, [tab, loadMedia])
 
   const remove = async (target: SafeUser, action: "delete" | "ban") => {
-    if (!confirm(`${action === "ban" ? "Ban and delete" : "Delete"} @${target.username}? Their username will become available immediately.`)) return
+    if (!confirm(`${action === "ban" ? "Ban" : "Delete"} @${target.username}? Bans preserve the account and moderation history. Deletion permanently removes the account.`)) return
+    const reason = window.prompt("Reason for this action?")?.trim()
+    if (!reason) return
     setBusy(`account:${target.id}`)
     setError("")
     try {
       const response = await fetch("/api/moderation/accounts", {
-        method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: target.id, action }),
+        method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: target.id, action, reason }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Account could not be removed")
-      toast.success(action === "ban" ? "Account banned and removed" : "Account removed")
+      toast.success(action === "ban" ? "Account banned" : "Account removed")
       await loadUsers()
     } catch (e) {
       setError(e instanceof Error ? e.message : "Account could not be removed")
@@ -108,10 +114,12 @@ export function StaffAccountsPanel() {
 
   const unban = async (target: SafeUser) => {
     if (!confirm(`Unban @${target.username}? Active permanent BAN/AUTO_BAN records and identity bans sourced from this account will be revoked, while unrelated active mutes stay in place.`)) return
+    const reason = window.prompt("Reason for unbanning this account?")?.trim()
+    if (!reason) return
     setBusy(`unban:${target.id}`)
     setError("")
     try {
-      const response = await fetch("/api/moderation/unban", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: target.id }) })
+      const response = await fetch("/api/moderation/unban", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: target.id, reason }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Account could not be unbanned")
       toast.success(`@${target.username} unbanned`)
@@ -160,7 +168,7 @@ export function StaffAccountsPanel() {
   return <div className="h-full overflow-y-auto bg-black custom-scroll">
     <div className="sticky top-0 z-20 border-b border-[var(--synnical-border)] bg-black/95 px-4 py-3 backdrop-blur sm:px-6">
       <div className="mx-auto max-w-6xl">
-        <div className="flex items-center gap-2"><Shield className="h-5 w-5" /><h1 className="text-lg font-semibold">Moderation</h1><span className="text-xs text-[var(--synnical-muted)]">Staff workspace</span></div>
+        <div className="flex items-center gap-2"><Shield className="h-5 w-5" /><h1 className="text-lg font-semibold">User Management</h1><span className="text-xs text-[var(--synnical-muted)]">Staff workspace</span></div>
         <div className="mt-3 flex gap-1 overflow-x-auto">
           {tabs.map(({ id, label, icon: Icon }) => <Button key={id} size="sm" variant={tab === id ? "default" : "ghost"} onClick={() => setTab(id)}><Icon className="h-3.5 w-3.5" />{label}</Button>)}
         </div>
@@ -186,7 +194,7 @@ export function StaffAccountsPanel() {
             const allowed = user.id !== target.id && rank[user.role] > rank[target.role]
             return <div key={target.id} className="flex flex-wrap items-center gap-3 border-b border-[var(--synnical-border)] p-3 last:border-0">
               <AvatarWithDeco src={target.pfpUrl} name={target.displayName} role={target.role} avatarDeco={target.avatarDeco} size="sm" />
-              <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><DisplayName name={target.displayName || target.username} role={target.role} className="truncate font-medium" /><RoleBadge role={target.role} tags={target.tags} /></div><p className="text-xs text-[var(--synnical-muted)]">@{target.username} · {(target.coins || 0).toLocaleString()} coins{target.banned ? " · banned" : target.muted ? " · muted" : ""}</p></div>
+              <div className="min-w-0 flex-1"><button className="mb-1 text-xs underline" onClick={() => setSelected(target)}>Details & actions</button><div className="flex items-center gap-2"><DisplayName name={target.displayName || target.username} role={target.role} className="truncate font-medium" /><RoleBadge role={target.role} tags={target.tags} /></div><p className="text-xs text-[var(--synnical-muted)]">@{target.username} · {(target.coins || 0).toLocaleString()} coins{target.banned ? " · banned" : target.muted ? " · muted" : ""}</p></div>
               {allowed && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy === `credits:${target.id}`} onClick={() => void adjustCredits(target, "add")}><Coins className="h-3.5 w-3.5" />Add credits</Button><Button size="sm" variant="outline" disabled={busy === `credits:${target.id}`} onClick={() => void adjustCredits(target, "remove")}><Coins className="h-3.5 w-3.5" />Remove credits</Button>{target.banned ? <Button size="sm" variant="outline" disabled={busy === `unban:${target.id}`} onClick={() => void unban(target)}><Check className="h-3.5 w-3.5" />Unban</Button> : <Button size="sm" variant="destructive" disabled={busy === `account:${target.id}`} onClick={() => void remove(target, "ban")}><Ban className="h-3.5 w-3.5" />Ban</Button>}<Button size="sm" variant="outline" disabled={busy === `account:${target.id}`} onClick={() => void remove(target, "delete")}><Trash2 className="h-3.5 w-3.5" />Delete</Button></div>}
             </div>
           })}
@@ -196,6 +204,7 @@ export function StaffAccountsPanel() {
 
       {tab === "actions" && <InfractionsPanel embedded />}
 
+      <UserManagementDetails key={selected?.id || "none"} actor={user} target={selected} onClose={() => setSelected(null)} onChanged={loadUsers} />
       {tab === "media" && <section className="space-y-4"><div><h2 className="text-sm font-semibold">Media approvals · {media.length}</h2><p className="mt-1 text-xs text-[var(--synnical-muted)]">Review profile images waiting for staff approval.</p></div>{loadingMedia ? <div className="flex justify-center p-10"><Loader2 className="h-5 w-5 animate-spin" /></div> : <div className="grid gap-3 sm:grid-cols-2">{media.map((item) => <div key={item.id} className="overflow-hidden rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-surface)]"><img src={`/api/moderation/media?preview=${encodeURIComponent(item.id)}`} alt={`${item.type} submitted by ${item.username}`} className={item.type === "banner" ? "h-32 w-full object-cover" : "mx-auto mt-4 h-28 w-28 rounded-full object-cover"} /><div className="p-3"><p className="text-sm font-medium">@{item.username} · {item.type}</p><p className="mt-1 text-xs text-[var(--synnical-muted)]">{item.animated ? "Animated · " : ""}{new Date(item.createdAt).toLocaleString()}</p><div className="mt-3 flex gap-2"><Button size="sm" variant="outline" className="flex-1 border-emerald-500/35 text-emerald-300" disabled={busy === `media:${item.id}`} onClick={() => void review(item.id, "approve")}><Check className="h-3.5 w-3.5" />Approve</Button><Button size="sm" variant="outline" className="flex-1 border-red-500/35 text-red-300" disabled={busy === `media:${item.id}`} onClick={() => void review(item.id, "decline")}><X className="h-3.5 w-3.5" />Decline</Button></div></div></div>)}{media.length === 0 && <p className="text-sm text-[var(--synnical-muted)]">No media waiting for review.</p>}</div>}</section>}
 
       {tab === "audit" && <AuditLogPanel />}

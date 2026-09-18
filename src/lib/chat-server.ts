@@ -1,3 +1,8 @@
+import { runModerationCommand } from "./bot-moderation"
+import { ModerationError } from "./moderation-service"
+import { mentionNames, parseMentionIds } from "./chat-mentions"
+import { isDeviceBanned } from "./identity-ban"
+import { moderationEvents } from "./moderation-events"
 import type { Server as HTTPServer } from "http"
 import { randomBytes } from "crypto"
 import { Server as IOServer, type Socket } from "socket.io"
@@ -120,8 +125,31 @@ export function attachChat(httpServer: HTTPServer): IOServer {
 
   // socket.id -> user
   const online = new Map<string, ClientUser>()
+  const onModeration = async ({ userId, action }: { userId: string; action: string }) => {
+    io.emit("moderation-updated", { userId })
+    for (const socket of io.sockets.sockets.values()) {
+      const current = (socket as AuthedSocket).user
+      if (current?.userId === userId) {
+        if (action === "BAN") socket.disconnect(true)
+        else { const fresh = await db.user.findUnique({ where: { id: userId } }); if (fresh) Object.assign(current, safeUser(fresh)) }
+      } else if (action === "BAN" && await isDeviceBanned(socket.handshake.headers.cookie, socket.data.deviceHash)) socket.disconnect(true)
+    }
+  }
+  const moderationListener = (event: { userId: string; action: string }) => { void onModeration(event).catch(error => console.error("[moderation/socket]", error)) }
+  moderationEvents.on("change", moderationListener)
+  httpServer.on("close", () => moderationEvents.off("change", moderationListener))
   // channelId -> set of socket.ids currently viewing it
   const channelRooms = new Map<string, Set<string>>()
+  const onChannelsChange = ({ channelId, userIds }: { channelId: string; userIds: string[] }) => {
+    for (const socket of io.sockets.sockets.values()) if (userIds.includes((socket as AuthedSocket).user?.userId)) {
+      socket.join(`channel:${channelId}`)
+      if (!channelRooms.has(channelId)) channelRooms.set(channelId, new Set())
+      channelRooms.get(channelId)!.add(socket.id)
+      socket.emit("dm-created", { channelId })
+    }
+  }
+  moderationEvents.on("channels-change", onChannelsChange)
+  httpServer.on("close", () => moderationEvents.off("channels-change", onChannelsChange))
   // User-level action windows prevent parallel sockets from multiplying the
   // number of database writes and expensive AI moderation calls.
   const chatActionWindows = new Map<string, number[]>()
@@ -179,7 +207,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
 
   const serializeHistoryMessage = (row: any, viewerUserId: string) => ({
     id: row.id, channelId: row.channelId, userId: row.userId, username: row.username,
-    clientNonce: row.clientNonce,
+    clientNonce: row.clientNonce, mentionedUserIds: parseMentionIds(row.mentionedUserIds),
     content: row.content, deleted: row.deleted, edited: row.edited, gifUrl: row.gifUrl, imageUrl: row.imageUrl,
     voiceUrl: row.voiceUrl, voiceTranscript: row.voiceTranscript, messageType: row.messageType, threadRootId: row.threadRootId,
     replyToId: row.replyToId, replyToName: row.replyToName, replyToContent: row.replyToContent,
@@ -538,9 +566,11 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         (typeof authToken === "string" && authToken) ||
         readCookie(socket.handshake.headers.cookie)
       if (!token) return next(new Error("Not signed in"))
+      if (await isDeviceBanned(socket.handshake.headers.cookie)) return next(new Error("Device banned"))
+      socket.data.sessionToken = token
 
       const session = await db.session.findUnique({ where: { token }, include: { user: true } })
-      if (!session) return next(new Error("Invalid session"))
+      if (!session || await isDeviceBanned(socket.handshake.headers.cookie, session.deviceHash)) return next(new Error("Invalid session"))
       if (session.expiresAt.getTime() < Date.now()) {
         await db.session.delete({ where: { id: session.id } }).catch(() => {})
         return next(new Error("Session expired"))
@@ -553,6 +583,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         await db.session.deleteMany({ where: { userId: session.user.id } }).catch(() => {})
         return next(new Error("Account permanently banned"))
       }
+      socket.data.deviceHash = session.deviceHash
       ;(socket as AuthedSocket).user = safeUser(session.user)
       next()
     } catch (err) {
@@ -563,6 +594,16 @@ export function attachChat(httpServer: HTTPServer): IOServer {
 
   io.on("connection", (socket) => {
     const user = (socket as AuthedSocket).user
+    socket.use(async (_packet, next) => {
+      try {
+        const session = await db.session.findUnique({ where: { token: socket.data.sessionToken }, include: { user: true } })
+        if (!session || session.expiresAt.getTime() <= Date.now() || await isDeviceBanned(socket.handshake.headers.cookie, session.deviceHash)) {
+          next(new Error("Session revoked")); socket.disconnect(true); return
+        }
+        Object.assign(user, safeUser(session.user))
+        next()
+      } catch { next(new Error("Session verification failed")) }
+    })
     const wasUserAlreadyOnline = [...online.values()].some((entry) => entry.userId === user.userId)
     online.set(socket.id, user)
     if (!presenceByUser.has(user.userId)) {
@@ -755,6 +796,18 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         }
 
         const text = typeof content === "string" ? content.trim() : ""
+        if (/^@(mute|unmute|ban|unban)\b/i.test(text)) {
+          const rate = consumeChatAction(user.userId)
+          if (!rate.allowed) { rejectSend({ message: "Wait before issuing another command" }); return }
+          try {
+            const reply = await runModerationCommand(user.userId, text, normalizedClientNonce || undefined)
+            socket.emit("bot-command-result", { channelId, clientNonce: normalizedClientNonce, message: reply, ok: true })
+          } catch (error) {
+            socket.emit("bot-command-result", { channelId, clientNonce: normalizedClientNonce, message: error instanceof ModerationError ? error.message : "Moderation action failed", ok: false })
+          }
+          return
+        }
+
         // Only direct assets on GIPHY's official media CDN are accepted. This
         // blocks arbitrary tracking/image hosts while following GIPHY's rule
         // that returned media must not be proxied or cached by the app.
@@ -875,6 +928,10 @@ export function attachChat(httpServer: HTTPServer): IOServer {
 
         if (dmPeerId) await ensureFriendshipBond(user.userId, dmPeerId).catch(() => {})
 
+        const names = mentionNames(text)
+        const candidates = names.length ? await db.user.findMany({ where: { OR: names.map(username => ({ username: { equals: username } })) }, select: { id: true, role: true } }) : []
+        const mentionedUserIds: string[] = []
+        for (const target of candidates) if (target.id !== user.userId && await accessibleChannel(channelId, target.id, target.role) && !await isDmSendBlocked(user.userId, target.id)) mentionedUserIds.push(target.id)
         let duplicateSend = false
         const created = await db.message.create({
           data: {
@@ -883,6 +940,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
             username: user.username,
             content: text,
             clientNonce: normalizedClientNonce,
+            mentionedUserIds: JSON.stringify(mentionedUserIds),
             gifUrl: gif,
             imageUrl: image?.url || null,
             voiceUrl: voice?.url || null,
@@ -917,6 +975,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
           username: user.username, displayName: user.displayName, pfpUrl: user.pfpUrl,
           pfpIsGif: user.pfpIsGif, role: user.role, tags: user.tags, avatarDeco: user.avatarDeco,
           content: text, gifUrl: gif, imageUrl: created.imageUrl, voiceUrl: created.voiceUrl, voiceTranscript: created.voiceTranscript, messageType: created.messageType, threadRootId: created.threadRootId, deleted: false, edited: false,
+          mentionedUserIds: parseMentionIds(created.mentionedUserIds),
           replyToId: created.replyToId, replyToName: created.replyToName, replyToContent: created.replyToContent,
           spoilerMediaType: created.spoilerMediaType, spoilerMediaId: created.spoilerMediaId, spoilerTitle: created.spoilerTitle,
           spoilerSeason: created.spoilerSeason, spoilerEpisode: created.spoilerEpisode, spoilerUntil: created.spoilerUntil,
