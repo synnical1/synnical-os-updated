@@ -185,6 +185,7 @@ export function SettingsPanel() {
     return () => window.removeEventListener("synnical-settings-open", handler)
   }, [])
   const isOwner = user?.role === "OWNER"
+  const isMod = user?.role === "OWNER" || user?.role === "ADMIN" || user?.role === "MOD"
 
   const navGroups: { heading?: string; items: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }>; danger?: boolean; modOnly?: boolean }[] }[] = [
     {
