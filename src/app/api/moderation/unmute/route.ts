@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { canModerate } from "@/lib/auth"
 import { auditData } from "@/lib/audit-log"
+import { canModerateTarget } from "@/lib/roles"
 
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
@@ -14,6 +15,7 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 })
   const target = await db.user.findUnique({ where: { id: userId } })
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 })
+  if (!canModerateTarget(me.role, target.role)) return NextResponse.json({ error: "Can't unmute a user of equal or higher role" }, { status: 403 })
 
   await db.$transaction(async (tx) => {
     await tx.user.update({ where: { id: userId }, data: { muted: false, mutedUntil: null } })
