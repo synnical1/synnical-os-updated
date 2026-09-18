@@ -75,11 +75,12 @@ export function toSafeUser(u: {
 
 // ---------- permission helpers ----------
 export function isOwner(role: string) { return role === "OWNER" }
-export function isOwnerLevel(role: string) { return role === "OWNER" || role === "HEAD_ADMIN" }
-export function isAdmin(role: string) { return isOwnerLevel(role) || role === "ADMIN" }
+// Legacy name retained for imports; only OWNER is owner-level now.
+export function isOwnerLevel(role: string) { return role === "OWNER" }
+export function isAdmin(role: string) { return role === "OWNER" || role === "ADMIN" || role === "HEAD_ADMIN" }
 export function isMod(role: string) { return isAdmin(role) || role === "MOD" }
 export function canModerate(role: string) { return isMod(role) }
-export function canDeleteAnyMessage(role: string) { return isOwnerLevel(role) }
+export function canDeleteAnyMessage(role: string) { return isMod(role) }
 export function canUseGifAndDeco(role: string) { return isMod(role) }
 export function canManageRoles(role: string) { return isAdmin(role) }
 export function canManageTags(role: string) { return isMod(role) }
