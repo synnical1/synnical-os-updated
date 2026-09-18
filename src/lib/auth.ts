@@ -66,7 +66,7 @@ export function toSafeUser(u: {
     profileThemePrimary: u.profileThemePrimary || "#111111",
     profileThemeAccent: u.profileThemeAccent || "#2b2b2b",
     profileThemeStyle: u.profileThemeStyle === "gradient" ? "gradient" : "solid",
-    role: u.role as Role,
+    role: (u.role === "HEAD_ADMIN" ? "ADMIN" : u.role) as Role,
     tags: (() => { try { return JSON.parse(u.tags || '[]') } catch { return [] } })(),
     muted: u.muted,
     mutedUntil: u.mutedUntil ? u.mutedUntil.toISOString() : null,
