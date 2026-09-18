@@ -63,7 +63,7 @@ export function newToken(): string {
 
 export async function isUserPermanentlyBanned(userId: string): Promise<boolean> {
   const target = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
-  if (target?.role === "OWNER" || target?.role === "HEAD_ADMIN") return false
+  if (target?.role === "OWNER") return false
   const infraction = await db.infraction.findFirst({
     where: {
       userId,
