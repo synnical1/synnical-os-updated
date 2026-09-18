@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { auditData } from "@/lib/audit-log"
-
-const rank: Record<string, number> = { MEMBER: 0, MOD: 1, ADMIN: 2, HEAD_ADMIN: 3, OWNER: 4 }
+import { canModerateTarget } from "@/lib/roles"
 
 function activeUntil(createdAt: Date, duration: number | null): Date | null | false {
   if (duration === null) return null
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   const target = await db.user.findUnique({ where: { id: userId } })
   if (!target) return NextResponse.json({ error: "Account not found" }, { status: 404 })
-  if ((rank[actor.role] ?? -1) <= (rank[target.role] ?? 0)) return NextResponse.json({ error: "You cannot unban an equal or higher staff role" }, { status: 403 })
+  if (!canModerateTarget(actor.role, target.role)) return NextResponse.json({ error: "You cannot unban an equal or higher staff role" }, { status: 403 })
 
   const permanentBans = await db.infraction.findMany({
     where: { userId, type: { in: ["BAN", "AUTO_BAN"] }, duration: null },
