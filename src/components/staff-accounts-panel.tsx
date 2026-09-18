@@ -9,11 +9,11 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AuditLogPanel } from "@/components/audit-log-panel"
 import { InfractionsPanel } from "@/components/infractions-panel"
-import { Ban, Check, ChevronLeft, ChevronRight, Coins, FileWarning, History, Images, Loader2, Search, Shield, Trash2, Users, X } from "lucide-react"
+import { Ban, Check, ChevronLeft, ChevronRight, Coins, FileWarning, History, Images, Loader2, Search, Shield, Trash2, Users, Volume2, VolumeX, X } from "lucide-react"
 import { toast } from "sonner"
+import { canModerateTarget } from "@/lib/roles"
 
-const rank: Record<string, number> = { MEMBER: 0, MOD: 1, ADMIN: 2, HEAD_ADMIN: 3, OWNER: 4 }
-const roles = ["ALL", "MEMBER", "MOD", "ADMIN", "HEAD_ADMIN", "OWNER"] as const
+const roles = ["ALL", "MEMBER", "MOD", "ADMIN", "OWNER"] as const
 
 type PendingMedia = {
   id: string
@@ -88,23 +88,54 @@ export function StaffAccountsPanel() {
   useEffect(() => { if (tab === "members") void loadUsers() }, [tab, loadUsers])
   useEffect(() => { if (tab === "media") void loadMedia() }, [tab, loadMedia])
 
-  const remove = async (target: SafeUser, action: "delete" | "ban") => {
-    if (!confirm(`${action === "ban" ? "Ban and delete" : "Delete"} @${target.username}? Their username will become available immediately.`)) return
+  const remove = async (target: SafeUser) => {
+    const reason = window.prompt(`Type a reason for permanently deleting @${target.username}. This is not a ban and removes the account data.`)?.trim()
+    if (!reason || !confirm(`Permanently delete @${target.username}? Use Ban instead when you want an auditable reversible restriction.`)) return
     setBusy(`account:${target.id}`)
     setError("")
     try {
       const response = await fetch("/api/moderation/accounts", {
-        method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: target.id, action }),
+        method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: target.id, action: "delete", reason }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Account could not be removed")
-      toast.success(action === "ban" ? "Account banned and removed" : "Account removed")
+      toast.success("Account removed")
       await loadUsers()
     } catch (e) {
       setError(e instanceof Error ? e.message : "Account could not be removed")
     } finally { setBusy("") }
   }
 
+  const moderate = async (target: SafeUser, action: "warn" | "mute" | "unmute" | "ban") => {
+    const reason = window.prompt(`Reason to ${action} @${target.username}?`)?.trim()
+    if (!reason) return
+    let durationMin: number | undefined
+    if (action === "mute") {
+      const raw = window.prompt("Mute duration (examples: 15m, 2h, 1d, 7d)", "15m")?.trim().toLowerCase()
+      if (!raw) return
+      const match = /^(\d+)(m|h|d)$/.exec(raw)
+      if (!match) return toast.error("Use a duration like 15m, 2h, 1d or 7d")
+      const scale = match[2] === "d" ? 1440 : match[2] === "h" ? 60 : 1
+      durationMin = Number(match[1]) * scale
+      if (!Number.isSafeInteger(durationMin) || durationMin < 1 || durationMin > 525600) return toast.error("Duration must be between 1 minute and 1 year")
+    }
+    if ((action === "ban" || action === "unmute") && !confirm(`${action === "ban" ? "Ban" : "Unmute"} @${target.username}?`)) return
+    setBusy(`${action}:${target.id}`)
+    setError("")
+    try {
+      const endpoint = action === "unmute" ? "/api/moderation/unmute" : action === "mute" ? "/api/moderation/mute" : "/api/infractions/create"
+      const body = action === "warn"
+        ? { userId: target.id, type: "WARN", reason }
+        : action === "ban"
+          ? { userId: target.id, type: "BAN", reason }
+          : { userId: target.id, reason, ...(durationMin ? { durationMin } : {}) }
+      const response = await fetch(endpoint, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || `${action} failed`)
+      toast.success(`@${target.username} ${action === "warn" ? "warned" : action === "mute" ? "muted" : action === "unmute" ? "unmuted" : "banned"}`)
+      await loadUsers()
+    } catch (e) { setError(e instanceof Error ? e.message : `${action} failed`) } finally { setBusy("") }
+  }
 
   const unban = async (target: SafeUser) => {
     if (!confirm(`Unban @${target.username}? Active permanent BAN/AUTO_BAN records and identity bans sourced from this account will be revoked, while unrelated active mutes stay in place.`)) return
@@ -157,10 +188,10 @@ export function StaffAccountsPanel() {
     { id: "audit", label: "Audit Logs", icon: History },
   ]
 
-  return <div className="h-full overflow-y-auto bg-black custom-scroll">
-    <div className="sticky top-0 z-20 border-b border-[var(--synnical-border)] bg-black/95 px-4 py-3 backdrop-blur sm:px-6">
+  return <div className="h-full overflow-y-auto bg-[var(--synnical-bg)] text-[var(--synnical-text)] custom-scroll">
+    <div className="sticky top-0 z-20 border-b border-[var(--synnical-border)] bg-[var(--synnical-bg)]/95 px-4 py-3 backdrop-blur sm:px-6">
       <div className="mx-auto max-w-6xl">
-        <div className="flex items-center gap-2"><Shield className="h-5 w-5" /><h1 className="text-lg font-semibold">Moderation</h1><span className="text-xs text-[var(--synnical-muted)]">Staff workspace</span></div>
+        <div className="flex items-center gap-2"><Shield className="h-5 w-5" /><h1 className="text-lg font-semibold">User Management</h1><span className="text-xs text-[var(--synnical-muted)]">Staff moderation workspace</span></div>
         <div className="mt-3 flex gap-1 overflow-x-auto">
           {tabs.map(({ id, label, icon: Icon }) => <Button key={id} size="sm" variant={tab === id ? "default" : "ghost"} onClick={() => setTab(id)}><Icon className="h-3.5 w-3.5" />{label}</Button>)}
         </div>
@@ -177,17 +208,17 @@ export function StaffAccountsPanel() {
         </div>
         <div className="grid gap-2 md:grid-cols-[1fr_160px_160px]">
           <div className="relative"><Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--synnical-muted)]" /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search members…" className="pl-8" /></div>
-          <Select value={role} onValueChange={(value) => { setRole(value); setPage(1) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{roles.map((item) => <SelectItem key={item} value={item}>{item === "ALL" ? "All roles" : item === "HEAD_ADMIN" ? "Head Admin" : item[0] + item.slice(1).toLowerCase()}</SelectItem>)}</SelectContent></Select>
+          <Select value={role} onValueChange={(value) => { setRole(value); setPage(1) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{roles.map((item) => <SelectItem key={item} value={item}>{item === "ALL" ? "All roles" : item[0] + item.slice(1).toLowerCase()}</SelectItem>)}</SelectContent></Select>
           <Select value={status} onValueChange={(value) => { setStatus(value); setPage(1) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">All accounts</SelectItem><SelectItem value="ACTIVE">Not muted</SelectItem><SelectItem value="MUTED">Muted</SelectItem><SelectItem value="STAFF">Staff only</SelectItem><SelectItem value="MEMBERS">Members only</SelectItem></SelectContent></Select>
         </div>
 
         <div className="overflow-hidden rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-surface)]">
           {loadingUsers ? <div className="flex items-center justify-center gap-2 p-10 text-sm text-[var(--synnical-muted)]"><Loader2 className="h-4 w-4 animate-spin" />Loading accounts…</div> : users.length === 0 ? <div className="p-10 text-center text-sm text-[var(--synnical-muted)]">No matching accounts.</div> : users.map((target) => {
-            const allowed = user.id !== target.id && rank[user.role] > rank[target.role]
+            const allowed = user.id !== target.id && canModerateTarget(user.role, target.role)
             return <div key={target.id} className="flex flex-wrap items-center gap-3 border-b border-[var(--synnical-border)] p-3 last:border-0">
               <AvatarWithDeco src={target.pfpUrl} name={target.displayName} role={target.role} avatarDeco={target.avatarDeco} size="sm" />
-              <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><DisplayName name={target.displayName || target.username} role={target.role} className="truncate font-medium" /><RoleBadge role={target.role} tags={target.tags} /></div><p className="text-xs text-[var(--synnical-muted)]">@{target.username} · {(target.coins || 0).toLocaleString()} coins{target.banned ? " · banned" : target.muted ? " · muted" : ""}</p></div>
-              {allowed && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy === `credits:${target.id}`} onClick={() => void adjustCredits(target, "add")}><Coins className="h-3.5 w-3.5" />Add credits</Button><Button size="sm" variant="outline" disabled={busy === `credits:${target.id}`} onClick={() => void adjustCredits(target, "remove")}><Coins className="h-3.5 w-3.5" />Remove credits</Button>{target.banned ? <Button size="sm" variant="outline" disabled={busy === `unban:${target.id}`} onClick={() => void unban(target)}><Check className="h-3.5 w-3.5" />Unban</Button> : <Button size="sm" variant="destructive" disabled={busy === `account:${target.id}`} onClick={() => void remove(target, "ban")}><Ban className="h-3.5 w-3.5" />Ban</Button>}<Button size="sm" variant="outline" disabled={busy === `account:${target.id}`} onClick={() => void remove(target, "delete")}><Trash2 className="h-3.5 w-3.5" />Delete</Button></div>}
+              <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><DisplayName name={target.displayName || target.username} role={target.role} className="truncate font-medium" /><RoleBadge role={target.role} tags={target.tags} /></div><p className="text-xs text-[var(--synnical-muted)]">@{target.username} · ID {target.id} · {(target.coins || 0).toLocaleString()} credits · {target.warnCount || 0} warning{(target.warnCount || 0) === 1 ? "" : "s"}{target.banned ? " · banned" : target.muted ? ` · muted${target.mutedUntil ? ` until ${new Date(target.mutedUntil).toLocaleString()}` : ""}` : ""}</p></div>
+              {allowed && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy === `warn:${target.id}`} onClick={() => void moderate(target, "warn")}><FileWarning className="h-3.5 w-3.5" />Warn</Button>{target.muted ? <Button size="sm" variant="outline" disabled={busy === `unmute:${target.id}`} onClick={() => void moderate(target, "unmute")}><Volume2 className="h-3.5 w-3.5" />Unmute</Button> : <Button size="sm" variant="outline" disabled={busy === `mute:${target.id}`} onClick={() => void moderate(target, "mute")}><VolumeX className="h-3.5 w-3.5" />Mute</Button>}{target.banned ? <Button size="sm" variant="outline" disabled={busy === `unban:${target.id}`} onClick={() => void unban(target)}><Check className="h-3.5 w-3.5" />Unban</Button> : <Button size="sm" variant="destructive" disabled={busy === `ban:${target.id}`} onClick={() => void moderate(target, "ban")}><Ban className="h-3.5 w-3.5" />Ban</Button>}<Button size="sm" variant="outline" disabled={busy === `credits:${target.id}`} onClick={() => void adjustCredits(target, "add")}><Coins className="h-3.5 w-3.5" />Add credits</Button><Button size="sm" variant="outline" disabled={busy === `credits:${target.id}`} onClick={() => void adjustCredits(target, "remove")}><Coins className="h-3.5 w-3.5" />Remove credits</Button><Button size="sm" variant="outline" disabled={busy === `account:${target.id}`} onClick={() => void remove(target)}><Trash2 className="h-3.5 w-3.5" />Delete</Button></div>}
             </div>
           })}
         </div>
