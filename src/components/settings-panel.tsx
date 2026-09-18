@@ -40,7 +40,7 @@ import { toast } from "sonner"
 import { AuthScreen } from "@/components/auth-screen"
 import { SYNNICAL_BUILD, SYNNICAL_BUILD_DATE, SYNNICAL_VERSION } from "@/lib/build-info"
 import { R7DevicesControls, R7PrivacyControls, R7SecurityControls } from "@/components/r7-settings"
-import { BIG_SITE_OWNER_TAG, DEV_TAG, NOTABLE_PERSON_TAG } from "@/lib/recognition-tags"
+import { BETA_TESTER_TAG, DEV_TAG, GOAT_TAG, NOTABLE_PERSON_TAG } from "@/lib/recognition-tags"
 
 /* ------------------------------------------------------------------ */
 /* localStorage settings helper                                       */
@@ -184,7 +184,7 @@ export function SettingsPanel() {
     window.addEventListener("synnical-settings-open", handler)
     return () => window.removeEventListener("synnical-settings-open", handler)
   }, [])
-  const isOwner = user?.role === "OWNER" || user?.role === "HEAD_ADMIN"
+  const isOwner = user?.role === "OWNER"
 
   const navGroups: { heading?: string; items: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }>; danger?: boolean; modOnly?: boolean }[] }[] = [
     {
@@ -231,7 +231,7 @@ export function SettingsPanel() {
     heading: "Moderation",
     items: [
       { id: "owner", label: "Owner Verification", icon: KeyRound },
-      ...(isOwner ? [{ id: "users" as const, label: "User Management", icon: Users, modOnly: true }] : []),
+      ...(isMod ? [{ id: "users" as const, label: "User Management", icon: Users, modOnly: true }] : []),
     ],
   })
 
@@ -316,7 +316,7 @@ export function SettingsPanel() {
           {section === "data" && <DataStorageSection />}
           {section === "legal" && <LegalSection />}
           {section === "owner" && <OwnerVerificationSection />}
-          {isOwner && section === "users" && <UserManagementSection />}
+          {isMod && section === "users" && <UserManagementSection />}
           {section === "chat" && <ChatSettingsSection />}
           {section === "games" && <GamesSettingsSection />}
           {section === "browser" && <BrowserSettingsSection />}
@@ -418,21 +418,21 @@ function AccountSection() {
         </div>
       </div>
 
-      <form onSubmit={saveProfile} className="space-y-4">
-        <FieldGroup label="Display Name" htmlFor="displayName">
-          <Input id="displayName" value={displayName}
+      <form onSubmit={saveProfile} autoComplete="off" className="space-y-4">
+        <FieldGroup label="Display Name" htmlFor="settings-display-name">
+          <Input id="settings-display-name" name="profile-display-name" autoComplete="nickname" value={displayName}
             onChange={(e) => setDisplayName(e.target.value)} maxLength={32} />
         </FieldGroup>
-        <FieldGroup label="Username" htmlFor="username" hint={`${user.role === "OWNER" || user.role === "HEAD_ADMIN" || user.role === "ADMIN" ? "1" : "2"}-20 characters, letters, numbers and underscores.`}>
-          <Input id="username" value={username}
+        <FieldGroup label="Username" htmlFor="settings-profile-handle" hint={`${user.role === "OWNER" || user.role === "HEAD_ADMIN" || user.role === "ADMIN" ? "1" : "2"}-20 characters, letters, numbers and underscores.`}>
+          <Input id="settings-profile-handle" name="profile-handle" autoComplete="off" value={username}
             onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
             maxLength={20} minLength={user.role === "OWNER" || user.role === "HEAD_ADMIN" || user.role === "ADMIN" ? 1 : 2} placeholder="username" />
         </FieldGroup>
-        <FieldGroup label="Status" htmlFor="status">
+        <FieldGroup label="Status" htmlFor="settings-profile-status">
           <StatusInput />
         </FieldGroup>
-        <FieldGroup label="About Me" htmlFor="bio">
-          <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)}
+        <FieldGroup label="About Me" htmlFor="settings-profile-bio">
+          <Textarea id="settings-profile-bio" name="profile-bio" autoComplete="off" value={bio} onChange={(e) => setBio(e.target.value)}
             maxLength={190} rows={3} placeholder="Tell people about yourself" />
         </FieldGroup>
         <Button type="submit" disabled={saving} className="bg-[var(--synnical-accent)] hover:bg-[var(--synnical-accent-hover)] text-black">
@@ -1302,8 +1302,8 @@ function OwnerVerificationSection() {
         </div>
       ) : (
         <form onSubmit={verify} className="space-y-3">
-          <FieldGroup label="Owner password" htmlFor="ownerPass">
-            <Input id="ownerPass" type="password" value={password}
+          <FieldGroup label="Owner password" htmlFor="owner-verification-secret">
+            <Input id="owner-verification-secret" name="owner-verification-secret" type="password" value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter owner password" autoComplete="off" />
           </FieldGroup>
@@ -1432,7 +1432,7 @@ function UserManagementSection() {
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All roles</SelectItem>
-            <SelectItem value="MEMBER">Member</SelectItem><SelectItem value="MOD">Mod</SelectItem><SelectItem value="ADMIN">Admin</SelectItem><SelectItem value="HEAD_ADMIN">Head Admin</SelectItem><SelectItem value="OWNER">Owner</SelectItem>
+            <SelectItem value="MEMBER">Member</SelectItem><SelectItem value="MOD">Mod</SelectItem><SelectItem value="ADMIN">Admin</SelectItem><SelectItem value="OWNER">Owner</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(1) }}>
@@ -1465,9 +1465,9 @@ function UserManagementSection() {
                   <Select value={u.role} onValueChange={(v) => assignRole(u, v as Role)}>
                     <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {ROLES.filter((r) => r !== "OWNER" && (user.role === "OWNER" || r !== "HEAD_ADMIN")).map((r) => (
+                      {ROLES.filter((r) => r !== "OWNER").map((r) => (
                         <SelectItem key={r} value={r} className="text-xs">
-                          {r === "HEAD_ADMIN" ? "Head Admin" : r.charAt(0) + r.slice(1).toLowerCase()}
+                          {r.charAt(0) + r.slice(1).toLowerCase()}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1512,8 +1512,8 @@ function UserManagementSection() {
                       )
                     })}
                   </div>
-                  {(user.role === "OWNER" || user.role === "HEAD_ADMIN") ? <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[NOTABLE_PERSON_TAG, BIG_SITE_OWNER_TAG, DEV_TAG].map((specialTag) => {
+                  {(user.role === "OWNER" || user.role === "ADMIN") ? <div className="mt-2 flex flex-wrap gap-1.5">
+                    {[DEV_TAG, NOTABLE_PERSON_TAG, BETA_TESTER_TAG, GOAT_TAG].map((specialTag) => {
                       const active = (u.tags || []).includes(specialTag)
                       const busy = workingTag === u.id || workingTag === `${u.id}:${specialTag}`
                       return <Button key={specialTag} size="sm" variant={active ? "default" : "outline"} className="h-7 px-2 text-[10px]" disabled={busy} onClick={() => void (active ? removeTag(u, specialTag) : addTag(u, specialTag))}>{active ? `Remove ${specialTag}` : `Add ${specialTag}`}</Button>
