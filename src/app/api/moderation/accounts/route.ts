@@ -2,14 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { toSafeUser } from "@/lib/auth"
-import { banKnownIdentities } from "@/lib/identity-ban"
 import { auditData } from "@/lib/audit-log"
-
-const rank: Record<string, number> = { MEMBER: 0, MOD: 1, ADMIN: 2, HEAD_ADMIN: 3, OWNER: 4 }
+import { canModerateTarget, isStaffRole } from "@/lib/roles"
 
 export async function GET() {
   const actor = await getCurrentUser()
-  if (!actor || (rank[actor.role] ?? -1) < rank.MOD) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || !isStaffRole(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const users = await db.user.findMany({ orderBy: { username: "asc" } })
   return NextResponse.json({ users: users.map(toSafeUser) })
 }
@@ -17,13 +15,13 @@ export async function GET() {
 export async function DELETE(req: NextRequest) {
   const actor = await getCurrentUser()
   if (!actor || (rank[actor.role] ?? -1) < rank.MOD) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  const { userId, action } = await req.json().catch(() => ({}))
-  if (typeof userId !== "string" || !["delete", "ban"].includes(action)) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+  const { userId, action, reason: rawReason } = await req.json().catch(() => ({}))
+  const reason = typeof rawReason === "string" ? rawReason.trim().slice(0, 500) : ""
+  if (typeof userId !== "string" || action !== "delete" || !reason) return NextResponse.json({ error: "Permanent account deletion requires userId, action=delete and a reason. Use the ban endpoint for reversible bans." }, { status: 400 })
   if (userId === actor.id) return NextResponse.json({ error: "You cannot remove your own account" }, { status: 409 })
   const target = await db.user.findUnique({ where: { id: userId } })
   if (!target) return NextResponse.json({ error: "Account not found" }, { status: 404 })
-  if ((rank[actor.role] ?? -1) <= (rank[target.role] ?? 0)) return NextResponse.json({ error: "You cannot remove an equal or higher staff role" }, { status: 403 })
-  if (action === "ban") await banKnownIdentities(userId, `Staff ban by @${actor.username}`)
+  if (!canModerateTarget(actor.role, target.role)) return NextResponse.json({ error: "You cannot remove an equal or higher staff role" }, { status: 403 })
   await db.$transaction(async (tx) => {
     await tx.session.deleteMany({ where: { userId } })
 
@@ -111,13 +109,14 @@ export async function DELETE(req: NextRequest) {
     await tx.friendMeta.deleteMany({ where: { OR: [{ userId }, { friendId: userId }] } })
     await tx.auditLog.create({ data: auditData({
       category: "ACCOUNT",
-      action: action === "ban" ? "ACCOUNT_BANNED_DELETED" : "ACCOUNT_DELETED",
+      action: "ACCOUNT_DELETED",
       actor,
       target: { id: target.id, username: target.username },
       before: { role: target.role, muted: target.muted, coins: target.coins },
-      after: { deleted: true, identityBanned: action === "ban" },
+      reason,
+      after: { deleted: true },
     }) })
     await tx.user.delete({ where: { id: userId } })
   })
-  return NextResponse.json({ ok: true, action, releasedUsername: target.username })
+  return NextResponse.json({ ok: true, action: "delete", releasedUsername: target.username })
 }
