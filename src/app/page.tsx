@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
 
 type BootStage = "checking" | "playing" | "done"
-const DEFAULT_WALLPAPER = "/brand/wallpapers/synnical-static-ink-wallpaper.png"
+const DEFAULT_WALLPAPER = "/brand/wallpapers/synnical-thorfinn-default.webp"
 
 function WallpaperBackdrop() {
   return <img className="pointer-events-none absolute inset-0 h-full w-full object-cover" src={DEFAULT_WALLPAPER} alt="" />
