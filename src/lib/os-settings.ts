@@ -1,11 +1,12 @@
 export type WallpaperFit = "fill" | "fit" | "stretch" | "center" | "tile"
 
 export const LEGACY_OS_WALLPAPER = "/brand/wallpapers/samurai-cherry-blossom.png"
-export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/synnical-static-ink-wallpaper.png"
+export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/synnical-thorfinn-default.webp"
 export const BUILTIN_OS_WALLPAPERS = [] as const
 const RETIRED_OS_WALLPAPERS = new Set([
   LEGACY_OS_WALLPAPER,
   "/brand/wallpapers/synnical-default-wallpaper.mp4",
+  "/brand/wallpapers/synnical-static-ink-wallpaper.png",
   "/brand/wallpapers/sakura-samurai-1.png",
   "/brand/wallpapers/sakura-samurai-2.png",
   "/brand/wallpapers/sakura-samurai-3.png",
@@ -13,7 +14,9 @@ const RETIRED_OS_WALLPAPERS = new Set([
 ])
 
 export const OS_DEFAULTS = {
+  // OS mode is canonical. `enabled` remains only for backward-compatible settings imports.
   enabled: true,
+  appearanceMode: "dark" as "dark" | "light",
   taskbarAlignment: "center" as "center" | "left",
   taskbarAutoHide: false,
   taskbarSize: "medium" as "small" | "medium" | "large",
@@ -135,7 +138,8 @@ export function sanitizeOsSettings(input: unknown): OsSettings {
   const widgetDefaultsVersion = num(value.widgetDefaultsVersion, 0, 1, 0)
   const widgetBool = (key: keyof OsSettings) => widgetDefaultsVersion >= 1 ? bool(key) : false
   return {
-    enabled: bool("enabled"),
+    enabled: true,
+    appearanceMode: oneOf(value.appearanceMode, ["dark", "light"] as const, OS_DEFAULTS.appearanceMode),
     taskbarAlignment: oneOf(value.taskbarAlignment, ["center", "left"] as const, OS_DEFAULTS.taskbarAlignment),
     taskbarAutoHide: bool("taskbarAutoHide"),
     taskbarSize: oneOf(value.taskbarSize, ["small", "medium", "large"] as const, OS_DEFAULTS.taskbarSize),
