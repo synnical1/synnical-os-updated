@@ -95,6 +95,41 @@ html[data-synnical-theme] {
   --sidebar-ring: #ffffff;
 }
 
+html[data-synnical-appearance="light"] {
+  color-scheme: light;
+  --synnical-bg: #f4f6f8;
+  --synnical-surface: #ffffff;
+  --synnical-surface-2: #eef1f4;
+  --synnical-border: #cdd3da;
+  --synnical-text: #15181c;
+  --synnical-muted: #66707c;
+  --background: #f4f6f8;
+  --foreground: #15181c;
+  --card: #ffffff;
+  --card-foreground: #15181c;
+  --popover: #ffffff;
+  --popover-foreground: #15181c;
+  --primary: #15181c;
+  --primary-foreground: #ffffff;
+  --secondary: #eef1f4;
+  --secondary-foreground: #15181c;
+  --muted: #eef1f4;
+  --muted-foreground: #66707c;
+  --accent: #e4e9ee;
+  --accent-foreground: #15181c;
+  --border: #cdd3da;
+  --input: #cdd3da;
+  --ring: #4b6fff;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #15181c;
+  --sidebar-primary: #15181c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef1f4;
+  --sidebar-accent-foreground: #15181c;
+  --sidebar-border: #cdd3da;
+  --sidebar-ring: #4b6fff;
+}
+
 @layer base {
   * { @apply border-border outline-ring/50; }
 html, body {
@@ -102,8 +137,8 @@ html, body {
     height: 100%;
     min-height: 0;
     overflow: hidden;
-    background-color: #000000;
-    color: #f7f7f7;
+    background-color: var(--synnical-bg);
+    color: var(--synnical-text);
   }
   body {
     @apply bg-background text-foreground;
@@ -836,6 +871,41 @@ html.synnical-high-contrast {
   background: var(--os-mica) !important;
   box-shadow: var(--os-shadow);
   transition: box-shadow .12s ease, border-color .12s ease, opacity .15s ease, transform .2s ease;
+}
+
+.synnical-os-root[data-synnical-appearance="light"] {
+  --os-acrylic: rgba(255,255,255,.88);
+  --os-mica: rgba(250,251,252,.96);
+  --os-border: rgba(35,45,58,.2);
+  --os-shadow: 0 20px 70px rgba(20,30,45,.22);
+}
+.synnical-os-root[data-synnical-appearance="light"] .synnical-os-window {
+  color: #15181c;
+  border-color: rgba(35,45,58,.18) !important;
+}
+.synnical-os-root[data-synnical-appearance="light"] .synnical-settings-app {
+  background: rgba(246,248,250,.98) !important;
+  color: #15181c !important;
+}
+.synnical-os-root[data-synnical-appearance="light"] .synnical-settings-app > aside {
+  background: rgba(255,255,255,.97) !important;
+  border-color: rgba(35,45,58,.14) !important;
+}
+.synnical-os-root[data-synnical-appearance="light"] .synnical-settings-app .synn-settings-card {
+  background: rgba(255,255,255,.82) !important;
+  border-color: rgba(35,45,58,.14) !important;
+}
+.synnical-os-root[data-synnical-appearance="light"] .synnical-settings-app [class*="text-white"] {
+  color: #252a31 !important;
+}
+.synnical-os-root[data-synnical-appearance="light"] .synnical-settings-app [class*="bg-[#111]"],
+.synnical-os-root[data-synnical-appearance="light"] .synnical-settings-app [class*="bg-black"] {
+  background-color: rgba(230,234,239,.86) !important;
+}
+.synnical-os-root[data-synnical-appearance="light"] .synnical-settings-app input,
+.synnical-os-root[data-synnical-appearance="light"] .synnical-settings-app textarea,
+.synnical-os-root[data-synnical-appearance="light"] .synnical-settings-app select {
+  color: #15181c;
 }
 @keyframes synnical-window-open {
   0% { opacity: 0; transform: translateY(7px) scale(.965); }
