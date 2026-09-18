@@ -1,15 +1,15 @@
 "use client"
 import type { ReactNode } from "react"
 import type { Role } from "@/lib/api"
-import { BadgeCheck, Crown, Sparkles, Shield, Tag, Code2 } from "lucide-react"
+import { Award, BadgeCheck, Crown, FlaskConical, Sparkles, Shield, Star, Tag, Code2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AvatarDecoration, AvatarDecorationBackdrop } from "@/components/avatar-decorations"
 import { ProfileEffectLayer as ProfileEffectVisualLayer } from "@/components/profile-effects"
-import { BIG_SITE_OWNER_TAG, DEV_TAG, NOTABLE_PERSON_TAG, ordinaryTags, recognitionTags } from "@/lib/recognition-tags"
+import { BETA_TESTER_TAG, DEV_TAG, GOAT_TAG, NOTABLE_PERSON_TAG, ordinaryTags, recognitionTags } from "@/lib/recognition-tags"
 
 const style: Record<Role, string> = {
   OWNER: "border-amber-300/70 bg-amber-400/15 text-amber-200 shadow-[0_0_14px_rgba(251,191,36,.6)]",
-  HEAD_ADMIN: "border-orange-300/75 bg-orange-500/10 text-white shadow-[0_0_15px_rgba(249,115,22,.8),0_0_7px_rgba(255,255,255,.45)]",
+  HEAD_ADMIN: "border-red-500/70 bg-black text-red-300 shadow-[0_0_14px_rgba(239,68,68,.65)]",
   ADMIN: "border-red-500/70 bg-black text-red-300 shadow-[0_0_14px_rgba(239,68,68,.65)]",
   MOD: "border-blue-300/70 bg-blue-500/10 text-white shadow-[0_0_14px_rgba(96,165,250,.65)]",
   MEMBER: "border-[#2a2a2a] bg-[#0d0d0d] text-[#cfcfcf]",
@@ -17,16 +17,17 @@ const style: Record<Role, string> = {
 
 const roleMeta: Record<Exclude<Role, "MEMBER">, { label: string; icon: typeof Crown; className: string }> = {
   OWNER: { label: "OWNER", icon: Crown, className: "text-amber-100" },
-  HEAD_ADMIN: { label: "HEAD ADMIN", icon: Crown, className: "text-orange-100" },
+  HEAD_ADMIN: { label: "ADMIN", icon: Shield, className: "text-red-200" },
   ADMIN: { label: "ADMIN", icon: Shield, className: "text-red-200" },
   MOD: { label: "MOD", icon: BadgeCheck, className: "text-blue-100" },
 }
 
-const recognitionMeta: Record<typeof NOTABLE_PERSON_TAG | typeof BIG_SITE_OWNER_TAG | typeof DEV_TAG, { label: string; icon: typeof Sparkles; className: string }> = {
-  [NOTABLE_PERSON_TAG]: { label: "NOTABLE PERSON", icon: Sparkles, className: "border-fuchsia-300/70 bg-fuchsia-400/12 text-fuchsia-100 shadow-[0_0_12px_rgba(217,70,239,.45)]" },
-  [BIG_SITE_OWNER_TAG]: { label: "BIG SITE OWNER", icon: Crown, className: "border-cyan-300/70 bg-cyan-400/12 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,.45)]" },
-  [DEV_TAG]: { label: "DEV", icon: Code2, className: "border-emerald-300/70 bg-emerald-400/12 text-emerald-100 shadow-[0_0_12px_rgba(52,211,153,.45)]" },
-}
+const recognitionMeta = {
+  [DEV_TAG]: { label: "DEV", icon: Code2, className: "border-purple-300/70 bg-purple-400/12 text-purple-100 shadow-[0_0_12px_rgba(168,85,247,.45)]" },
+  [NOTABLE_PERSON_TAG]: { label: "NOTABLE PERSON", icon: Star, className: "border-cyan-300/70 bg-cyan-400/12 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,.42)]" },
+  [BETA_TESTER_TAG]: { label: "BETA TESTER", icon: FlaskConical, className: "border-emerald-300/70 bg-emerald-400/12 text-emerald-100 shadow-[0_0_12px_rgba(52,211,153,.42)]" },
+  [GOAT_TAG]: { label: "GOAT", icon: Award, className: "border-fuchsia-300/70 bg-gradient-to-r from-amber-400/15 via-fuchsia-400/15 to-cyan-400/15 text-white shadow-[0_0_12px_rgba(232,121,249,.35),0_0_18px_rgba(34,211,238,.18)]" },
+} satisfies Record<ReturnType<typeof recognitionTags>[number], { label: string; icon: typeof Sparkles; className: string }>
 
 export function RoleBadge({ role, tags, className }: { role: Role; tags?: string[] | null; className?: string }) {
   const recognition = recognitionTags(tags)
@@ -58,7 +59,7 @@ export function RoleBadge({ role, tags, className }: { role: Role; tags?: string
 }
 
 export function DisplayName({ name, role, className }: { name: ReactNode; role: Role; className?: string }) {
-  return <span className={cn(role !== "MEMBER" && "font-semibold", role === "OWNER" && "text-amber-200 drop-shadow-[0_0_7px_rgba(251,191,36,.8)]", role === "HEAD_ADMIN" && "text-orange-100 drop-shadow-[0_0_8px_rgba(249,115,22,.95)]", role === "ADMIN" && "text-red-300 drop-shadow-[0_0_7px_rgba(239,68,68,.85)]", role === "MOD" && "text-blue-100 drop-shadow-[0_0_7px_rgba(96,165,250,.9)]", className)}>{name}</span>
+  return <span className={cn(role !== "MEMBER" && "font-semibold", role === "OWNER" && "text-amber-200 drop-shadow-[0_0_7px_rgba(251,191,36,.8)]", role === "HEAD_ADMIN" && "text-red-300 drop-shadow-[0_0_7px_rgba(239,68,68,.85)]", role === "ADMIN" && "text-red-300 drop-shadow-[0_0_7px_rgba(239,68,68,.85)]", role === "MOD" && "text-blue-100 drop-shadow-[0_0_7px_rgba(96,165,250,.9)]", className)}>{name}</span>
 }
 
 export function TagsDisplay({ tags, className }: { tags: string[]; className?: string }) {
