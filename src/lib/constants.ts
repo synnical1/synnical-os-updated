@@ -24,7 +24,7 @@ export const UPLOAD_DIR = process.env.UPLOAD_DIR || "./uploads"
 
 // Roles
 export type Role = "OWNER" | "HEAD_ADMIN" | "ADMIN" | "MOD" | "MEMBER"
-export const ROLES: Role[] = ["OWNER", "HEAD_ADMIN", "ADMIN", "MOD", "MEMBER"]
+// HEAD_ADMIN remains in the type only for recovered legacy rows. New assignments use the canonical hierarchy below.\nexport const ROLES: Role[] = ["OWNER", "ADMIN", "MOD", "MEMBER"]
 
 // Legacy compatibility only. Selectable avatar animations were retired.
 export const AVATAR_DECOS = [
