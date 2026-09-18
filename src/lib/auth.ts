@@ -21,6 +21,7 @@ export type SafeUser = {
   muted: boolean
   mutedUntil: string | null
   banned?: boolean
+  warnCount?: number
   coins?: number
   securitySetupRequired: boolean
 }
@@ -45,6 +46,7 @@ export function toSafeUser(u: {
   tags?: string
   muted: boolean
   mutedUntil: Date | null
+  warnCount?: number
   coins?: number
   securitySetupCompletedAt?: Date | null
 }): SafeUser {
@@ -68,6 +70,7 @@ export function toSafeUser(u: {
     tags: (() => { try { return JSON.parse(u.tags || '[]') } catch { return [] } })(),
     muted: u.muted,
     mutedUntil: u.mutedUntil ? u.mutedUntil.toISOString() : null,
+    warnCount: u.warnCount ?? 0,
     coins: u.coins ?? 0,
     securitySetupRequired: false,
   }
