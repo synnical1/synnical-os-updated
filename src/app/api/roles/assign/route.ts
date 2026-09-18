@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
-import { toSafeUser, canManageRoles, canManageTags, isOwnerLevel } from "@/lib/auth"
+import { toSafeUser, canManageRoles, canManageTags, isAdmin } from "@/lib/auth"
 import { ROLES, type Role } from "@/lib/constants"
+import { canAssignRole, canModerateTarget } from "@/lib/roles"
 import { auditData } from "@/lib/audit-log"
 import { canonicalRecognitionTag, recognitionTags } from "@/lib/recognition-tags"
 
@@ -31,8 +32,8 @@ export async function POST(req: NextRequest) {
     try { tags = JSON.parse(target.tags || "[]") } catch { tags = [] }
 
     const recognitionTag = canonicalRecognitionTag(tag)
-    if (recognitionTag && !isOwnerLevel(me.role)) {
-      return NextResponse.json({ error: "Only the owner or Head Admin can manage recognition badges" }, { status: 403 })
+    if (recognitionTag && !isAdmin(me.role)) {
+      return NextResponse.json({ error: "Only Owner or Admin can manage recognition roles" }, { status: 403 })
     }
     const cleanTag = (recognitionTag || tag.trim()).slice(0, 20) // max 20 chars per tag
 
@@ -82,34 +83,21 @@ export async function POST(req: NextRequest) {
   if (me.role === "OWNER" && userId === me.id && role !== "OWNER") {
     return NextResponse.json({ error: "You can't remove your own owner role" }, { status: 400 })
   }
-  // Only owner can set OWNER role
-  if (role === "OWNER" && me.role !== "OWNER") {
-    return NextResponse.json({ error: "Only the owner can grant owner role" }, { status: 403 })
+  // OWNER is obtained only through the server-side owner verification flow.
+  if (role === "OWNER") {
+    return NextResponse.json({ error: "Owner is granted only through secure owner verification" }, { status: 403 })
   }
-  // Only the verified owner may create or remove Head Admin accounts.
-  if (role === "HEAD_ADMIN" && me.role !== "OWNER") {
-    return NextResponse.json({ error: "Only the owner can grant Head Admin" }, { status: 403 })
-  }
-  // Admin can only assign MOD or MEMBER.
-  if (me.role === "ADMIN" && role !== "MOD" && role !== "MEMBER") {
-    return NextResponse.json({ error: "Admins can only assign Mod or Member roles" }, { status: 403 })
-  }
-  // Head Admin can manage the normal staff hierarchy, but not Owner or peers.
-  if (me.role === "HEAD_ADMIN" && (role === "OWNER" || role === "HEAD_ADMIN")) {
-    return NextResponse.json({ error: "Only the owner can manage Owner or Head Admin roles" }, { status: 403 })
-  }
-  // Can't set another user to OWNER (only the password-based verify grants owner)
-  if (role === "OWNER" && userId !== me.id) {
-    return NextResponse.json({ error: "Owner is granted only via password verification" }, { status: 403 })
+  if (!canAssignRole(me.role, role)) {
+    return NextResponse.json({ error: "You cannot assign that role" }, { status: 403 })
   }
 
   const target = await db.user.findUnique({ where: { id: userId }, select: { id: true, username: true, role: true } })
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 })
-  if (target.role === "OWNER" && me.role !== "OWNER") {
-    return NextResponse.json({ error: "The owner role cannot be changed by staff" }, { status: 403 })
+  if (target.role === "OWNER") {
+    return NextResponse.json({ error: "The owner role cannot be changed from User Management" }, { status: 403 })
   }
-  if (target.role === "HEAD_ADMIN" && me.role !== "OWNER") {
-    return NextResponse.json({ error: "Only the owner can change a Head Admin" }, { status: 403 })
+  if (!canModerateTarget(me.role, target.role)) {
+    return NextResponse.json({ error: "You cannot change an equal or higher staff role" }, { status: 403 })
   }
 
   const updated = await db.$transaction(async (tx) => {
