@@ -109,17 +109,23 @@ function normalizeAudiusList(body: unknown): MusicTrack[] {
   return list.map(normalizeAudiusTrack).filter((track): track is MusicTrack => Boolean(track)).slice(0, 40)
 }
 
-export async function audiusTrending(limit = 30): Promise<MusicTrack[]> {
+export async function audiusTrending(limit = 30, offset = 0): Promise<MusicTrack[]> {
+  const safeLimit = Math.max(1, Math.min(40, Math.floor(limit)))
+  const safeOffset = Math.max(0, Math.min(100, Math.floor(offset)))
   const url = new URL(`${AUDIUS_BASE}/tracks/trending`)
   url.searchParams.set("time", "week")
-  url.searchParams.set("limit", String(Math.max(1, Math.min(40, limit))))
+  url.searchParams.set("limit", String(safeLimit))
+  url.searchParams.set("offset", String(safeOffset))
   return normalizeAudiusList(await jsonFetch(url.toString(), { headers: audiusHeaders() }))
 }
 
-export async function audiusSearch(query: string, limit = 30): Promise<MusicTrack[]> {
+export async function audiusSearch(query: string, limit = 30, offset = 0): Promise<MusicTrack[]> {
+  const safeLimit = Math.max(1, Math.min(40, Math.floor(limit)))
+  const safeOffset = Math.max(0, Math.min(1_000, Math.floor(offset)))
   const url = new URL(`${AUDIUS_BASE}/tracks/search`)
   url.searchParams.set("query", query)
-  url.searchParams.set("limit", String(Math.max(1, Math.min(40, limit))))
+  url.searchParams.set("limit", String(safeLimit))
+  url.searchParams.set("offset", String(safeOffset))
   return normalizeAudiusList(await jsonFetch(url.toString(), { headers: audiusHeaders() }))
 }
 

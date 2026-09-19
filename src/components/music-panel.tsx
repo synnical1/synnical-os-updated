@@ -30,7 +30,16 @@ import { cn } from "@/lib/utils"
 import { featureApi } from "@/lib/feature-api"
 import { MusicSocialPanel } from "@/components/music-social-panel"
 
-type Source = "audius" | "bridge" | "soundcloud" | "cobalt" | "radio" | "social"
+type Source = "audius" | "soundcloud" | "cobalt" | "radio" | "social"
+
+const AUDIUS_PAGE_SIZE = 30
+
+type AudiusPage = {
+  tracks?: MusicTrack[]
+  error?: string
+  nextOffset?: number
+  hasMore?: boolean
+}
 
 const RADIO_STATIONS = [
   { name: "SomaFM Groove Salad", owner: "SomaFM", url: "https://ice1.somafm.com/groovesalad-128-mp3" },
@@ -125,12 +134,18 @@ export function MusicPanel() {
   const [repeat, setRepeat] = useSetting<string>("music.repeat", "off")
   const [shuffle, setShuffle] = useSetting<boolean>("music.shuffle", false)
   const [storedSource, setStoredSource] = useSetting<string>("music.source", "audius")
-  const source: Source = ["audius", "bridge", "soundcloud", "cobalt", "radio", "social"].includes(storedSource) ? storedSource as Source : "audius"
+  const source: Source = storedSource === "bridge"
+    ? "audius"
+    : ["audius", "soundcloud", "cobalt", "radio", "social"].includes(storedSource) ? storedSource as Source : "audius"
   const [volume, setVolume] = useSetting<number>("music.volume", 100)
   const [outputVolume] = useSetting<number>("voice.outputVolume", 100)
   const [outputDevice] = useSetting<string>("voice.outputDevice", "default")
   const [query, setQuery] = useState("")
+  const [activeQuery, setActiveQuery] = useState("")
   const [tracks, setTracks] = useState<MusicTrack[]>([])
+  const [hasMoreAudius, setHasMoreAudius] = useState(true)
+  const [nextAudiusOffset, setNextAudiusOffset] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [queue, setQueue] = useState<MusicTrack[]>([])
   const [current, setCurrent] = useState<MusicTrack | null>(null)
   const [loading, setLoading] = useState(false)
@@ -144,6 +159,9 @@ export function MusicPanel() {
   const [cobaltInput, setCobaltInput] = useState("")
   const [radioIndex, setRadioIndex] = useState(0)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const musicScrollRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const richPresenceTrackRef = useRef<string | null>(null)
   const richPresenceStartedRef = useRef<string | null>(null)
 
@@ -174,20 +192,54 @@ export function MusicPanel() {
     }
   }, [])
 
-  const loadAudius = useCallback(async () => {
-    setLoading(true)
+  const fetchAudiusPage = useCallback(async (searchQuery: string, offset: number, append: boolean) => {
+    if (append) setLoadingMore(true)
+    else setLoading(true)
     setError("")
     try {
-      const response = await fetch("/api/music/audius/discover", { credentials: "include" })
-      const body = await response.json().catch(() => ({})) as { tracks?: MusicTrack[]; error?: string }
-      if (!response.ok) throw new Error(body.error || "Music could not load")
-      setTracks(Array.isArray(body.tracks) ? body.tracks : [])
+      const params = new URLSearchParams({ offset: String(offset), limit: String(AUDIUS_PAGE_SIZE) })
+      const endpoint = searchQuery
+        ? `/api/music/audius/search?q=${encodeURIComponent(searchQuery)}&${params.toString()}`
+        : `/api/music/audius/discover?${params.toString()}`
+      const response = await fetch(endpoint, { credentials: "include", cache: "no-store" })
+      const body = await response.json().catch(() => ({})) as AudiusPage
+      if (!response.ok) throw new Error(body.error || (searchQuery ? "Search failed" : "Music could not load"))
+      const incoming = Array.isArray(body.tracks) ? body.tracks : []
+      setTracks((previous) => {
+        if (!append) return incoming
+        const seen = new Set(previous.map(trackKey))
+        return [...previous, ...incoming.filter((track) => !seen.has(trackKey(track)))]
+      })
+      setNextAudiusOffset(Number.isFinite(body.nextOffset) ? Number(body.nextOffset) : offset + incoming.length)
+      setHasMoreAudius(body.hasMore === true)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Music could not load")
+      setError(reason instanceof Error ? reason.message : searchQuery ? "Search failed" : "Music could not load")
+      if (!append) {
+        setTracks([])
+        setNextAudiusOffset(0)
+        setHasMoreAudius(false)
+      }
     } finally {
-      setLoading(false)
+      if (append) setLoadingMore(false)
+      else setLoading(false)
     }
   }, [])
+
+  const loadAudius = useCallback(async () => {
+    setStoredSource("audius")
+    setLibraryView("browse")
+    setActiveQuery("")
+    setQuery("")
+    setNextAudiusOffset(0)
+    setHasMoreAudius(true)
+    await fetchAudiusPage("", 0, false)
+    musicScrollRef.current?.scrollTo({ top: 0 })
+  }, [fetchAudiusPage, setStoredSource])
+
+  const loadMoreAudius = useCallback(async () => {
+    if (source !== "audius" || libraryView !== "browse" || loading || loadingMore || !hasMoreAudius) return
+    await fetchAudiusPage(activeQuery, nextAudiusOffset, true)
+  }, [activeQuery, fetchAudiusPage, hasMoreAudius, libraryView, loading, loadingMore, nextAudiusOffset, source])
 
   useEffect(() => {
     void loadStatus()
@@ -310,23 +362,18 @@ export function MusicPanel() {
   }, [])
 
   const search = async () => {
-    setLibraryView("browse")
     const value = query.trim()
-    if (!value) return source === "audius" ? void loadAudius() : undefined
-    setLoading(true)
-    setError("")
-    try {
-      const endpoint = source === "bridge" ? `/api/music/bridge/search?q=${encodeURIComponent(value)}` : `/api/music/audius/search?q=${encodeURIComponent(value)}`
-      const response = await fetch(endpoint, { credentials: "include" })
-      const body = await response.json().catch(() => ({})) as { tracks?: MusicTrack[]; error?: string }
-      if (!response.ok) throw new Error(body.error || "Search failed")
-      setTracks(Array.isArray(body.tracks) ? body.tracks : [])
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Search failed")
-      setTracks([])
-    } finally {
-      setLoading(false)
+    setStoredSource("audius")
+    setLibraryView("browse")
+    if (!value) {
+      await loadAudius()
+      return
     }
+    setActiveQuery(value)
+    setNextAudiusOffset(0)
+    setHasMoreAudius(true)
+    await fetchAudiusPage(value, 0, false)
+    musicScrollRef.current?.scrollTo({ top: 0 })
   }
 
   const toggleFavorite = async (track: MusicTrack) => {
@@ -435,7 +482,17 @@ export function MusicPanel() {
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey)
   }, [])
 
-  const bridgeAvailable = status.piped.available || status.invidious.available
+  useEffect(() => {
+    if (source !== "audius" || libraryView !== "browse" || !hasMoreAudius || loading || loadingMore) return
+    const root = musicScrollRef.current
+    const target = loadMoreRef.current
+    if (!root || !target) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) void loadMoreAudius()
+    }, { root, rootMargin: "320px 0px" })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [hasMoreAudius, libraryView, loadMoreAudius, loading, loadingMore, source])
 
   const currentStream = useMemo(() => current ? streamUrl(current) : "", [current])
 
@@ -456,9 +513,11 @@ export function MusicPanel() {
       </header>
 
       <div className="min-h-0 flex flex-1">
-        <aside className="synnical-music-sidebar hidden w-48 shrink-0 flex-col gap-1 border-r border-[var(--synnical-glass-border)] p-3 backdrop-blur-xl md:flex">
-          <SourceButton active={source === "audius" && libraryView === "browse"} onClick={() => { setStoredSource("audius"); setLibraryView("browse"); void loadAudius() }} icon={Waves} label="Home" />
-          <SourceButton active={source === "bridge"} onClick={() => setStoredSource("bridge")} icon={Search} label="Search" disabled={!bridgeAvailable} />
+        <aside className="synnical-music-sidebar hidden w-56 shrink-0 flex-col gap-1 border-r border-[var(--synnical-glass-border)] p-3 backdrop-blur-xl md:flex">
+          <div className="mb-2 px-2 pt-1 text-[10px] font-bold uppercase tracking-[.18em] text-[var(--synnical-muted)]">Discover</div>
+          <SourceButton active={source === "audius" && libraryView === "browse" && !activeQuery} onClick={() => { void loadAudius() }} icon={Waves} label="Home" />
+          <SourceButton active={source === "audius" && libraryView === "browse" && Boolean(activeQuery)} onClick={() => { setStoredSource("audius"); setLibraryView("browse"); requestAnimationFrame(() => searchInputRef.current?.focus()) }} icon={Search} label="Search" />
+          <div className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-[.18em] text-[var(--synnical-muted)]">Your library</div>
           <button className={cn("flex h-9 items-center gap-2 rounded-lg px-3 text-left text-xs", source === "audius" && libraryView === "favorites" ? "bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "text-[var(--synnical-muted)] hover:bg-[var(--synnical-hover)]")} onClick={() => { setStoredSource("audius"); setLibraryView("favorites") }}><Heart className="h-4 w-4" />Favorites</button>
           <button className={cn("flex h-9 items-center gap-2 rounded-lg px-3 text-left text-xs", source === "audius" && libraryView === "history" ? "bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "text-[var(--synnical-muted)] hover:bg-[var(--synnical-hover)]")} onClick={() => { setStoredSource("audius"); setLibraryView("history") }}><History className="h-4 w-4" />Recently played</button>
           <div className="my-2 h-px bg-[var(--synnical-glass-border)]" />
@@ -467,7 +526,7 @@ export function MusicPanel() {
           <SourceButton active={source === "radio"} onClick={() => setStoredSource("radio")} icon={Radio} label="Radio" />
           <SourceButton active={source === "social"} onClick={() => setStoredSource("social")} icon={Trophy} label="Social" />
         </aside>
-        <div className="synnical-music-main relative min-w-0 flex-1 overflow-hidden">
+        <div className="synnical-music-main relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {error ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-red-500/20 bg-red-950/25 px-5 py-2.5 text-xs text-red-200"><AlertCircle className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1">{error}</span><button onClick={() => setError("")} className="text-white/60 hover:text-white">Dismiss</button></div>
       ) : null}
@@ -481,28 +540,70 @@ export function MusicPanel() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto custom-scroll">
-        {(source === "audius" || source === "bridge") && (
+      <div ref={musicScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scroll">
+        {source === "audius" && (
           <div className="mx-auto max-w-6xl p-5 pb-32">
             <form data-synnical-music-search onSubmit={(event) => { event.preventDefault(); void search() }} className="synnical-music-search mb-5 flex items-center gap-2 rounded-2xl border p-2">
               <Search className="ml-2 h-4 w-4 text-white/35" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm outline-none" placeholder={source === "audius" ? "Search music and artists" : "Search imported music"} />
+              <input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm outline-none" placeholder="What do you want to listen to?" autoComplete="off" />
               <button type="submit" disabled={loading} className="synnical-music-primary rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-40">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}</button>
-              {source === "audius" ? <button type="button" onClick={() => void loadAudius()} className="rounded-lg p-2 text-white/45 hover:bg-white/10 hover:text-white" aria-label="Refresh trending"><RefreshCw className="h-4 w-4" /></button> : null}
+              <button type="button" onClick={() => void loadAudius()} className="rounded-lg p-2 text-white/45 hover:bg-white/10 hover:text-white" aria-label="Refresh trending"><RefreshCw className="h-4 w-4" /></button>
             </form>
 
-            {source === "bridge" && !bridgeAvailable ? (
-              <ProviderSetup title="Search source is not configured" detail="This music source is unavailable in the current build." />
-            ) : loading && libraryView === "browse" && tracks.length === 0 ? (
+            {loading && libraryView === "browse" && tracks.length === 0 ? (
               <div className="grid min-h-[320px] place-items-center text-white/40"><Loader2 className="h-6 w-6 animate-spin" /></div>
             ) : (libraryView === "browse" ? tracks : library[libraryView]).length === 0 ? (
               <div className="grid min-h-[320px] place-items-center text-sm text-white/35">No tracks to show.</div>
             ) : (
               <>
-                <div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/35">{source === "audius" && !query.trim() ? "Featured" : "Results"}</p><h2 className="mt-1 text-lg font-semibold">{source === "audius" ? "Home" : "Search"}</h2></div>{source === "audius" ? <span className="text-[10px] text-white/30">{status.audius.authenticated ? "Enhanced access enabled" : "Public catalog"}</span> : null}</div>
+                {!activeQuery && libraryView === "browse" && tracks.length > 0 ? (
+                  <section className="mb-7">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--synnical-muted)]">Made for right now</p>
+                        <h2 className="mt-1 text-xl font-bold tracking-tight">Quick picks</h2>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                      {tracks.slice(0, 6).map((track) => (
+                        <button
+                          key={`quick:${trackKey(track)}`}
+                          type="button"
+                          onClick={() => playTrack(track, tracks)}
+                          className="synnical-music-quick group flex min-w-0 items-center gap-3 overflow-hidden rounded-xl border border-[var(--synnical-glass-border)] bg-[var(--synnical-music-glass-mid)] p-2 text-left backdrop-blur-xl transition hover:bg-[var(--synnical-music-glass-strong)]"
+                        >
+                          <span className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[var(--synnical-surface-2)]">
+                            {track.artwork ? <img src={track.artwork} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center"><Music2 className="h-5 w-5 text-[var(--synnical-muted)]" /></span>}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <strong className="block truncate text-sm">{track.title}</strong>
+                            <span className="mt-0.5 block truncate text-xs text-[var(--synnical-muted)]">{track.artist}</span>
+                          </span>
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--synnical-accent)] text-white opacity-0 shadow-lg transition group-hover:opacity-100"><Play className="ml-0.5 h-4 w-4" fill="currentColor" /></span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                <div className="mb-4 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--synnical-muted)]">{activeQuery ? "Search" : "Audius charts"}</p>
+                    <h2 className="mt-1 text-2xl font-bold tracking-tight">{activeQuery ? `Results for “${activeQuery}”` : "Trending now"}</h2>
+                    <p className="mt-1 text-xs text-[var(--synnical-muted)]">{activeQuery ? "Tracks from the Audius catalog" : "Popular tracks this week, loaded as you scroll"}</p>
+                  </div>
+                  <span className="shrink-0 text-[10px] text-[var(--synnical-muted)]">{status.audius.authenticated ? "Enhanced access" : "Audius catalog"}</span>
+                </div>
                 <div className="synnical-music-list overflow-hidden rounded-2xl border">
                   {(libraryView === "browse" ? tracks : library[libraryView]).map((track, index) => <TrackRow key={trackKey(track)} track={track} index={index} active={Boolean(current && trackKey(current) === trackKey(track))} favorite={favorites.has(trackKey(track))} onPlay={() => playTrack(track, libraryView === "browse" ? tracks : library[libraryView])} onFavorite={() => toggleFavorite(track)} />)}
                 </div>
+                {libraryView === "browse" ? (
+                  <div ref={loadMoreRef} className="flex min-h-24 items-center justify-center py-6">
+                    {loadingMore ? <div className="flex items-center gap-2 text-xs text-[var(--synnical-muted)]"><Loader2 className="h-4 w-4 animate-spin" />Loading more tracks…</div>
+                      : hasMoreAudius ? <button type="button" onClick={() => void loadMoreAudius()} className="rounded-full border border-[var(--synnical-glass-border)] bg-[var(--synnical-music-glass)] px-5 py-2 text-xs font-semibold text-[var(--synnical-text)] backdrop-blur-xl hover:bg-[var(--synnical-music-glass-mid)]">Load more</button>
+                      : tracks.length ? <span className="text-xs text-[var(--synnical-muted)]">You’re caught up.</span> : null}
+                  </div>
+                ) : null}
               </>
             )}
           </div>

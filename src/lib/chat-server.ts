@@ -1058,6 +1058,10 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         }
         if (ownerAction) botReply = ownerAction.reply
         else if (botFeature) botReply = botFeature.reply
+        if (ownerAction?.ephemeral && botReply) {
+          socket.emit("bot-command-result", { channelId, clientNonce: normalizedClientNonce, message: botReply, ok: true })
+          botReply = null
+        }
         const botCommand = text.trim().match(/^\/([a-z0-9_-]+)/i)?.[1]?.toLowerCase()
         if (botCommand) await db.botUsage.create({ data: { userId: user.userId, command: botCommand, success: Boolean(botReply || synnBotAiRequest(text)) } }).catch(() => {})
         const botAi = ownerAction || botFeature ? null : synnBotAiRequest(text) || (replyingToSynnBot && text

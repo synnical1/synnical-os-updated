@@ -17,7 +17,7 @@ sudo apt update
 sudo apt upgrade -y
 sudo apt install -y ca-certificates curl xz-utils unzip git build-essential python3 pkg-config openssl libssl-dev sqlite3 nginx certbot python3-certbot-nginx logrotate
 sudo adduser --disabled-password --gecos '' synnical
-sudo install -d -o synnical -g synnical -m 0750 /var/www/synnical /var/lib/synnical /var/lib/synnical/database /var/lib/synnical/uploads /var/lib/synnical/media-approvals /var/lib/synnical/games /var/log/synnical
+sudo install -d -o synnical -g synnical -m 0750 /var/www/synnical /var/lib/synnical /var/lib/synnical/database /var/lib/synnical/uploads /var/lib/synnical/media-approvals /var/log/synnical
 sudo install -d -o root -g root -m 0700 /var/backups/synnical
 ```
 
@@ -84,7 +84,6 @@ HOSTNAME=127.0.0.1
 PORT=3000
 UPLOAD_DIR=/var/lib/synnical/uploads
 MEDIA_APPROVALS_DIR=/var/lib/synnical/media-approvals
-GAMES_DIR=/var/lib/synnical/games
 NEXT_PUBLIC_SOCKET_URL=/socket.io
 ```
 
@@ -98,8 +97,8 @@ Review every category in `.env.example`:
 - Leave `NEXT_PUBLIC_SYNN_VM_URL` empty until an actual VM is available. The `/linux-vm` page then displays its existing configuration message. Configure an HTTPS URL that allows embedding from your Synnical origin. The route does not create or secure a VM by itself.
 - Built-in Wisp is enabled by default, requires a signed-in session, allows web ports 80/443, and blocks private/loopback destinations and UDP. Use default `/wisp` paths with the bundled client. A separate `NEXT_PUBLIC_WISP_URL` points at an independently managed Wisp server whose security is your responsibility.
 - Netherlands egress needs a real `SYNNICAL_NL_SOCKS5_URL`. It is server-only; do not expose its credentials in public variables.
-- Local browser games live in `GAMES_DIR` outside the source checkout. The in-app catalogue includes Synnical's built-in local titles immediately. For third-party mirrors, `npm run games:import -- --dry-run` shows the explicit licence allowlist and `npm run games:import` imports only entries listed in `config/local-games-approved.json`. Do not bulk-copy mirror repositories merely because the files are publicly accessible; each redistributed game needs a verified licence/permission and its required notices.
-- Stratus disables itself gracefully when its private sites file is absent. To enable it, copy `stratus/sites.json.example` to `stratus/sites.json`, configure a public site identifier, enabled state and quotas, and set matching `NEXT_PUBLIC_STRATUS_API_KEY`. Check the example's actual fields. Its API key is a browser-visible site identifier, not a provider credential. Protect the file with mode 600. Provider account/mail verification still depends on third-party services.
+- Games uses the bundled Stratus integration from the Stratus API project. Synnical ships `stratus/sites.synnical.json`, `stratus/cloud.json`, the embed assets, and the refactored same-process API so a normal deployment exposes `/api/games/cloud/v1/*` without a separate service or private sites file. The bundled browser-visible site identifier is intentionally not a provider credential.
+- Cloud sessions still depend on Stratus' external account/mail and game-stream provider services being reachable. `SYNNICAL_DISABLE_STRATUS=true` is an emergency operator kill-switch, not the normal configuration.
 - A TURN service may be needed for calls across restrictive networks. Any `NEXT_PUBLIC_WEBRTC_ICE_SERVERS_JSON` TURN credentials are browser-visible: use an appropriate limited credential policy.
 
 `NEXT_PUBLIC_*` values are embedded at **build time**. Rebuild after changing them; a PM2 restart alone is insufficient. `server.ts` reads `.env` through dotenv before validation. Do not commit this file or put live `stratus/sites.json` in a source archive. This guide uses SQLite; the old optional Turso code has missing adapter dependencies and is not a supported recovery target.

@@ -19,7 +19,7 @@ const CONFIRMATION_TTL_MS = 2 * 60_000
 type Actor = { id: string; username: string; role: string }
 export type OwnerBotContext = Actor & { channelId: string; sourceMessageId?: string; replyToUserId?: string | null }
 export type AppControl = { appId: string; enabled: boolean; maintenance: boolean; allowedRoles: string[] }
-export type OwnerBotResult = { reply: string; deletedMessageIds?: string[] } | null
+export type OwnerBotResult = { reply: string; deletedMessageIds?: string[]; ephemeral?: boolean } | null
 
 type OwnerOperation = {
   id: string
@@ -68,12 +68,28 @@ function parseColour(text: string) {
 }
 
 function parseIcon(text: string) {
+  if (/\b(?:thumbs?\s*[- ]?up|thumbsup|like)\b/i.test(text)) return "thumbs-up"
   if (/\bheart\b/i.test(text)) return "heart"
   if (/\bcrown\b/i.test(text)) return "crown"
   if (/\bstar\b/i.test(text)) return "star"
   if (/\bshield\b/i.test(text)) return "shield"
   if (/\bcode\b/i.test(text)) return "code"
   return "tag"
+}
+
+function parseTagLabel(text: string) {
+  const intent = /\b(?:make|create|add)\s+(?:a\s+)?tag\b/i
+  if (!intent.test(text)) return null
+  const patterns = [
+    /\btag\s+(?:called|named|that\s+says|saying|with\s+the\s+text)\s+["']?([a-z0-9][a-z0-9 _-]{0,23}?)["']?(?=\s+(?:with|using|and|that\s+has|which\s+has)\b|$)/i,
+    /\btag\s+["']?([a-z0-9][a-z0-9 _-]{0,23}?)["']?(?=\s+(?:with|using|and|that\s+has|which\s+has)\b|$)/i,
+  ]
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    const label = match?.[1] ? plainTag(match[1]) : ""
+    if (label) return label
+  }
+  return ""
 }
 
 async function verifiedOwner(ctx: OwnerBotContext): Promise<Actor | null> {
@@ -217,22 +233,41 @@ export async function undoOwnerOperation(actor: Actor, channelId: string): Promi
   return { reply: `Restored the last Owner change: ${op.title}.` }
 }
 
-async function confirmPendingOwnerAction(actor: Actor, channelId: string): Promise<OwnerBotResult> {
+async function confirmPendingOwnerAction(actor: Actor, channelId: string, sourceMessageId?: string): Promise<OwnerBotResult> {
   const pending = await getPendingConfirmation(actor, channelId)
   if (!pending) return { reply: "There isn’t a pending destructive action to confirm, or it expired." }
   await clearPendingConfirmation(actor, channelId)
 
   if (pending.action === "purge") {
-    const messageIds = Array.isArray(pending.payload.messageIds) ? pending.payload.messageIds.filter((id): id is string => typeof id === "string") : []
-    if (!messageIds.length) return { reply: "That delete request no longer has valid messages, so nothing was changed." }
-    const live = await db.message.findMany({ where: { id: { in: messageIds }, channelId, deleted: false }, select: { id: true } })
-    const ids = live.map((message) => message.id)
-    if (!ids.length) return { reply: "Those messages are already gone, so nothing else was deleted." }
+    const purgeAll = pending.payload.purgeAll === true
+    const stagedIds = Array.isArray(pending.payload.messageIds) ? pending.payload.messageIds.filter((id): id is string => typeof id === "string") : []
+    let ids: string[] = []
+
+    if (purgeAll) {
+      const live = await db.message.findMany({ where: { channelId, deleted: false }, orderBy: { createdAt: "desc" }, select: { id: true } })
+      ids = live.map((message) => message.id)
+    } else {
+      const meta = await db.message.findMany({
+        where: {
+          channelId,
+          deleted: false,
+          username: "synn-bot",
+          userId: null,
+          createdAt: { gte: new Date(pending.createdAt) },
+        },
+        select: { id: true },
+      })
+      ids = [...new Set([...stagedIds, ...meta.map((message) => message.id), ...(sourceMessageId ? [sourceMessageId] : [])])]
+      const live = await db.message.findMany({ where: { id: { in: ids }, channelId, deleted: false }, select: { id: true } })
+      ids = live.map((message) => message.id)
+    }
+
+    if (!ids.length) return { reply: "Those messages are already gone, so nothing else was deleted.", ephemeral: true }
     await db.message.updateMany({ where: { id: { in: ids }, channelId, deleted: false }, data: { deleted: true } })
     const op: OwnerOperation = { id: pending.id, action: "purge", title: `Purged ${ids.length} message${ids.length === 1 ? "" : "s"} from this channel`, before: { deleted: false }, after: { deleted: true, ids }, undo: { messageIds: ids }, createdAt: new Date().toISOString() }
     await saveOperation(actor, channelId, op)
-    await writeAudit(actor, "OWNER_CHANNEL_PURGE", op.title, op.before, op.after, { via: "synn-bot", channelId, confirmed: true })
-    return { reply: `Confirmed — deleted ${ids.length} message${ids.length === 1 ? "" : "s"} for everyone. Say “restore chat” or “undo that” to bring them back.`, deletedMessageIds: ids }
+    await writeAudit(actor, "OWNER_CHANNEL_PURGE", op.title, op.before, op.after, { via: "synn-bot", channelId, confirmed: true, purgeAll })
+    return { reply: `Deleted ${ids.length} message${ids.length === 1 ? "" : "s"} for everyone. Say “restore chat” or “undo that” to bring them back.`, deletedMessageIds: ids, ephemeral: true }
   }
 
   if (pending.action === "app-disable") {
@@ -275,7 +310,7 @@ export async function runOwnerJarvisRequest(input: string, ctx: OwnerBotContext)
   const actor = await verifiedOwner(ctx)
   if (!actor) return null
 
-  if (/^(?:\/)?(?:confirm|yes,? confirm|confirm it|do it)$/i.test(lower)) return confirmPendingOwnerAction(actor, ctx.channelId)
+  if (/^(?:\/)?(?:confirm|yes,? confirm|confirm it|do it)$/i.test(lower)) return confirmPendingOwnerAction(actor, ctx.channelId, ctx.sourceMessageId)
   if (/^(?:\/)?(?:cancel|never mind|nevermind|don't do it|do not do it)$/i.test(lower)) {
     const pending = await getPendingConfirmation(actor, ctx.channelId)
     await clearPendingConfirmation(actor, ctx.channelId)
@@ -286,10 +321,10 @@ export async function runOwnerJarvisRequest(input: string, ctx: OwnerBotContext)
     return undoOwnerOperation(actor, ctx.channelId)
   }
 
-  const tagMatch = text.match(/\b(?:make|create)\s+(?:a\s+)?tag\s+(?:called|named)\s+([a-z0-9][a-z0-9 _-]{1,23})/i)
-  if (tagMatch) {
-    const label = plainTag(tagMatch[1])
-    if (!label) return { reply: "Give the tag a short name, like “Donator”." }
+  const tagLabel = parseTagLabel(text)
+  if (tagLabel !== null) {
+    const label = tagLabel
+    if (!label) return { reply: "Tell me what the tag should say, for example: “make a tag that says First with a thumbs up icon and white glow”." }
     const icon = parseIcon(text), colour = parseColour(text), token = tagToken(label, icon, colour)
     const existing = await db.featureRecord.findFirst({ where: { userId: OWNER_RECORD, kind: TAG_KIND, scopeKey: slug(label) }, orderBy: { updatedAt: "desc" } })
     const record = existing
@@ -386,23 +421,31 @@ export async function runOwnerJarvisRequest(input: string, ctx: OwnerBotContext)
     return { reply: `Done — created #${name}${allowedRoles.includes("MEMBER") ? "" : " for admins only"}.` }
   }
 
-  if (/\bpurge\b|\bdelete\s+(?:the\s+)?last\s+\d+\s+messages?\b|\bdelete\s+(?:these\s+)?messages?\s+for\s+everyone\b/i.test(lower)) {
+  if (/\bpurge\b|\bdelete\s+(?:the\s+)?last\s+\d+\s+messages?\b|\bdelete\s+(?:these\s+)?messages?\s+for\s+everyone\b|\bdelete\s+all\s+messages?\b|\bclear\s+(?:the\s+)?(?:chat|channel)\b/i.test(lower)) {
+    const purgeAll = /\bpurge\s+(?:all|everything)\b|\bdelete\s+all\s+messages?\b|\bclear\s+(?:the\s+)?(?:chat|channel)\b/i.test(lower)
     const requested = Number(text.match(/\b(?:last\s+)?(\d{1,3})\s+messages?\b/i)?.[1] || 100)
     const take = Math.max(1, Math.min(100, requested))
-    const messages = await db.message.findMany({ where: { channelId: ctx.channelId, deleted: false, userId: { not: null } }, orderBy: { createdAt: "desc" }, take, select: { id: true } })
+    const messages = await db.message.findMany({
+      where: { channelId: ctx.channelId, deleted: false },
+      orderBy: { createdAt: "desc" },
+      ...(purgeAll ? {} : { take }),
+      select: { id: true },
+    })
     if (!messages.length) return { reply: "There are no live messages here to delete." }
     const ids = messages.map((message) => message.id)
     const now = new Date()
     const pending: OwnerConfirmation = {
       id: ctx.sourceMessageId || randomUUID(),
       action: "purge",
-      title: `Delete ${ids.length} message${ids.length === 1 ? "" : "s"} for everyone`,
-      payload: { messageIds: ids },
+      title: purgeAll ? `Clear all ${ids.length} messages from this channel` : `Delete ${ids.length} message${ids.length === 1 ? "" : "s"} for everyone`,
+      payload: { messageIds: ids, purgeAll },
       createdAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + CONFIRMATION_TTL_MS).toISOString(),
     }
     await savePendingConfirmation(actor, ctx.channelId, pending)
-    return { reply: `This will delete ${ids.length} message${ids.length === 1 ? "" : "s"} for everyone in this channel. Reply “confirm” within 2 minutes to continue, or “cancel”. Nothing has been deleted yet.` }
+    return { reply: purgeAll
+      ? `This will clear all ${ids.length} current messages in this channel, including Synn Bot messages. Reply “confirm” within 2 minutes to continue, or “cancel”. Nothing has been deleted yet.`
+      : `This will delete the requested ${ids.length} messages plus the confirmation chatter for everyone. Reply “confirm” within 2 minutes to continue, or “cancel”. Nothing has been deleted yet.` }
   }
 
   return null

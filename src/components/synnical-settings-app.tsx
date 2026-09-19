@@ -18,7 +18,7 @@ import { readSetting, writeSetting } from "@/lib/settings-runtime"
 import { SYNNICAL_BUILD, SYNNICAL_BUILD_DATE, SYNNICAL_VERSION } from "@/lib/build-info"
 import { cn } from "@/lib/utils"
 import { useBrowser } from "@/hooks/use-browser"
-import { THEMES } from "@/lib/themes"
+import { THEMES, type ThemeId } from "@/lib/themes"
 import { toast } from "sonner"
 import { SYNNICAL_APPS } from "@/lib/app-registry"
 
@@ -85,6 +85,65 @@ function WallpaperPreview({ src }: { src: string }) {
       ? <video src={src} muted loop playsInline autoPlay preload="metadata" className="h-full w-full object-cover" />
       : <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: src ? `url(${JSON.stringify(src)})` : undefined }} />}
   </div>
+}
+
+function ThemeGallery({ activeTheme, onSelect }: { activeTheme: string; onSelect: (id: ThemeId) => void }) {
+  const selected = THEMES.find((item) => item.id === activeTheme) || THEMES[0]
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="overflow-hidden rounded-2xl border border-[var(--synnical-glass-border)] bg-[var(--synnical-glass)] shadow-[var(--synnical-shadow)] backdrop-blur-xl">
+        <div
+          className="relative h-20 overflow-hidden"
+          style={{
+            background: `linear-gradient(120deg, ${selected.colors[0]} 0%, ${selected.colors[2] || selected.colors[0]} 48%, ${selected.colors[1]} 100%)`,
+          }}
+        >
+          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,.12),transparent_40%,rgba(255,255,255,.08))]" />
+          <div className="absolute bottom-2 left-3 flex items-center gap-2 rounded-full border border-white/20 bg-black/20 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur-md">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: selected.colors[1] }} />
+            {selected.name}
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4 px-3 py-2.5">
+          <div>
+            <p className="text-xs font-medium text-[var(--synnical-text)]">Current accent theme</p>
+            <p className="text-[10px] text-[var(--synnical-muted)]">Keeps your Light/Dark appearance separate.</p>
+          </div>
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--synnical-accent)]" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+        {THEMES.map((item) => {
+          const active = item.id === activeTheme
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onSelect(item.id)}
+              className={cn(
+                "group relative overflow-hidden rounded-xl border p-2 text-left transition duration-150",
+                active
+                  ? "border-[var(--synnical-accent)] bg-[var(--synnical-selected)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--synnical-accent)_35%,transparent)]"
+                  : "border-[var(--synnical-glass-border)] bg-[var(--synnical-glass)] hover:-translate-y-px hover:bg-[var(--synnical-hover)]",
+              )}
+            >
+              <div className="flex h-9 overflow-hidden rounded-lg border border-white/10">
+                {item.colors.slice(0, 3).map((color, index) => (
+                  <span key={`${item.id}:${index}`} className="min-w-0 flex-1" style={{ backgroundColor: color }} />
+                ))}
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[var(--synnical-text)]">{item.name}</span>
+                {active ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[var(--synnical-accent)]" /> : null}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export function SynnicalSettingsApp() {
@@ -226,7 +285,7 @@ export function SynnicalSettingsApp() {
     <SettingCard icon={Search} title="Search history" desc="Remember recent Start searches on this device." right={<Toggle label="Search history" value={os.startSearchHistory} onChange={(value) => void patchOs("startSearchHistory", value)} />} />
     <SettingCard icon={SlidersHorizontal} title="Quick Settings order" desc="Move a control earlier in the Quick Settings panel."><div className="mt-2 flex flex-wrap gap-2">{os.quickSettingsOrder.map((id, index) => <button key={id} disabled={index === 0} onClick={() => { const next = [...os.quickSettingsOrder]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; void patchOs("quickSettingsOrder", next) }} className="rounded border border-white/20 p-2 text-xs disabled:opacity-40">↑ {id}</button>)}</div></SettingCard>
     <SettingCard icon={Wallpaper} title="Desktop background" desc="Upload your own image or video wallpaper."><div className="mt-3 grid gap-3 sm:grid-cols-[180px_1fr]"><div><WallpaperPreview src={os.desktopWallpaper} /><button className="mt-2 text-xs underline" onClick={() => void patchOs("desktopWallpaper", OS_DEFAULTS.desktopWallpaper)}>Reset to default</button></div><div className="space-y-2"><label className="flex cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-xs hover:bg-white/[0.09]">{wallpaperBusy === "desktop" ? "Uploading…" : "Browse image or video"}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif,video/mp4,video/webm,video/quicktime" disabled={Boolean(wallpaperBusy)} onChange={(e)=>{ const file=e.target.files?.[0]||null; void uploadWallpaper("desktop",file); e.currentTarget.value="" }} className="hidden" /></label><label className="flex items-center justify-between gap-3 text-xs text-white/60">Choose a fit<select value={os.desktopWallpaperFit} onChange={(e)=>patchOs("desktopWallpaperFit",e.target.value as WallpaperFit)} className="rounded border border-white/10 bg-[#111] px-2 py-1"><option value="fill">Fill</option><option value="fit">Fit</option><option value="stretch">Stretch</option><option value="center">Center</option><option value="tile">Tile</option></select></label><p className="text-[10px] leading-4 text-white/30">Uploaded images are re-encoded before use. Uploaded videos are stored with unguessable media URLs associated with your account and played muted as live wallpapers.</p></div></div></SettingCard>
-    <SettingCard icon={Palette} title="Colors & themes" desc="Choose a Synnical theme. Changes apply immediately across the OS."><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{THEMES.map((item)=><button key={item.id} onClick={()=>setTheme(item.id)} className={cn("rounded-xl border p-2 text-left transition-colors",theme===item.id?"border-sky-400/70 bg-sky-400/10":"border-white/10 bg-black/20 hover:bg-white/[0.05]")}><div className="flex gap-1">{item.colors.map((color)=><span key={color} className="h-5 flex-1 rounded" style={{backgroundColor:color}} />)}</div><span className="mt-2 block text-xs">{item.name}</span></button>)}</div></SettingCard>
+    <SettingCard icon={Palette} title="Colors & themes" desc="Pick an accent family for Synnical. Appearance stays independently Light or Dark."><ThemeGallery activeTheme={theme} onSelect={setTheme} /></SettingCard>
     <SettingCard icon={PanelBottom} title="Taskbar" desc="Alignment, Search, Task View, Widgets and auto-hide."><div className="mt-3 grid gap-3 sm:grid-cols-2">
       <label className="flex items-center justify-between gap-3 text-xs text-white/60">Alignment<select value={os.taskbarAlignment} onChange={(e) => patchOs("taskbarAlignment", e.target.value as "center" | "left")} className="rounded border border-white/10 bg-[#111] px-2 py-1"><option value="center">Center</option><option value="left">Left</option></select></label>
       <label className="flex items-center justify-between gap-3 text-xs text-white/60">Size<select value={os.taskbarSize} onChange={(e) => patchOs("taskbarSize", e.target.value as OsSettings["taskbarSize"])} className="rounded border border-white/10 bg-[#111] px-2 py-1"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
