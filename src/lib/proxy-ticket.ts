@@ -1,5 +1,3 @@
-import "server-only"
-
 import { createHmac, timingSafeEqual } from "node:crypto"
 
 const TICKET_TTL_MS = 90_000
