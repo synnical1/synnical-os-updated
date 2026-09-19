@@ -64,7 +64,6 @@ export async function cropAnimatedGif(input: Buffer, crop: NormalizedGifCrop) {
       loop: metadata.loop ?? 0,
       delay: metadata.delay,
       keepDuplicateFrames: true,
-      reoptimise: true,
       effort: optimised ? 10 : 7,
       ...(optimised ? { interFrameMaxError: 4, interPaletteMaxError: 4 } : {}),
     })
