@@ -1,6 +1,8 @@
 name: Deploy Synnical
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
@@ -41,8 +43,14 @@ jobs:
           DATABASE_URL: file:./prisma/ci.db
         run: npm run release:gate
 
+      - name: Run production smoke suite
+        env:
+          DATABASE_URL: file:./prisma/ci.db
+        run: npm run test:smoke
+
   deploy:
     name: Deploy to Oracle ARM64
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -96,6 +104,7 @@ jobs:
           npx prisma generate
           npm run db:init
           npm run build
+          npm run test:smoke
 
           pm2 reload synnical --update-env
           pm2 save
