@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback, ReactNode 
 import { api, type SafeUser } from "@/lib/api"
 import { hydrateOsSettings, beginOsSettingsSync, stopOsSettingsSync } from "@/lib/os-settings"
 import { startAccountSettingsSync, stopAccountSettingsSync } from "@/lib/settings-runtime"
+import { clearSvgSessionToken, setSvgSessionToken } from "@/lib/svg-client"
 
 type AuthState = {
   user: SafeUser | null
@@ -53,18 +54,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id])
 
   const login = useCallback(async (username: string, password: string, recoveryCode?: string) => {
-    const { user } = await api.login(username, password, recoveryCode)
-    setUserState(user)
+    const result = await api.login(username, password, recoveryCode)
+    if (result.token) setSvgSessionToken(result.token)
+    setUserState(result.user)
   }, [])
 
   const register = useCallback(async (username: string, password: string, securityQuestion: string, securityAnswer: string) => {
-    const { user } = await api.register(username, password, securityQuestion, securityAnswer)
-    setUserState(user)
+    const result = await api.register(username, password, securityQuestion, securityAnswer)
+    if (result.token) setSvgSessionToken(result.token)
+    setUserState(result.user)
   }, [])
 
   const logout = useCallback(async () => {
-    await api.logout()
-    setUserState(null)
+    try { await api.logout() } finally {
+      clearSvgSessionToken()
+      setUserState(null)
+    }
   }, [])
 
   const setUser = useCallback((u: SafeUser) => setUserState(u), [])
