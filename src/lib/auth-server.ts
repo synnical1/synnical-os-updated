@@ -13,6 +13,52 @@ const SVG_CLIENT_ORIGINS = new Set([
   "https://jsdelivr.b-cdn.net",
 ])
 
+function isSvgEmbedHeaders(client: string | null, referer: string | null, requestOrigin: string | null): boolean {
+  if (client !== "svg" || !referer || !requestOrigin) return false
+  try {
+    const page = new URL(referer)
+    return page.origin === requestOrigin && page.searchParams.get("synnicalClient") === "svg"
+  } catch {
+    return false
+  }
+}
+
+export function isSvgEmbedRequest(req: NextRequest): boolean {
+  return isSvgEmbedHeaders(
+    req.headers.get("x-synnical-client"),
+    req.headers.get("referer"),
+    req.nextUrl.origin,
+  )
+}
+
+async function currentRequestUsesSvgEmbed(): Promise<boolean> {
+  const requestHeaders = await headers()
+  const host = requestHeaders.get("host")
+  const proto = requestHeaders.get("x-forwarded-proto") || (process.env.NODE_ENV === "production" ? "https" : "http")
+  return isSvgEmbedHeaders(
+    requestHeaders.get("x-synnical-client"),
+    requestHeaders.get("referer"),
+    host ? `${proto}://${host}` : null,
+  )
+}
+
+async function clearSessionCookie(store: Awaited<ReturnType<typeof cookies>>) {
+  const svgEmbed = await currentRequestUsesSvgEmbed()
+  const secure = process.env.NODE_ENV === "production"
+  if (svgEmbed && secure) {
+    store.set(SESSION_COOKIE, "", {
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+      partitioned: true,
+      path: "/",
+      expires: new Date(0),
+    })
+    return
+  }
+  store.delete(SESSION_COOKIE)
+}
+
 export function isTrustedSvgClient(req: NextRequest): boolean {
   return (
     req.headers.get("x-synnical-client") === "svg" &&
@@ -94,10 +140,13 @@ export async function createSession(userId: string, req?: NextRequest): Promise<
   const deviceHash = req ? await requestDeviceHash(req) : null
   await db.session.create({ data: { deviceHash, token, userId, expiresAt, deviceName, userAgent, lastSeenAt: new Date() } })
   const store = await cookies()
+  const secure = process.env.NODE_ENV === "production"
+  const svgEmbed = Boolean(req && isSvgEmbedRequest(req))
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: svgEmbed && secure ? "none" : "lax",
+    secure,
+    ...(svgEmbed && secure ? { partitioned: true } : {}),
     path: "/",
     expires: expiresAt,
   })
@@ -112,7 +161,7 @@ export async function destroySession(): Promise<void> {
     await db.session.deleteMany({ where: { token } }).catch(() => {})
     if (existing?.userId) await logSecurityEvent(existing.userId, "logout", "This browser session signed out.").catch(() => {})
   }
-  store.delete(SESSION_COOKIE)
+  await clearSessionCookie(store)
 }
 
 export async function getCurrentSession() {
@@ -128,12 +177,12 @@ export async function getCurrentSession() {
   if (!session) return null
   if (session.expiresAt.getTime() < Date.now()) {
     await db.session.delete({ where: { id: session.id } }).catch(() => {})
-    store.delete(SESSION_COOKIE)
+    await clearSessionCookie(store)
     return null
   }
   if (await isDeviceBanned(requestHeaders.get("cookie"), session.deviceHash) || await isUserPermanentlyBanned(session.user.id)) {
     await db.session.deleteMany({ where: { userId: session.user.id } }).catch(() => {})
-    store.delete(SESSION_COOKIE)
+    await clearSessionCookie(store)
     return null
   }
   if (session.lastSeenAt.getTime() < Date.now() - 5 * 60_000) {
