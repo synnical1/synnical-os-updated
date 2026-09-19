@@ -114,13 +114,18 @@ jobs:
 
           for attempt in $(seq 1 15); do
             if curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3000/api >/dev/null; then
-              git rev-parse --verify HEAD
-              echo "Synnical deployment completed."
-              exit 0
+              if node -e 'Promise.all([
+                fetch("http://127.0.0.1:3000/api/games/cloud/v1/health").then(async r => { if (!r.ok) throw new Error("Stratus health HTTP " + r.status); const body = await r.json(); if (body.status !== "ok" || body.service !== "stratus") throw new Error("Invalid Stratus health response") }),
+                fetch("http://127.0.0.1:3000/api/games/cloud/v1/games").then(async r => { if (!r.ok) throw new Error("Stratus catalog HTTP " + r.status); const body = await r.json(); if (!Array.isArray(body) || body.length < 200 || typeof body[0]?.game_key !== "string") throw new Error("Invalid Stratus catalog") }),
+              ]).catch(error => { console.error(error); process.exit(1) })'; then
+                git rev-parse --verify HEAD
+                echo "Synnical + bundled Stratus deployment completed."
+                exit 0
+              fi
             fi
             sleep 2
           done
 
-          echo "Synnical did not become healthy after deployment." >&2
+          echo "Synnical or bundled Stratus did not become healthy after deployment." >&2
           exit 1
           REMOTE
