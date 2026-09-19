@@ -74,3 +74,29 @@ test("SynnFlix exposes one native launcher with no provider-branded duplicate", 
   assert.doesNotMatch(shell, /id: "cineb"/)
   assert.doesNotMatch(shell, /target === "cineb"/)
 })
+
+
+test("Music uses dedicated translucent liquid-glass surfaces instead of opaque light-mode utilities", () => {
+  const music = read("src/components/music-panel.tsx")
+  const css = read("src/app/globals.css")
+  assert.match(music, /synnical-music-toolbar/)
+  assert.match(music, /synnical-music-search/)
+  assert.match(music, /synnical-music-list/)
+  assert.match(music, /synnical-music-player/)
+  assert.match(music, /synnical-music-track/)
+  assert.doesNotMatch(music, /bg-black\/40\/95/)
+  assert.match(css, /--synnical-music-glass: color-mix/)
+  assert.match(css, /backdrop-filter: blur\(30px\) saturate\(1\.42\)/)
+  assert.match(css, /\.synnical-music-track\.is-active/)
+})
+
+test("Chat is a core OS app and stale SynnBot controls cannot hide it", () => {
+  const registry = read("src/lib/app-registry.ts")
+  const shell = read("src/components/app-shell.tsx")
+  const owner = read("src/lib/synn-bot-owner.ts")
+  assert.match(registry, /CORE_OS_APP_IDS = \["chat"\]/)
+  assert.match(shell, /if \(isCoreOsApp\(id\)\) return true/)
+  assert.match(shell, /!isCoreOsApp\(target\) && control\?\.maintenance/)
+  assert.match(owner, /if \(isCoreOsApp\(app\.id\)\)/)
+  assert.match(owner, /core Synnical app/)
+})
