@@ -52,29 +52,14 @@ function gamesDir() {
   return path.resolve(process.env.GAMES_DIR || "/var/lib/synnical/games")
 }
 
-function safePublicOrigin() {
-  const raw = (process.env.GAMES_PUBLIC_ORIGIN || "").trim()
-  if (!raw) return null
-  try {
-    const url = new URL(raw)
-    if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1","localhost","::1","[::1]"].includes(url.hostname))) return null
-    url.pathname = url.pathname.replace(/\/+$/, "") + "/"
-    url.search = ""
-    url.hash = ""
-    return url
-  } catch {
-    return null
-  }
-}
-
-function normalizeImportedGame(value: unknown, origin: URL): LocalGame | null {
+function normalizeImportedGame(value: unknown): LocalGame | null {
   if (!value || typeof value !== "object") return null
   const row = value as Record<string, unknown>
   const slug = safeGameSlug(typeof row.slug === "string" ? row.slug : "")
   const title = typeof row.title === "string" ? row.title.trim().slice(0, 120) : ""
   const sourceRepo = typeof row.sourceRepo === "string" ? row.sourceRepo.trim().slice(0, 120) : ""
   if (!slug || !title || !/^gmshelf\/(?:truffled|seraph|ugs|ckv)$/.test(sourceRepo)) return null
-  const launch = new URL(`${encodeURIComponent(slug)}/`, origin).toString()
+  const launch = `/api/games/local/play/${encodeURIComponent(slug)}/index.html`
   const cover = typeof row.cover === "string" && /^https?:\/\//i.test(row.cover) ? row.cover : null
   return {
     id: `gmshelf:${slug}`,
@@ -89,13 +74,10 @@ function normalizeImportedGame(value: unknown, origin: URL): LocalGame | null {
 }
 
 export async function getLocalGameCatalog(): Promise<LocalGameCatalog> {
-  const origin = safePublicOrigin()
-  if (!origin) return { generatedAt: null, games: BUILT_INS }
-
   const catalogPath = path.join(gamesDir(), "catalog.json")
   try {
     const parsed = JSON.parse(await readFile(catalogPath, "utf8")) as { generatedAt?: unknown; games?: unknown }
-    const imported = Array.isArray(parsed.games) ? parsed.games.map((game) => normalizeImportedGame(game, origin)).filter((game): game is LocalGame => Boolean(game)) : []
+    const imported = Array.isArray(parsed.games) ? parsed.games.map((game) => normalizeImportedGame(game)).filter((game): game is LocalGame => Boolean(game)) : []
     const seen = new Set(BUILT_INS.map((game) => game.id))
     const deduped = imported.filter((game) => !seen.has(game.id) && (seen.add(game.id), true))
     return { generatedAt: typeof parsed.generatedAt === "string" ? parsed.generatedAt : null, games: [...BUILT_INS, ...deduped] }
