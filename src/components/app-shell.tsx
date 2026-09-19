@@ -28,7 +28,6 @@ const ShopPanel = lazy(() => import("@/components/shop-panel").then(m => ({ defa
 const GamesPanel = lazy(() => import("@/components/games-panel").then(m => ({ default: m.GamesPanel })))
 const StaffAccountsPanel = lazy(() => import("@/components/staff-accounts-panel").then(m => ({ default: m.StaffAccountsPanel })))
 const SynnFlixPanel = lazy(() => import("@/components/synnflix-unavailable-panel").then(m => ({ default: m.SynnFlixUnavailablePanel })))
-const CineBPanel = lazy(() => import("@/components/cineb-panel").then(m => ({ default: m.CineBPanel })))
 const SynnimePanel = lazy(() => import("@/components/synnime-panel").then(m => ({ default: m.SynnimePanel })))
 const SynnDrivePanel = lazy(() => import("@/components/synn-drive-panel").then(m => ({ default: m.SynnDrivePanel })))
 const SynnicalLabPanel = lazy(() => import("@/components/synnical-lab-panel").then(m => ({ default: m.SynnicalLabPanel })))
@@ -44,7 +43,7 @@ const LinuxVmPanel = lazy(() => import("@/components/linux-vm-panel").then(m => 
 // BrowserPanel loaded directly (was causing issues with lazy loading)
 import { BrowserPanel } from "@/components/browser-panel"
 
-export type Panel = "discover" | "chat" | "friends" | "moderation" | "temp-mail" | "browser" | "music" | "ai" | "games" | "shop" | "profile" | "settings" | "movies" | "cineb" | "synnime" | "drive" | "lab" | "spaces" | "market" | "automations" | "creator" | "calls" | "developer" | "files" | "youtube" | "geforce-now" | "linux-vm" | "auth"
+export type Panel = "discover" | "chat" | "friends" | "moderation" | "temp-mail" | "browser" | "music" | "ai" | "games" | "shop" | "profile" | "settings" | "movies" | "synnime" | "drive" | "lab" | "spaces" | "market" | "automations" | "creator" | "calls" | "developer" | "files" | "youtube" | "geforce-now" | "linux-vm" | "auth"
 
 const SAFE_MODE_APPS = new Set<Panel>(["settings", "files", "profile", "auth"])
 
@@ -55,7 +54,6 @@ const APP_NAV: { id: Panel; label: string; icon: ComponentType<{ className?: str
   { id: "friends", label: "Friends", icon: User, authOnly: true },
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "movies", label: "SynnFlix", icon: Clapperboard },
-  { id: "cineb", label: "SynnFlix CineB", icon: Clapperboard },
   { id: "synnime", label: "Synnime", icon: Tv },
   { id: "music", label: "Music", icon: Music },
   { id: "ai", label: "AI Assistant", icon: Bot },
@@ -97,7 +95,7 @@ export function AppShell() {
 
   const isMod = user?.role === "OWNER" || user?.role === "HEAD_ADMIN" || user?.role === "ADMIN" || user?.role === "MOD"
   const appAvailable = (id: string) => {
-    const control = appControls.find((row) => row.appId === (id === "cineb" ? "movies" : id))
+    const control = appControls.find((row) => row.appId === id)
     if (!control || !control.enabled) return !control
     return !control.allowedRoles.length || Boolean(user && (control.allowedRoles.includes(user.role) || (control.allowedRoles.includes("BETA_TESTER") && user.tags.includes("BETA TESTER"))))
   }
@@ -198,7 +196,7 @@ export function AppShell() {
   }, [panel])
 
   const renderDesktopPanel = (target: Panel, openPanel: (target: Panel) => void) => {
-    const control = appControls.find((row) => row.appId === (target === "cineb" ? "movies" : target))
+    const control = appControls.find((row) => row.appId === target)
     if (safeMode && !SAFE_MODE_APPS.has(target)) return null
     if (!appAvailable(target)) return null
     if (control?.maintenance) return <UnderConstructionPanel appName={APP_NAV.find((app) => app.id === target)?.label || "This app"} eyebrow="Owner-managed maintenance" description="This app is temporarily under construction while Synnical works on a reliable update." />
@@ -212,7 +210,6 @@ export function AppShell() {
       {target === "temp-mail" ? <ErrorBoundary name="Temp Mail"><TempMailPanel /></ErrorBoundary> : null}
       {target === "browser" ? <ErrorBoundary name="Browser"><BrowserPanel /></ErrorBoundary> : null}
       {target === "movies" ? <ErrorBoundary name="SynnFlix"><SynnFlixPanel /></ErrorBoundary> : null}
-      {target === "cineb" ? <ErrorBoundary name="SynnFlix CineB"><CineBPanel /></ErrorBoundary> : null}
       {target === "synnime" ? <ErrorBoundary name="Synnime"><SynnimePanel /></ErrorBoundary> : null}
       {target === "music" ? <ErrorBoundary name="Music"><MusicPanel key={user?.id || "guest"} /></ErrorBoundary> : null}
       {target === "ai" ? <ErrorBoundary name="AI"><AIPanel /></ErrorBoundary> : null}
