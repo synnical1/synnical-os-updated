@@ -7,7 +7,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { db } from "@/lib/db"
 import { auditData } from "@/lib/audit-log"
 import { aiProviderStatus } from "@/lib/ai-provider-pool"
-import { SYNNICAL_APPS } from "@/lib/app-registry"
+import { SYNNICAL_APPS, isCoreOsApp } from "@/lib/app-registry"
 
 const OWNER_RECORD = "__synn_bot_owner__"
 const APP_CONTROL_KIND = "synn-bot-app-control"
@@ -134,7 +134,12 @@ export async function getGlobalAppControls(): Promise<AppControl[]> {
     seen.add(row.scopeKey)
     const parsed = safeJson<Partial<AppControl>>(row.dataJson, {})
     if (!SYNNICAL_APPS.some((app) => app.id === row.scopeKey)) continue
-    controls.push({
+    controls.push(isCoreOsApp(row.scopeKey) ? {
+      appId: row.scopeKey,
+      enabled: true,
+      maintenance: false,
+      allowedRoles: [],
+    } : {
       appId: row.scopeKey,
       enabled: parsed.enabled !== false,
       maintenance: parsed.maintenance === true,
@@ -147,6 +152,7 @@ export async function getGlobalAppControls(): Promise<AppControl[]> {
 async function getAppControl(appId: string): Promise<AppControl> {
   const row = await db.featureRecord.findFirst({ where: { userId: OWNER_RECORD, kind: APP_CONTROL_KIND, scopeKey: appId }, orderBy: { updatedAt: "desc" } })
   const parsed = row ? safeJson<Partial<AppControl>>(row.dataJson, {}) : {}
+  if (isCoreOsApp(appId)) return { appId, enabled: true, maintenance: false, allowedRoles: [] }
   return { appId, enabled: parsed.enabled !== false, maintenance: parsed.maintenance === true, allowedRoles: Array.isArray(parsed.allowedRoles) ? parsed.allowedRoles.filter((role): role is string => typeof role === "string").slice(0, 8) : [] }
 }
 
@@ -335,6 +341,9 @@ export async function runOwnerJarvisRequest(input: string, ctx: OwnerBotContext)
 
   const app = appFromText(text)
   if (app && /\b(?:delete|disable|hide|remove|bring back|restore|enable|show|under construction|maintenance)\b/i.test(lower)) {
+    if (isCoreOsApp(app.id)) {
+      return { reply: `${app.label} is a core Synnical app, so it stays available in the launcher and cannot be disabled or hidden.` }
+    }
     const before = await getAppControl(app.id)
     const restoring = /\b(?:bring back|restore|enable|show)\b/i.test(lower)
     const maintenance = /\b(?:under construction|maintenance)\b/i.test(lower)
