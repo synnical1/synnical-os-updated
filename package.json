@@ -23,8 +23,7 @@
     "test:smoke": "node scripts/smoke-recovery.mjs",
     "check:env": "node scripts/check-env.mjs",
     "db:init": "node scripts/init-database.mjs",
-    "check:proxy": "node scripts/check-proxy-assets.mjs",
-    "games:import": "node scripts/import-gmshelf-games.mjs"
+    "check:proxy": "node scripts/check-proxy-assets.mjs"
   },
   "engines": {
     "node": ">=22 <23",
