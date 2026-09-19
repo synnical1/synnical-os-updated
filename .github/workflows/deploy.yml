@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: synnical-production-deploy
-  cancel-in-progress: false
+  group: synnical-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
@@ -37,6 +37,9 @@ jobs:
         env:
           DATABASE_URL: file:./prisma/ci.db
         run: npm run db:init
+
+      - name: Verify proxy assets
+        run: npm run check:proxy
 
       - name: Validate, test, and build
         env:
