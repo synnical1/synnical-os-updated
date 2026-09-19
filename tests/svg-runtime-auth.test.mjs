@@ -33,11 +33,11 @@ test("SVG session recovery bridges a first-party session into the embedded runti
   const client = read("src/lib/svg-client.ts")
   const handoff = read("src/app/api/auth/svg-handoff/route.ts")
 
-  assert.match(client, /requestStorageAccess/)
   assert.match(client, /window\.open\(/)
   assert.match(client, /\/api\/auth\/svg-handoff\?synnicalClient=svg/)
   assert.match(client, /window\.addEventListener\("message"/)
   assert.match(client, /event\.origin !== window\.location\.origin/)
+  assert.match(client, /requestStorageAccess/)
   assert.match(client, /window\.location\.reload\(\)/)
 
   assert.match(handoff, /getCurrentSession/)
