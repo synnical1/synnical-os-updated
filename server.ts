@@ -15,7 +15,6 @@ import type { Duplex } from "stream"
 import next from "next"
 import { attachChat } from "./src/lib/chat-server"
 import { validateEnv } from "./src/lib/env"
-import { existsSync } from "fs"
 import { resolve } from "path"
 import { createBlockedUdpSocketClass, createSocks5TcpSocketClass, parseSocks5Url } from "./src/lib/wisp-socks"
 import { authenticatedProxyRequest, allowedSocketOrigin } from "./src/lib/server-request-auth"
@@ -43,13 +42,14 @@ const SYNNICAL_SVG_ALLOWED_ORIGINS = new Set([
 // /api/games). All stratus endpoints live at /api/games/cloud/v1/... and the
 // WebSocket signaling endpoint lives at /api/games/cloud/v1/signal/:uuid.
 
-// Cloud gaming is a first-class Synnical panel. Enable Stratus by default when
-// the operator has not explicitly disabled it; missing/invalid sites.json still
-// fails closed below instead of exposing a half-configured provider.
+// Cloud gaming is a first-class Synnical service. The repository ships the
+// browser-visible site identifier/config required by Stratus so a fresh deploy
+// does not silently boot without Games. Operators still have an emergency
+// kill-switch via SYNNICAL_DISABLE_STRATUS=true.
 const STRATUS_BASE_PATH = "/api/games"
-const STRATUS_ENABLED = (process.env.STRATUS_ENABLED ?? "true") !== "false"
+const STRATUS_ENABLED = process.env.SYNNICAL_DISABLE_STRATUS !== "true"
 const STRATUS_SITES_PATH =
-  process.env.STRATUS_SITES_PATH || resolve(process.cwd(), "stratus", "sites.json")
+  process.env.STRATUS_SITES_PATH || resolve(process.cwd(), "stratus", "sites.synnical.json")
 const STRATUS_PUBLIC_DIR =
   process.env.STRATUS_PUBLIC_DIR || resolve(process.cwd(), "stratus", "public")
 
@@ -84,28 +84,21 @@ let wispNlRouteRequest: ((req: IncomingMessage, socket: Duplex, head: Buffer) =>
 
 // Initialise Stratus
 if (STRATUS_ENABLED) {
-  if (!existsSync(STRATUS_SITES_PATH)) {
-    console.warn(
-      `> Stratus: sites.json not found at ${STRATUS_SITES_PATH}. ` +
-        `Cloud gaming API is DISABLED. Copy stratus/sites.json.example to stratus/sites.json and configure it.`,
-    )
-  } else {
-    try {
-      const { createStratusApp } = require("./stratus/api.js") as {
-        createStratusApp: (opts: {
-          basePath: string
-          sitesPath: string
-          publicDir: string
-        }) => StratusHandle
-      }
-      stratus = createStratusApp({
-        basePath: STRATUS_BASE_PATH,
-        sitesPath: STRATUS_SITES_PATH,
-        publicDir: STRATUS_PUBLIC_DIR,
-      })
-    } catch (e) {
-      console.error("> Stratus: failed to initialize — cloud gaming API disabled.", e)
+  try {
+    const { createStratusApp } = require("./stratus/api.js") as {
+      createStratusApp: (opts: {
+        basePath: string
+        sitesPath: string
+        publicDir: string
+      }) => StratusHandle
     }
+    stratus = createStratusApp({
+      basePath: STRATUS_BASE_PATH,
+      sitesPath: STRATUS_SITES_PATH,
+      publicDir: STRATUS_PUBLIC_DIR,
+    })
+  } catch (e) {
+    console.error("> Stratus: failed to initialize — cloud gaming API disabled.", e)
   }
 }
 
