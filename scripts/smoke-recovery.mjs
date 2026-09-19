@@ -22,7 +22,7 @@ await new Promise((resolve) => reservation.close(resolve))
 const base = `http://127.0.0.1:${port}`
 const env = { ...process.env, NODE_ENV: "production", DATABASE_URL: databaseUrl, HOSTNAME: "127.0.0.1", PORT: String(port),
   OWNER_PASSWORD: randomBytes(32).toString("hex"), IDENTITY_HASH_SECRET: randomBytes(32).toString("hex"),
-  UPLOAD_DIR: path.join(root, "uploads"), MEDIA_APPROVALS_DIR: path.join(root, "approvals"), STRATUS_ENABLED: "false",
+  UPLOAD_DIR: path.join(root, "uploads"), MEDIA_APPROVALS_DIR: path.join(root, "approvals"), STRATUS_DISABLE_ACCOUNT_POOL: "true",
   WISP_ENABLED: "true", WISP_PATH: "/wisp", WISP_NL_PATH: "/wisp-nl", NEXT_PUBLIC_SOCKET_URL: "/socket.io",
   SYNNICAL_NL_SOCKS5_URL: "", TEXT_MODERATION_MODE: "local", TMDB_API_KEY: "", TMDB_API_READ_TOKEN: "",
   OPENAI_API_KEY: "", OPENROUTER_API_KEY: "", GROQ_API_KEY: "", GEMINI_API_KEY: "", PIPED_API_BASE: "", INVIDIOUS_API_BASE: "", COBALT_API_BASE: "" }
@@ -75,6 +75,13 @@ try {
     if (attempt === 119) throw new Error("Server did not become ready")
   }
   await request("/")
+  const stratusHealth = await request("/api/games/cloud/v1/health")
+  assert.equal(stratusHealth.json.status, "ok")
+  assert.equal(stratusHealth.json.service, "stratus")
+  const stratusGames = await request("/api/games/cloud/v1/games")
+  assert.ok(Array.isArray(stratusGames.json) && stratusGames.json.length > 50)
+  assert.equal(typeof stratusGames.json[0]?.game_key, "string")
+  pass("bundled Stratus cloud-gaming routes are mounted")
   assert.match((await request("/linux-vm")).text, /Coming Soon/)
   assert.equal((await request("/api/auth/me")).json.user, null)
   await request("/api/features/settings", { status: 401 })
