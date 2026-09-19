@@ -99,7 +99,7 @@ async function responseJson<T>(res: Response, stage: string): Promise<T> {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const STRATUS_API_KEY = process.env.NEXT_PUBLIC_STRATUS_API_KEY || ""
+const STRATUS_API_KEY = process.env.NEXT_PUBLIC_STRATUS_API_KEY || "synnical-cloud-public-v1"
 const STRATUS_BASE = "/api/games/cloud/v1"
 
 const ALL_TAGS = [
