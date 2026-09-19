@@ -41,7 +41,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: stri
       "Content-Type": MIME[ext] || "application/octet-stream",
       "Cache-Control": ext === ".html" ? "private, no-cache" : "public, max-age=86400, immutable",
       "X-Content-Type-Options": "nosniff",
-      "Cross-Origin-Resource-Policy": "same-origin",
+      "Cross-Origin-Resource-Policy": "cross-origin",
       "Referrer-Policy": "no-referrer",
     })
     if (ext === ".html" || ext === ".htm") {
