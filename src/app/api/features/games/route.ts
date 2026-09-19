@@ -111,6 +111,15 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const action = clean(body.action, 64)
 
+  if (action === "toggle-favorite") {
+    const gameId = clean(body.gameId, 120)
+    if (!gameId) return fail("Game id required")
+    const existing = await db.gameFavorite.findUnique({ where: { userId_gameId: { userId: me.id, gameId } } })
+    if (existing) await db.gameFavorite.delete({ where: { id: existing.id } })
+    else await db.gameFavorite.create({ data: { userId: me.id, gameId } })
+    return NextResponse.json({ favorite: !existing })
+  }
+
   if (action === "create-collection") {
     const name = clean(body.name, 60)
     if (!name) return fail("Collection name required")
