@@ -1,6 +1,9 @@
 // Frontend API helpers for Synnical
 
 import type { ChannelAudience } from "@/lib/channel-permissions"
+import { installSvgFetchAuth } from "@/lib/svg-client"
+
+installSvgFetchAuth()
 
 export type Role = "OWNER" | "HEAD_ADMIN" | "ADMIN" | "MOD" | "MEMBER"
 
