@@ -1112,6 +1112,11 @@ function createStratusApp(options = {}) {
     });
   });
 
+  // Cheap same-origin readiness route used by Synnical deployment/smoke checks.
+  app.get("/cloud/v1/health", (_req, res) => {
+    res.json({ status: "ok", service: "stratus", base_path: basePath });
+  });
+
   // Serve the full cloud games catalogue from cloud.json
   let cloudGamesCache = null;
   app.get("/cloud/v1/games", (req, res) => {
@@ -1595,8 +1600,12 @@ function createStratusApp(options = {}) {
   startReaper();
   startIpGc();
 
-  // Begin filling the account pool.
-  fillPool().catch(() => {});
+  // Begin filling the account pool in real deployments. Smoke/CI can disable
+  // this background third-party traffic while still validating the complete
+  // Stratus HTTP mount, catalogue and embed routes.
+  if (process.env.STRATUS_DISABLE_ACCOUNT_POOL !== "true") {
+    fillPool().catch(() => {});
+  }
 
   logSys(
     chalk.green(
