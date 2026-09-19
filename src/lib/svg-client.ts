@@ -9,7 +9,6 @@ const SVG_HANDOFF_PATH = "/api/auth/svg-handoff?synnicalClient=svg"
 let fetchInstalled = false
 let recoveryInstalled = false
 let recoveryAttempted = false
-let popupFallback = false
 
 export function isSvgClientRuntime(): boolean {
   if (typeof window === "undefined") return false
@@ -46,18 +45,17 @@ export function clearSvgSessionToken() {
 /**
  * SVG/jsDelivr mode runs Synnical in a third-party iframe. Existing Synnical
  * sessions use a SameSite cookie, so browsers correctly withhold that cookie
- * from the iframe. Recover the already-authenticated first-party session only
- * after a real user gesture:
+ * from the iframe.
  *
- * 1. Prefer the Storage Access API when the browser supports it.
- * 2. If storage access is unavailable/denied, use a same-origin top-level popup
- *    handoff. Top-level navigation may read the existing Lax session cookie,
- *    then the handoff page sends the short-lived session token only back to the
- *    same-origin Synnical iframe via postMessage.
+ * On the first real user gesture, open a same-origin top-level handoff window.
+ * Top-level navigation can read the existing Lax session cookie. The handoff
+ * endpoint sends the session token only back to the same-origin Synnical iframe
+ * via postMessage, then closes immediately. We store that token and reload the
+ * iframe once so Chat REST, Socket.IO and Browser proxy-ticket requests all use
+ * the same bearer session.
  *
- * Once a bearer token is recovered we reload the iframe exactly once. Chat REST
- * requests, Socket.IO auth, and Browser proxy-ticket requests then all use the
- * same bearer session instead of repeatedly failing with 401s.
+ * If a browser blocks the popup, fall back to the Storage Access API while the
+ * user activation is still live.
  */
 export function installSvgSessionRecovery() {
   if (
@@ -96,39 +94,32 @@ export function installSvgSessionRecovery() {
     finish(data.token.toLowerCase())
   }
 
-  const openHandoffPopup = () => {
+  const recoverFromGesture = (event: Event) => {
+    if (!event.isTrusted || recoveryAttempted || getSvgSessionToken()) return
+    recoveryAttempted = true
+
     handoffPopup = window.open(
       SVG_HANDOFF_PATH,
       "synnical-svg-session-handoff",
       "popup,width=460,height=260,resizable=yes,scrollbars=no",
     )
-    if (!handoffPopup) recoveryAttempted = false
-  }
 
-  const recoverFromGesture = (event: Event) => {
-    if (!event.isTrusted || recoveryAttempted || getSvgSessionToken()) return
-    recoveryAttempted = true
+    if (handoffPopup) return
 
-    if (!popupFallback) {
-      const storageDocument = document as Document & {
-        requestStorageAccess?: () => Promise<void>
-      }
-      if (typeof storageDocument.requestStorageAccess === "function") {
-        // Call immediately while transient user activation is still present.
-        storageDocument.requestStorageAccess().then(
-          () => window.location.reload(),
-          () => {
-            // The next genuine gesture uses the top-level session bridge.
-            popupFallback = true
-            recoveryAttempted = false
-          },
-        )
-        return
-      }
-      popupFallback = true
+    // Popup blocked: immediately use the same user activation for storage
+    // access instead of leaving Chat/Browser in a permanent 401 loop.
+    const storageDocument = document as Document & {
+      requestStorageAccess?: () => Promise<void>
+    }
+    if (typeof storageDocument.requestStorageAccess === "function") {
+      storageDocument.requestStorageAccess().then(
+        () => window.location.reload(),
+        () => { recoveryAttempted = false },
+      )
+      return
     }
 
-    openHandoffPopup()
+    recoveryAttempted = false
   }
 
   window.addEventListener("message", onMessage)
