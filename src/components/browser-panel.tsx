@@ -1064,7 +1064,11 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
   }, [antiTabClose])
 
   const popout = () => {
-    if (active.input) window.open(active.input, "_blank", "width=1280,height=720")
+    const upstream = safeHttpNavigationUrl(active.input)
+    if (!upstream) return
+    const target = new URL("/browser/popout", window.location.origin)
+    target.searchParams.set("url", upstream)
+    window.open(target.href, "_blank", "noopener,noreferrer")
   }
 
   const bookmarked = active.input ? isBookmarked(active.input) : false
