@@ -98,10 +98,20 @@ function emitTaskbarProgress(panel: string, progress: number | null, active: boo
   window.dispatchEvent(new CustomEvent("synnical-taskbar-progress", { detail: { panel, progress, active } }))
 }
 
+function svgClientRequestHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {}
+  try {
+    if (window.self !== window.top && new URLSearchParams(window.location.search).get("synnicalClient") === "svg") {
+      return { "X-Synnical-Client": "svg" }
+    }
+  } catch {}
+  return {}
+}
+
 async function jsonFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...(opts?.headers || {}) },
+    headers: { "Content-Type": "application/json", ...svgClientRequestHeaders(), ...(opts?.headers || {}) },
     ...opts,
   })
   const data = await res.json().catch(() => ({}))
