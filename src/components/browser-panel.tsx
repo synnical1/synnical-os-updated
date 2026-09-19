@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import {
   ArrowLeft, ArrowRight, RotateCw, Globe, ExternalLink, Home,
   Star, StarOff, X, Clock, Search, Plus, Settings,
-  ChevronDown, ChevronRight, Loader2, AlertCircle, FolderPlus, Download, EyeOff, Layers3, Trash2, PanelsTopLeft, Save,
+  ChevronDown, ChevronRight, Loader2, AlertCircle, FolderPlus, Download, EyeOff, Layers3, Trash2, PanelsTopLeft, Save, Check,
 } from "lucide-react"
 import { QUICK_LINKS, SEARCH_ENGINES } from "@/lib/client-constants"
 import { useAuth } from "@/hooks/use-auth"
