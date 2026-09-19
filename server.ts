@@ -45,8 +45,7 @@ const SYNNICAL_SVG_ALLOWED_ORIGINS = new Set([
 
 // Cloud gaming is a first-class Synnical service. The repository ships the
 // browser-visible site identifier/config required by Stratus so a fresh deploy
-// does not silently boot without Games. Operators still have an emergency
-// kill-switch via SYNNICAL_DISABLE_STRATUS=true.
+// cannot silently boot without Games.
 const STRATUS_BASE_PATH = "/api/games"
 const BUNDLED_STRATUS_SITES_PATH = resolve(process.cwd(), "stratus", "sites.synnical.json")
 const BUNDLED_STRATUS_PUBLIC_DIR = resolve(process.cwd(), "stratus", "public")
