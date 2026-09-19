@@ -37,8 +37,8 @@ export type ModerationResult = {
 
 export type ModeratedImage = {
   buffer?: Buffer
-  extension?: ".webp"
-  mime?: "image/webp"
+  extension?: ".webp" | ".gif"
+  mime?: "image/webp" | "image/gif"
   animated?: boolean
   result: ModerationResult
 }
@@ -421,7 +421,7 @@ async function moderateAndSanitizeImageInner(buffer: Buffer, surface: ImageModer
     if (!isAnimated) pipeline.rotate()
     pipeline.resize({ ...target, fit: "inside", withoutEnlargement: true })
     safeBuffer = preserveAnimatedGif
-      ? await pipeline.gif({ loop: metadata.loop ?? 0, delay: metadata.delay, keepDuplicateFrames: true, reoptimise: true, effort: 7 }).toBuffer()
+      ? await pipeline.gif({ loop: metadata.loop ?? 0, delay: metadata.delay, keepDuplicateFrames: true, effort: 7 }).toBuffer()
       : await pipeline.webp({ quality: isAnimated ? 80 : 86, effort: 4, loop: 0 }).toBuffer()
   } catch {
     return blockedImage("AUTOMOD_IMAGE_UNSAFE", "image_processing", "[AUTOMOD_IMAGE_UNSAFE] Image sanitisation failed.")
