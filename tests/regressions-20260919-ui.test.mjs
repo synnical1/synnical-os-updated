@@ -196,3 +196,11 @@ test("Games is cloud-only and bundled Stratus cannot be disabled by stale legacy
   assert.match(deploy, /bundled Stratus deployment completed/)
   assert.match(deploy, /body\.length < 200/)
 })
+
+test("Browser theme controls use compact swatch rows rather than inverted tile buttons", () => {
+  const browser = read("src/components/browser-panel.tsx")
+  assert.match(browser, /Accent theme/)
+  assert.match(browser, /aria-pressed=\{active\}/)
+  assert.match(browser, /grid grid-cols-2 gap-1\.5/)
+  assert.doesNotMatch(browser, /theme === t\.id \? "border-white bg-white text-black"/)
+})
