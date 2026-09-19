@@ -4,21 +4,31 @@ import { readFileSync } from "node:fs"
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8")
 
-test("new sessions first-paint in Light mode with the Thorfinn wallpaper", () => {
+test("new sessions resolve Light mode before hydration without OLED boot utilities", () => {
   const layout = read("src/app/layout.tsx")
   const page = read("src/app/page.tsx")
+  const boot = read("src/app/boot.css")
   const applier = read("src/components/theme-applier.tsx")
+  const themes = read("src/lib/themes.ts")
   assert.match(layout, /synnical:settings:appearance\.mode/)
   assert.match(layout, /: 'light'/)
-  assert.match(layout, /\/brand\/wallpapers\/thorfinn\.webp/)
-  assert.match(page, /DEFAULT_WALLPAPER = "\/brand\/wallpapers\/thorfinn\.webp"/)
+  assert.match(layout, /\.\/boot\.css/)
+  assert.match(page, /synnical-boot-stage/)
+  assert.doesNotMatch(page, /bg-black\/20|DEFAULT_WALLPAPER/)
+  assert.match(boot, /--synnical-boot-bg/)
+  assert.match(boot, /:root\[data-appearance="dark"\]/)
   assert.match(applier, /appearance\.mode", "light"/)
+  assert.match(themes, /Resolve the final palette before mutating the DOM/)
 })
 
-test("desktop windows restore by default and are not erased during boot", () => {
+test("desktop windows restore safely against the current viewport", () => {
   const settings = read("src/lib/os-settings.ts")
   const desktop = read("src/components/desktop-shell.tsx")
   assert.match(settings, /restoreWindows: true/)
+  assert.match(desktop, /os\.restoreWindows \? fitWindowsToViewport\(readWindows\(\)\) : \[\]/)
+  assert.match(desktop, /function fitWindowToViewport/)
+  assert.match(desktop, /if \(win\.maximized\)/)
+  assert.match(desktop, /window\.visualViewport\?\.addEventListener\("resize", refit\)/)
   assert.doesNotMatch(desktop, /FREE_DESKTOP_MIGRATION_KEY/)
   assert.doesNotMatch(desktop, /window\.localStorage\.removeItem\("synnical:os:windows:v1"\)/)
 })
@@ -40,11 +50,10 @@ test("provider-dependent video surfaces remain unavailable until a provider is r
   }
 })
 
-test("Synnical keeps its own tab identity instead of applying a hidden tab cloak", () => {
+test("browser tab keeps the requested Google Classroom favicon", () => {
   const layout = read("src/app/layout.tsx")
-  const settings = read("src/lib/settings-runtime.ts")
-  assert.match(layout, /\/brand\/rose\.png/)
-  assert.doesNotMatch(settings, /Google Classroom|privacy\.tabCloak/)
+  assert.match(layout, /\/brand\/google-classroom\.png/)
+  assert.doesNotMatch(layout, /icons:\s*\{[\s\S]*\/brand\/rose\.png/)
 })
 
 test("theme styles no longer contain the retired OLED force-overrides", () => {

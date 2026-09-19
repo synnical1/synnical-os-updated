@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ExternalLink,
   Heart,
+  History,
   ListMusic,
   Loader2,
   Music2,
@@ -445,24 +446,28 @@ export function MusicPanel() {
   return (
     <section className="synnical-music relative isolate flex h-full min-h-0 flex-col overflow-hidden"><MusicBackground />
       <header className="synnical-music-header shrink-0 px-5 py-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="mr-auto min-w-[180px]">
-            <p className="text-[10px] font-bold uppercase tracking-[.2em] text-[var(--synnical-muted)]">Synnical</p>
-            <div className="mt-1 flex items-center gap-2"><Waves className="h-5 w-5" /><h1 className="text-xl font-semibold">Music</h1></div>
-          </div>
-          <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-white/10 bg-black p-1">
-            <button className="px-3 text-xs" onClick={() => { setStoredSource("audius"); setLibraryView("favorites") }}>Favorites</button>
-            <button className="px-3 text-xs" onClick={() => { setStoredSource("audius"); setLibraryView("history") }}>Recently played</button>
-            <SourceButton active={source === "audius"} onClick={() => { setStoredSource("audius"); setLibraryView("browse"); void loadAudius() }} icon={Waves} label="Home" />
-            <SourceButton active={source === "bridge"} onClick={() => setStoredSource("bridge")} icon={Server} label="Search" disabled={!bridgeAvailable} />
-            <SourceButton active={source === "soundcloud"} onClick={() => setStoredSource("soundcloud")} icon={Music2} label="Import" />
-            <SourceButton active={source === "cobalt"} onClick={() => setStoredSource("cobalt")} icon={ExternalLink} label="Link" disabled={!status.cobalt.available} />
-            <SourceButton active={source === "radio"} onClick={() => setStoredSource("radio")} icon={Radio} label="Radio" />
-            <SourceButton active={source === "social"} onClick={() => setStoredSource("social")} icon={Trophy} label="Social" />
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-xl border border-[var(--synnical-glass-border)] bg-[var(--synnical-glass)] backdrop-blur-xl"><Waves className="h-5 w-5" /></div>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold">Music</h1>
+            <p className="truncate text-xs text-[var(--synnical-muted)]">{current ? `${current.title} · ${current.artist}` : "Your library, discovery and playback"}</p>
           </div>
         </div>
       </header>
 
+      <div className="min-h-0 flex flex-1">
+        <aside className="synnical-music-sidebar hidden w-48 shrink-0 flex-col gap-1 border-r border-[var(--synnical-glass-border)] p-3 backdrop-blur-xl md:flex">
+          <SourceButton active={source === "audius" && libraryView === "browse"} onClick={() => { setStoredSource("audius"); setLibraryView("browse"); void loadAudius() }} icon={Waves} label="Home" />
+          <SourceButton active={source === "bridge"} onClick={() => setStoredSource("bridge")} icon={Search} label="Search" disabled={!bridgeAvailable} />
+          <button className={cn("flex h-9 items-center gap-2 rounded-lg px-3 text-left text-xs", source === "audius" && libraryView === "favorites" ? "bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "text-[var(--synnical-muted)] hover:bg-[var(--synnical-hover)]")} onClick={() => { setStoredSource("audius"); setLibraryView("favorites") }}><Heart className="h-4 w-4" />Favorites</button>
+          <button className={cn("flex h-9 items-center gap-2 rounded-lg px-3 text-left text-xs", source === "audius" && libraryView === "history" ? "bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "text-[var(--synnical-muted)] hover:bg-[var(--synnical-hover)]")} onClick={() => { setStoredSource("audius"); setLibraryView("history") }}><History className="h-4 w-4" />Recently played</button>
+          <div className="my-2 h-px bg-[var(--synnical-glass-border)]" />
+          <SourceButton active={source === "soundcloud"} onClick={() => setStoredSource("soundcloud")} icon={Music2} label="Import" />
+          <SourceButton active={source === "cobalt"} onClick={() => setStoredSource("cobalt")} icon={ExternalLink} label="Link" disabled={!status.cobalt.available} />
+          <SourceButton active={source === "radio"} onClick={() => setStoredSource("radio")} icon={Radio} label="Radio" />
+          <SourceButton active={source === "social"} onClick={() => setStoredSource("social")} icon={Trophy} label="Social" />
+        </aside>
+        <div className="relative min-w-0 flex-1 overflow-hidden">
       {error ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-red-500/20 bg-red-950/25 px-5 py-2.5 text-xs text-red-200"><AlertCircle className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1">{error}</span><button onClick={() => setError("")} className="text-white/60 hover:text-white">Dismiss</button></div>
       ) : null}
@@ -529,6 +534,21 @@ export function MusicPanel() {
         {source === "social" && <MusicSocialPanel />}
       </div>
 
+        </div>
+        <aside className="synnical-music-context hidden w-64 shrink-0 flex-col border-l border-[var(--synnical-glass-border)] p-4 backdrop-blur-xl xl:flex">
+          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[var(--synnical-muted)]">Now playing</p>
+          <div className="mt-4 aspect-square overflow-hidden rounded-2xl border border-[var(--synnical-glass-border)] bg-[var(--synnical-glass)]">
+            {current?.artwork ? <img src={current.artwork} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center"><Music2 className="h-10 w-10 text-[var(--synnical-muted)] opacity-50" /></div>}
+          </div>
+          <strong className="mt-4 truncate text-sm">{current?.title || "Nothing playing"}</strong>
+          <span className="mt-1 truncate text-xs text-[var(--synnical-muted)]">{current?.artist || "Choose a track"}</span>
+          <div className="mt-5 flex items-center justify-between"><span className="text-xs font-semibold">Up next</span><button onClick={() => setQueueOpen(true)} className="text-xs text-[var(--synnical-muted)] hover:text-[var(--synnical-text)]">Queue</button></div>
+          <div className="mt-2 space-y-1 overflow-y-auto custom-scroll">
+            {queue.slice(0, 5).map((track, index) => <button key={`${trackKey(track)}:context:${index}`} onClick={() => playTrack(track, queue)} className="flex w-full items-center gap-2 rounded-lg p-2 text-left hover:bg-[var(--synnical-hover)]"><span className="w-4 text-[10px] text-[var(--synnical-muted)]">{index + 1}</span><span className="min-w-0"><span className="block truncate text-xs">{track.title}</span><span className="block truncate text-[10px] text-[var(--synnical-muted)]">{track.artist}</span></span></button>)}
+          </div>
+        </aside>
+      </div>
+
       {queueOpen ? <div className="absolute bottom-[76px] right-4 z-30 max-h-[45vh] w-[min(420px,calc(100%-2rem))] overflow-y-auto rounded-xl border border-white/12 bg-black/95 p-2 shadow-2xl">
         <div className="mb-2 flex items-center justify-between px-2"><strong className="text-xs">Queue · drag to reorder</strong><button onClick={() => setQueueOpen(false)} className="text-xs text-white/40">Close</button></div>
         {queue.length ? queue.map((track, index) => <div key={`${trackKey(track)}:${index}`} draggable onDragStart={() => setDragQueueIndex(index)} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (dragQueueIndex !== null) reorderQueue(dragQueueIndex, index); setDragQueueIndex(null) }} className={cn("flex cursor-grab items-center gap-2 rounded-lg px-2 py-2 text-xs hover:bg-white/5", current && trackKey(current) === trackKey(track) && "bg-white/8")}>
@@ -557,7 +577,7 @@ export function MusicPanel() {
 }
 
 function SourceButton({ active, onClick, icon: Icon, label, disabled = false }: { active: boolean; onClick: () => void; icon: typeof Music2; label: string; disabled?: boolean }) {
-  return <button type="button" onClick={onClick} disabled={disabled} title={disabled ? `${label} is not configured` : label} className={cn("flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs transition-colors", active ? "bg-white text-black" : "text-white/50 hover:bg-white/8 hover:text-white", disabled && "cursor-not-allowed opacity-25")}><Icon className="h-4 w-4" /><span>{label}</span></button>
+  return <button type="button" onClick={onClick} disabled={disabled} title={disabled ? `${label} is unavailable` : label} className={cn("flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs transition-colors", active ? "bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "text-[var(--synnical-muted)] hover:bg-[var(--synnical-hover)] hover:text-[var(--synnical-text)]", disabled && "cursor-not-allowed opacity-35")}><Icon className="h-4 w-4" /><span>{label}</span></button>
 }
 
 function TrackRow({ track, index, active, favorite, onPlay, onFavorite }: { track: MusicTrack; index: number; active: boolean; favorite: boolean; onPlay: () => void; onFavorite: () => void }) {

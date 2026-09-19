@@ -11,7 +11,7 @@ const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.
 test("staff hierarchy excludes cosmetic badges and denies self/equal/higher moderation", () => {
   const roles = ["MEMBER","GOAT","DEV","BETA TESTER","NOTABLE PERSON","MOD","ADMIN","HEAD_ADMIN","OWNER"]
   for (const actor of roles) for (const target of roles) {
-    const ranks: Record<string,number> = { OWNER: 5, HEAD_ADMIN: 4, ADMIN: 3, MOD: 2 }
+    const ranks: Record<string,number> = { OWNER: 3, HEAD_ADMIN: 2, ADMIN: 2, MOD: 1 }
     assert.equal(mayModerate({id:"a",role:actor},{id:"b",role:target}), (ranks[actor]||0) > (ranks[target]||0))
     assert.equal(mayModerate({id:"a",role:actor},{id:"a",role:target}), false)
   }

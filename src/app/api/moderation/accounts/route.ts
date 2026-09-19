@@ -4,25 +4,24 @@ import { getCurrentUser } from "@/lib/auth-server"
 import { toSafeUser } from "@/lib/auth"
 import { moderateAccount, ModerationError } from "@/lib/moderation-service"
 import { auditData } from "@/lib/audit-log"
-
-const rank: Record<string, number> = { MEMBER: 0, MOD: 1, ADMIN: 2, HEAD_ADMIN: 3, OWNER: 4 }
+import { canModerateTarget, isStaffRole } from "@/lib/roles"
 
 export async function GET() {
   const actor = await getCurrentUser()
-  if (!actor || (rank[actor.role] ?? -1) < rank.MOD) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || !isStaffRole(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const users = await db.user.findMany({ orderBy: { username: "asc" } })
   return NextResponse.json({ users: users.map(toSafeUser) })
 }
 
 export async function DELETE(req: NextRequest) {
   const actor = await getCurrentUser()
-  if (!actor || (rank[actor.role] ?? -1) < rank.MOD) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || !isStaffRole(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const { userId, action, reason } = await req.json().catch(() => ({}))
   if (typeof userId !== "string" || !["delete", "ban"].includes(action)) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   if (userId === actor.id) return NextResponse.json({ error: "You cannot remove your own account" }, { status: 409 })
   const target = await db.user.findUnique({ where: { id: userId } })
   if (!target) return NextResponse.json({ error: "Account not found" }, { status: 404 })
-  if ((rank[actor.role] ?? -1) <= (rank[target.role] ?? 0)) return NextResponse.json({ error: "You cannot remove an equal or higher staff role" }, { status: 403 })
+  if (!canModerateTarget(actor.role, target.role)) return NextResponse.json({ error: "You cannot remove an equal or higher staff role" }, { status: 403 })
   if (action === "ban") {
     try { return NextResponse.json(await moderateAccount(actor.id, { userId, type: "BAN", reason: typeof reason === "string" ? reason : "" })) }
     catch (error) { return NextResponse.json({ error: error instanceof ModerationError ? error.message : "Ban failed" }, { status: error instanceof ModerationError ? error.status : 500 }) }

@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth-server"
 import { toSafeUser, canModerate } from "@/lib/auth"
 
 const STAFF_ROLES = ["OWNER", "HEAD_ADMIN", "ADMIN", "MOD"]
-const ALL_ROLES = [...STAFF_ROLES, "MEMBER"]
+const PUBLIC_ROLES = ["OWNER", "ADMIN", "MOD", "MEMBER"]
 
 const numberParam = (value: string | null, fallback: number, min: number, max: number) => {
   const parsed = Number(value)
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   const where: Prisma.UserWhereInput = {}
   if (excludeSelf) where.id = { not: me.id }
-  if (ALL_ROLES.includes(role)) where.role = role
+  if (PUBLIC_ROLES.includes(role)) where.role = role === "ADMIN" ? { in: ["ADMIN", "HEAD_ADMIN"] } : role
   if (status === "MUTED") where.muted = true
   if (status === "ACTIVE") where.muted = false
   if (status === "STAFF") where.role = { in: STAFF_ROLES }
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       { displayName: { contains: q } },
       { id: { contains: q } },
     ]
-    if (ALL_ROLES.includes(upper)) or.push({ role: upper })
+    if (PUBLIC_ROLES.includes(upper)) or.push({ role: upper === "ADMIN" ? { in: ["ADMIN", "HEAD_ADMIN"] } : upper })
     where.AND = [{ OR: or }]
   }
 

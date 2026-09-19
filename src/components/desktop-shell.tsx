@@ -129,6 +129,33 @@ function readWindows(): WindowRecord[] {
   return rows.filter((row): row is WindowRecord => Boolean(row && typeof row === "object" && typeof (row as any).id === "string" && typeof (row as any).panel === "string" && Number.isFinite((row as any).x) && Number.isFinite((row as any).y) && Number.isFinite((row as any).width) && Number.isFinite((row as any).height) && Number.isFinite((row as any).z) && Number.isInteger((row as any).workspace)))
 }
 
+function fitWindowToViewport(win: WindowRecord, taskbarHeight = TASKBAR_HEIGHT): WindowRecord {
+  if (typeof window === "undefined") return win
+  const viewportWidth = Math.max(1, Math.round(window.innerWidth))
+  const viewportHeight = Math.max(1, Math.round(window.innerHeight - taskbarHeight))
+  const minWidth = Math.min(MIN_WIDTH, viewportWidth)
+  const minHeight = Math.min(MIN_HEIGHT, viewportHeight)
+  const fitRect = (rect: { x: number; y: number; width: number; height: number }) => {
+    const width = clamp(Math.round(rect.width), minWidth, viewportWidth)
+    const height = clamp(Math.round(rect.height), minHeight, viewportHeight)
+    return {
+      x: clamp(Math.round(rect.x), 0, Math.max(0, viewportWidth - width)),
+      y: clamp(Math.round(rect.y), 0, Math.max(0, viewportHeight - height)),
+      width,
+      height,
+    }
+  }
+  const restore = win.restore ? fitRect(win.restore) : undefined
+  if (win.maximized) {
+    return { ...win, x: 0, y: 0, width: viewportWidth, height: viewportHeight, restore }
+  }
+  return { ...win, ...fitRect(win), restore }
+}
+
+function fitWindowsToViewport(rows: WindowRecord[], taskbarHeight = TASKBAR_HEIGHT) {
+  return rows.map((win) => fitWindowToViewport(win, taskbarHeight))
+}
+
 function readNoticeRows(key = NOTICES_KEY): Notice[] {
   const rows = readJson<any[]>(key, [])
   return Array.isArray(rows) ? rows.filter((row) => row && typeof row.id === "string" && typeof row.title === "string" && typeof row.body === "string").map((row) => ({
@@ -363,7 +390,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
     const ids = os.workspaces.map((row) => row.id)
     return ids.includes(saved) ? saved : ids[0] || 1
   })
-  const [windows, setWindows] = useState<WindowRecord[]>(() => readWindows())
+  const [windows, setWindows] = useState<WindowRecord[]>(() => os.restoreWindows ? fitWindowsToViewport(readWindows()) : [])
   const [startOpen, setStartOpen] = useState(false)
   const [startView, setStartView] = useState<"pinned" | "all">("pinned")
   const [startQuery, setStartQuery] = useState("")
@@ -480,6 +507,34 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
   const snapTimer = useRef<number | null>(null)
   const now = useMinuteClock(os.clockSeconds || focusEndAt > Date.now())
   const taskbarMetric = TASKBAR_METRICS[os.taskbarSize]
+
+  useEffect(() => {
+    let frame = 0
+    const refit = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        setWindows((current) => {
+          const next = fitWindowsToViewport(current, taskbarMetric.height)
+          const changed = next.some((win, index) => {
+            const prior = current[index]
+            return !prior || win.x !== prior.x || win.y !== prior.y || win.width !== prior.width || win.height !== prior.height ||
+              win.restore?.x !== prior.restore?.x || win.restore?.y !== prior.restore?.y || win.restore?.width !== prior.restore?.width || win.restore?.height !== prior.restore?.height
+          })
+          if (!changed) return current
+          try { localStorage.setItem(WINDOW_KEY, JSON.stringify(next)) } catch {}
+          return next
+        })
+      })
+    }
+    refit()
+    window.addEventListener("resize", refit)
+    window.visualViewport?.addEventListener("resize", refit)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener("resize", refit)
+      window.visualViewport?.removeEventListener("resize", refit)
+    }
+  }, [taskbarMetric.height])
 
   const activeWorkspace = os.workspaces.find((row) => row.id === workspace) || os.workspaces[0]
   const slideshowWallpaper = os.wallpaperSlideshow && BUILTIN_OS_WALLPAPERS.length > 0 && !activeWorkspace?.wallpaper && !WALLPAPER_VIDEO_RE.test(os.desktopWallpaper)
