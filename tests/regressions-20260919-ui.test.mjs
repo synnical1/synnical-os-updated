@@ -65,3 +65,12 @@ test("theme styles no longer contain the retired OLED force-overrides", () => {
   assert.match(css, /:root\[data-appearance="dark"\]/)
   assert.match(css, /:root\[data-appearance="dark"\][\s\S]*--synnical-bg: #090d16/)
 })
+
+
+test("SynnFlix exposes one native launcher with no provider-branded duplicate", () => {
+  const shell = read("src/components/app-shell.tsx")
+  assert.match(shell, /\{ id: "movies", label: "SynnFlix"/)
+  assert.doesNotMatch(shell, /SynnFlix CineB/)
+  assert.doesNotMatch(shell, /id: "cineb"/)
+  assert.doesNotMatch(shell, /target === "cineb"/)
+})
