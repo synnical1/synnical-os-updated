@@ -1,0 +1,107 @@
+name: Deploy Synnical
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synnical-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out pushed commit
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev --include=optional
+
+      - name: Validate, test, and build
+        run: npm run release:gate
+
+  deploy:
+    name: Deploy to Oracle ARM64
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DEPLOY_HOST: 140.238.87.247
+      DEPLOY_USER: ubuntu
+      DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SYNNICAL_DEPLOY_SSH_KEY }}
+
+    steps:
+      - name: Require deployment key
+        run: |
+          if [ -z "$DEPLOY_SSH_PRIVATE_KEY" ]; then
+            echo "::error::Missing repository secret SYNNICAL_DEPLOY_SSH_KEY."
+            exit 1
+          fi
+
+      - name: Configure SSH
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H "$DEPLOY_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Deploy exact pushed commit
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "sudo -n -u synnical -H bash -s -- '$DEPLOY_SHA'" <<'REMOTE'
+          set -Eeuo pipefail
+
+          deploy_sha="$1"
+          app_dir="/var/www/synnical"
+          lock_file="/tmp/synnical-deploy.lock"
+
+          exec 9>"$lock_file"
+          if ! flock -n 9; then
+            echo "Another Synnical deployment is already running." >&2
+            exit 75
+          fi
+
+          cd "$app_dir"
+          git fetch --no-tags origin main
+          git cat-file -e "$deploy_sha^{commit}"
+          git reset --hard "$deploy_sha"
+
+          npm ci --include=dev --include=optional
+          npx prisma generate
+          npm run db:init
+          npm run build
+
+          pm2 reload synnical --update-env
+          pm2 save
+
+          for attempt in $(seq 1 15); do
+            if curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3000/api >/dev/null; then
+              git rev-parse --verify HEAD
+              echo "Synnical deployment completed."
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Synnical did not become healthy after deployment." >&2
+          exit 1
+          REMOTE
