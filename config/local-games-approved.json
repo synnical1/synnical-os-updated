@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "approved": {
+    "gmshelf/seraph:2048": {
+      "license": "MIT",
+      "licensePath": "seraph/2048/LICENSE.txt",
+      "note": "Per-game MIT license is present upstream and must be copied with the game."
+    }
+  }
+}
