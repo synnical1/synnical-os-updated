@@ -1190,17 +1190,37 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
                 {SEARCH_ENGINES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <p className="text-xs text-[var(--synnical-muted)]">Theme</p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {THEMES.slice(0, 6).map((t) => (
-                  <button key={t.id} onClick={() => setTheme(t.id)} className={cn("flex flex-col items-center gap-1 p-2 rounded-md border text-[10px]", theme === t.id ? "border-white bg-white text-black" : "border-[var(--synnical-border)] hover:bg-[var(--synnical-surface-2)]")}>
-                    <span className="h-4 w-4 rounded-full" style={{ background: t.colors[1] }} />
-                    {t.name}
-                  </button>
-                ))}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-[var(--synnical-text)]">Accent theme</p>
+                <span className="text-[10px] text-[var(--synnical-muted)]">OS-wide</span>
               </div>
-              <p className="text-[10px] text-[var(--synnical-muted)] mt-1">More themes in Settings → Appearance</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {THEMES.slice(0, 6).map((t) => {
+                  const active = theme === t.id
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setTheme(t.id)}
+                      className={cn(
+                        "group flex min-w-0 items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition",
+                        active
+                          ? "border-[var(--synnical-accent)] bg-[var(--synnical-selected)]"
+                          : "border-[var(--synnical-border)] bg-[var(--synnical-glass)] hover:bg-[var(--synnical-hover)]",
+                      )}
+                    >
+                      <span className="flex h-5 w-8 shrink-0 overflow-hidden rounded-md border border-white/10">
+                        {t.colors.slice(0, 3).map((color, index) => <span key={`${t.id}:${index}`} className="min-w-0 flex-1" style={{ backgroundColor: color }} />)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-[var(--synnical-text)]">{t.name}</span>
+                      {active ? <Check className="h-3 w-3 shrink-0 text-[var(--synnical-accent)]" /> : null}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-[10px] leading-4 text-[var(--synnical-muted)]">All themes are in Settings → Appearance.</p>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs">Image blur</span>
