@@ -1,0 +1,116 @@
+/* Dedicated startup visuals. These selectors intentionally avoid legacy
+   bg-black/text-white utilities, so Light-mode compatibility rules cannot
+   transform the boot experience into an opaque white flash. */
+:root {
+  --synnical-boot-bg: #e8eef6;
+  --synnical-boot-panel: rgba(250, 252, 255, .72);
+  --synnical-boot-panel-border: rgba(81, 100, 130, .26);
+  --synnical-boot-fg: #15243a;
+  --synnical-boot-muted: #617088;
+  --synnical-boot-aura-color: rgba(51, 65, 85, .16);
+  --synnical-boot-track: rgba(21, 36, 58, .14);
+  --synnical-boot-progress: #334155;
+}
+:root[data-appearance="dark"] {
+  --synnical-boot-bg: #090d16;
+  --synnical-boot-panel: rgba(16, 23, 36, .72);
+  --synnical-boot-panel-border: rgba(210, 225, 255, .15);
+  --synnical-boot-fg: #f4f7fb;
+  --synnical-boot-muted: #aab6c7;
+  --synnical-boot-aura-color: rgba(255, 255, 255, .12);
+  --synnical-boot-track: rgba(255, 255, 255, .12);
+  --synnical-boot-progress: #f4f7fb;
+}
+.synnical-boot-stage,
+.synnical-auth-loading {
+  position: fixed;
+  inset: 0;
+  min-height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, var(--synnical-boot-aura-color), transparent 32%),
+    linear-gradient(145deg, color-mix(in srgb, var(--synnical-boot-bg) 90%, transparent), var(--synnical-boot-bg));
+  color: var(--synnical-boot-fg);
+}
+.synnical-boot-stage::before,
+.synnical-auth-loading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .32;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(circle at center, #000 0 45%, transparent 82%);
+}
+.synnical-boot {
+  background: transparent;
+  color: var(--synnical-boot-fg);
+}
+.synnical-boot-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  min-width: 220px;
+  padding: 30px 34px 26px;
+  border: 1px solid var(--synnical-boot-panel-border);
+  border-radius: 24px;
+  background: var(--synnical-boot-panel);
+  box-shadow: var(--synnical-shadow, 0 20px 60px rgba(0,0,0,.18));
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  backdrop-filter: blur(22px) saturate(1.08);
+}
+.synnical-boot .synnical-boot-aura {
+  background: radial-gradient(circle, var(--synnical-boot-aura-color), transparent 66%);
+}
+.synnical-boot .synnical-boot-mark img {
+  filter: none;
+  box-shadow: none;
+}
+:root[data-appearance="dark"] .synnical-boot .synnical-boot-mark img {
+  filter: grayscale(1) brightness(1.65) contrast(1.3);
+  box-shadow: 0 0 38px rgba(255,255,255,.14);
+}
+.synnical-boot .synnical-boot-orbit {
+  border-color: color-mix(in srgb, var(--synnical-boot-fg) 28%, transparent);
+}
+.synnical-boot .synnical-boot-orbit-two {
+  border-color: color-mix(in srgb, var(--synnical-boot-fg) 12%, transparent);
+}
+.synnical-boot .synnical-boot-wordmark {
+  color: color-mix(in srgb, var(--synnical-boot-fg) 84%, transparent);
+}
+.synnical-boot .synnical-boot-track { background: var(--synnical-boot-track); }
+.synnical-boot .synnical-boot-track span { background: var(--synnical-boot-progress); }
+.synnical-auth-loading {
+  display: grid;
+  place-items: center;
+}
+.synnical-auth-loading-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 210px;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 26px 30px;
+  border: 1px solid var(--synnical-boot-panel-border);
+  border-radius: 22px;
+  background: var(--synnical-boot-panel);
+  color: var(--synnical-boot-fg);
+  box-shadow: var(--synnical-shadow, 0 20px 60px rgba(0,0,0,.18));
+  -webkit-backdrop-filter: blur(20px) saturate(1.08);
+  backdrop-filter: blur(20px) saturate(1.08);
+}
+.synnical-auth-loading-card p { color: var(--synnical-boot-muted); }
+@media (prefers-reduced-transparency: reduce) {
+  .synnical-boot-card,
+  .synnical-auth-loading-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
