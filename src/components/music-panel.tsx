@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ExternalLink,
   Heart,
+  History,
   ListMusic,
   Loader2,
   Music2,
