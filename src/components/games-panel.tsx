@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { cn } from "@/lib/utils"
-import { Search, X, ChevronLeft, Wifi, WifiOff, Gamepad2, Clock, Users, Zap, RotateCcw, Volume2, Gauge, FolderPlus, ImagePlus, RefreshCw, Save, Check, Trash2, Heart } from "lucide-react"
+import { Search, X, ChevronLeft, Wifi, WifiOff, Gamepad2, Clock, Users, Zap, RotateCcw, Volume2, Gauge, FolderPlus, ImagePlus, RefreshCw, Save, Check, Trash2 } from "lucide-react"
 import { useSetting } from "@/lib/settings-runtime"
 import { featureApi } from "@/lib/feature-api"
 import { toast } from "sonner"
@@ -18,16 +18,6 @@ type GameEntry = {
   tags: string[]
 }
 
-type LocalGameEntry = {
-  id: string
-  title: string
-  slug: string
-  cover: string | null
-  launchUrl: string
-  source: "synnical" | "gmshelf"
-  sourceRepo?: string
-  tags: string[]
-}
 
 type SessionState =
   | { phase: "idle" }
@@ -454,14 +444,9 @@ export function GamesPanel() {
 
   const [search, setSearch] = useState("")
   const [games, setGames] = useState<GameEntry[]>([])
-  const [localGames, setLocalGames] = useState<LocalGameEntry[]>([])
   const [catalogError, setCatalogError] = useState("")
-  const [localCatalogError, setLocalCatalogError] = useState("")
-  const [libraryMode, setLibraryMode] = useState<"local" | "cloud">("local")
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [selected, setSelected] = useState<GameEntry | null>(null)
-  const [selectedLocal, setSelectedLocal] = useState<LocalGameEntry | null>(null)
-  const [localPlaying, setLocalPlaying] = useState(false)
   const [sessionState, setSessionState] = useState<SessionState>({ phase: "idle" })
   const [embedHtml, setEmbedHtml] = useState<string | null>(null)
   const [embedFailure, setEmbedFailure] = useState<GameFailure | null>(null)
@@ -479,7 +464,6 @@ export function GamesPanel() {
   const richPresenceGameRef = useRef<string | null>(null)
   const richPresenceStartedRef = useRef<string | null>(null)
   const trackedSessionStartRef = useRef<Promise<string | null> | null>(null)
-  const localSessionIdRef = useRef<string | null>(null)
   const [embedRevision, setEmbedRevision] = useState(0)
   const screenshotInputRef = useRef<HTMLInputElement | null>(null)
   const [gameFullscreen, setGameFullscreen] = useState(false)
@@ -490,42 +474,6 @@ export function GamesPanel() {
   }, [])
 
   useEffect(() => { refreshFeatures() }, [refreshFeatures])
-
-  const endLocalSession = useCallback((result = "ended") => {
-    setLocalPlaying(false)
-    window.dispatchEvent(new CustomEvent("synnical-game-focus", { detail: { active: false } }))
-    const id = localSessionIdRef.current
-    localSessionIdRef.current = null
-    if (id) void featureApi.games.action("session-end", { id, result }).then(refreshFeatures).catch(() => {})
-  }, [refreshFeatures])
-
-  const startLocalSession = useCallback(async () => {
-    if (!selectedLocal) return
-    setLocalPlaying(true)
-    window.dispatchEvent(new CustomEvent("synnical-game-focus", { detail: { active: true } }))
-    try {
-      const result = await featureApi.games.action("session-start", { gameId: selectedLocal.id, gameName: selectedLocal.title })
-      localSessionIdRef.current = typeof result?.session?.id === "string" ? result.session.id : null
-      refreshFeatures()
-      try {
-        const key = "synnical:os:recent-games:v1"
-        const raw = JSON.parse(localStorage.getItem(key) || "[]")
-        const rows = Array.isArray(raw) ? raw : []
-        const recent = [{ id: selectedLocal.id, name: selectedLocal.title, at: Date.now() }, ...rows.filter((row: any) => row?.id !== selectedLocal.id)].slice(0, 8)
-        localStorage.setItem(key, JSON.stringify(recent))
-        window.dispatchEvent(new CustomEvent("synnical-recent-games-changed", { detail: { games: recent } }))
-      } catch {}
-    } catch (error) {
-      setLocalPlaying(false)
-      window.dispatchEvent(new CustomEvent("synnical-game-focus", { detail: { active: false } }))
-      toast.error(error instanceof Error ? error.message : "Could not start local game session")
-    }
-  }, [selectedLocal, refreshFeatures])
-
-  useEffect(() => () => {
-    const id = localSessionIdRef.current
-    if (id) void featureApi.games.action("session-end", { id, result: "closed" }).catch(() => {})
-  }, [])
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -644,27 +592,6 @@ export function GamesPanel() {
     return () => controller.abort()
   }, [])
 
-  useEffect(() => {
-    const controller = new AbortController()
-    setLocalCatalogError("")
-    fetch("/api/games/local/catalog", { cache: "no-store", credentials: "include", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Local game library could not be loaded")
-        return response.json() as Promise<{ games?: unknown }>
-      })
-      .then((payload) => {
-        const rows = Array.isArray(payload.games) ? payload.games : []
-        setLocalGames(rows.filter((entry): entry is LocalGameEntry => {
-          if (!entry || typeof entry !== "object") return false
-          const game = entry as Partial<LocalGameEntry>
-          return typeof game.id === "string" && typeof game.title === "string" && typeof game.launchUrl === "string" && Array.isArray(game.tags)
-        }))
-      })
-      .catch((error) => {
-        if (!controller.signal.aborted) setLocalCatalogError(error instanceof Error ? error.message : "Local game library could not be loaded")
-      })
-    return () => controller.abort()
-  }, [])
 
   useEffect(() => {
     // Keep Synnical chrome available whenever game input has been released so
@@ -898,11 +825,6 @@ export function GamesPanel() {
     const matchTag = !activeTag || g.tags.includes(activeTag)
     return matchSearch && matchTag
   })
-  const filteredLocal = localGames.filter((g) => {
-    const matchSearch = !search || g.title.toLowerCase().includes(search.toLowerCase())
-    const matchTag = !activeTag || g.tags.includes(activeTag)
-    return matchSearch && matchTag
-  })
 
   // ── Cleanup ──
   const clearIntervals = useCallback(() => {
@@ -1060,62 +982,6 @@ export function GamesPanel() {
 
   // ── Cleanup on unmount ──
   useEffect(() => () => { clearIntervals() }, [clearIntervals])
-
-  if (selectedLocal && localPlaying) {
-    return (
-      <div className="absolute inset-0 z-20 flex flex-col bg-black">
-        <div className="flex h-11 shrink-0 items-center gap-3 border-b border-white/10 bg-black/90 px-3 text-white backdrop-blur-xl">
-          <button onClick={() => endLocalSession("ended")} className="rounded-lg px-2 py-1 text-xs hover:bg-white/10"><ChevronLeft className="mr-1 inline h-3.5 w-3.5" />Back</button>
-          <strong className="min-w-0 flex-1 truncate text-sm">{selectedLocal.title}</strong>
-          <span className="text-[10px] text-white/45">Local game</span>
-        </div>
-        <iframe
-          src={selectedLocal.launchUrl}
-          title={selectedLocal.title}
-          className="min-h-0 flex-1 border-0 bg-black"
-          sandbox="allow-scripts allow-pointer-lock allow-downloads allow-forms allow-modals"
-          allow="autoplay; fullscreen; gamepad"
-          allowFullScreen
-          referrerPolicy="no-referrer"
-        />
-      </div>
-    )
-  }
-
-  if (selectedLocal) {
-    return (
-      <div className="flex h-full flex-col overflow-y-auto bg-[var(--synnical-bg)] text-[var(--synnical-text)] custom-scroll">
-        <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center border-b border-[var(--synnical-border)] bg-[var(--synnical-glass-strong)] px-4 backdrop-blur-xl">
-          <button onClick={() => setSelectedLocal(null)} className="flex items-center gap-1.5 text-xs text-[var(--synnical-muted)] hover:text-[var(--synnical-text)]"><ChevronLeft className="h-4 w-4" />All games</button>
-        </div>
-        <div className="mx-auto w-full max-w-3xl p-5">
-          <div className="flex items-start gap-4">
-            <div className="grid h-28 w-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)]">
-              {selectedLocal.cover ? <img src={selectedLocal.cover} alt="" className="h-full w-full object-cover" /> : <Gamepad2 className="h-8 w-8 text-[var(--synnical-muted)]" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-xl font-bold">{selectedLocal.title}</h2>
-              <p className="mt-1 text-sm text-[var(--synnical-muted)]">Runs locally in a restricted game sandbox. It cannot share the normal Synnical page origin.</p>
-              <div className="mt-3 flex flex-wrap gap-1.5">{selectedLocal.tags.map((tag) => <span key={tag} className="rounded-full border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] px-2 py-1 text-[10px]">{tag}</span>)}</div>
-            </div>
-          </div>
-          <div className="mt-6 grid gap-2 sm:grid-cols-[1fr_auto]">
-            <button onClick={() => void startLocalSession()} className="flex items-center justify-center gap-2 rounded-xl bg-[var(--synnical-accent)] py-3 text-sm font-bold text-white hover:bg-[var(--synnical-accent-hover)]"><Gamepad2 className="h-4 w-4" />Play locally</button>
-            <button
-              onClick={async () => { await featureApi.games.action("toggle-favorite", { gameId: selectedLocal.id }); refreshFeatures() }}
-              className={cn("flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm", featureState?.favorites?.includes(selectedLocal.id) ? "border-pink-400/50 bg-pink-500/10 text-pink-300" : "border-[var(--synnical-border)] text-[var(--synnical-muted)] hover:bg-[var(--synnical-surface-2)]")}
-              aria-pressed={Boolean(featureState?.favorites?.includes(selectedLocal.id))}
-            ><Heart className="h-4 w-4" fill={featureState?.favorites?.includes(selectedLocal.id) ? "currentColor" : "none"} />Favorite</button>
-          </div>
-          <div className="mt-4 rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)] p-3">
-            <div className="flex items-center justify-between gap-2"><span className="text-xs font-bold uppercase tracking-wider text-[var(--synnical-muted)]">Collections</span><button className="text-xs text-[var(--synnical-accent)]" onClick={async () => { const name = window.prompt("Collection name")?.trim(); if (!name) return; await featureApi.games.action("create-collection", { name }); refreshFeatures() }}><FolderPlus className="mr-1 inline h-3.5 w-3.5" />New</button></div>
-            <div className="mt-2 flex flex-wrap gap-1.5">{(featureState?.collections || []).map((collection: any) => { const active = collection.gameIds?.includes(selectedLocal.id); return <button key={collection.id} onClick={async () => { await featureApi.games.action("toggle-collection-game", { collectionId: collection.id, gameId: selectedLocal.id }); refreshFeatures() }} className={cn("rounded-full border px-2 py-1 text-[11px]", active ? "border-[var(--synnical-accent)] bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "border-[var(--synnical-border)] text-[var(--synnical-muted)]")}>{active && <Check className="mr-1 inline h-3 w-3" />}{collection.name}</button> })}</div>
-          </div>
-          {selectedLocal.source === "gmshelf" ? <p className="mt-3 text-xs text-[var(--synnical-muted)]">Imported only when its redistribution licence is explicitly approved by the server catalogue.</p> : null}
-        </div>
-      </div>
-    )
-  }
 
   // ── Active game view ──
   if (sessionState.phase === "active" && selected) {
@@ -1350,18 +1216,13 @@ export function GamesPanel() {
             <h1 className="text-base font-bold text-[var(--synnical-text)]">Games</h1>
           </div>
           <span className="text-[11px] text-[var(--synnical-muted)] bg-[var(--synnical-surface-2)] px-2 py-0.5 rounded-full border border-[var(--synnical-border)]">
-            {libraryMode === "local" ? filteredLocal.length : filtered.length} games
+            {filtered.length} games
           </span>
           {sessionState.phase !== "idle" && (
             <div className="ml-auto">
               <SessionStatusBar state={sessionState} onQuit={quitSession} />
             </div>
           )}
-        </div>
-
-        <div className="flex w-fit rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] p-1">
-          <button onClick={() => { setLibraryMode("local"); setSelected(null); setSearch(""); setActiveTag(null) }} className={cn("rounded-lg px-3 py-1.5 text-xs", libraryMode === "local" ? "bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "text-[var(--synnical-muted)] hover:text-[var(--synnical-text)]")}><Gamepad2 className="mr-1 inline h-3.5 w-3.5" />Local</button>
-          <button onClick={() => { setLibraryMode("cloud"); setSelectedLocal(null); setSearch(""); setActiveTag(null) }} className={cn("rounded-lg px-3 py-1.5 text-xs", libraryMode === "cloud" ? "bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "text-[var(--synnical-muted)] hover:text-[var(--synnical-text)]")}><Wifi className="mr-1 inline h-3.5 w-3.5" />Cloud</button>
         </div>
 
         {/* Search */}
@@ -1404,42 +1265,26 @@ export function GamesPanel() {
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto custom-scroll p-4">
-        {libraryMode === "local" ? (
-          localCatalogError ? (
-            <div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-red-300"><WifiOff className="h-10 w-10 opacity-50" /><p className="max-w-lg text-sm">{localCatalogError}</p></div>
-          ) : filteredLocal.length === 0 ? (
-            <div className="flex h-48 flex-col items-center justify-center gap-3 text-[var(--synnical-muted)]"><Gamepad2 className="h-10 w-10 opacity-20" /><p className="text-sm">No local games match your search</p></div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {filteredLocal.map((game) => (
-                <GameCard key={game.id} game={{ name: game.title, game_key: game.id, description: "Local game", image: game.cover || "", cover: game.cover || "", tags: game.tags }} onClick={() => { setSelected(null); setSelectedLocal(game); setLocalPlaying(false) }} />
-              ))}
-            </div>
-          )
+        {featureState?.continuePlaying?.length > 0 && !search && !activeTag && (
+          <section className="mb-5">
+            <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold">Continue Playing</h2><span className="text-xs text-[var(--synnical-muted)]">Based on your recent play time</span></div>
+            <div className="flex gap-3 overflow-x-auto pb-2 custom-scroll">{featureState.continuePlaying.map((session: any) => { const game = games.find((entry) => entry.game_key === session.gameId); if (!game) return null; return <div key={session.gameId} className="w-36 shrink-0"><GameCard game={game} onClick={() => setSelected(game)} /><p className="mt-1 text-[10px] text-[var(--synnical-muted)]">{Math.max(1, Math.round((featureState.durationByGame?.[session.gameId] || 0) / 60))} min played</p></div> })}</div>
+          </section>
+        )}
+        {featureState?.screenshots?.length > 0 && !search && !activeTag && (
+          <section className="mb-5">
+            <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold">Private screenshots</h2><span className="text-xs text-[var(--synnical-muted)]">Only you can view these screenshots</span></div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">{featureState.screenshots.slice(0, 20).map((shot: any) => <div key={shot.id} className="group relative overflow-hidden rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)]"><img data-image-viewer={shot.fileUrl} role="button" tabIndex={0} aria-label="Open uploaded image" src={shot.fileUrl} alt="Private game screenshot" className="aspect-video w-full object-cover" loading="lazy" /><button type="button" onClick={async () => { const response = await fetch(shot.fileUrl, { method: "DELETE", credentials: "include" }); if (!response.ok) return toast.error("Could not delete screenshot"); toast.success("Screenshot deleted"); refreshFeatures() }} className="absolute right-1 top-1 rounded-md bg-black/80 p-1.5 text-red-300 opacity-0 transition-opacity group-hover:opacity-100" aria-label="Delete screenshot"><Trash2 className="h-3.5 w-3.5" /></button><p className="truncate px-2 py-1.5 text-[10px] text-[var(--synnical-muted)]">{games.find((entry) => entry.game_key === shot.gameId)?.name || "Unknown game"}</p></div>)}</div>
+          </section>
+        )}
+        {catalogError ? (
+          <div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-red-300"><WifiOff className="h-10 w-10 opacity-50" /><p className="max-w-lg text-sm">{catalogError}</p></div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-48 gap-3 text-[var(--synnical-muted)]"><Gamepad2 className="h-10 w-10 opacity-20" /><p className="text-sm">No cloud games match your search</p></div>
         ) : (
-          <>
-            {featureState?.continuePlaying?.length > 0 && !search && !activeTag && (
-              <section className="mb-5">
-                <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold">Continue Playing</h2><span className="text-xs text-[var(--synnical-muted)]">Based on your recent play time</span></div>
-                <div className="flex gap-3 overflow-x-auto pb-2 custom-scroll">{featureState.continuePlaying.map((session: any) => { const game = games.find((entry) => entry.game_key === session.gameId); if (!game) return null; return <div key={session.gameId} className="w-36 shrink-0"><GameCard game={game} onClick={() => setSelected(game)} /><p className="mt-1 text-[10px] text-[var(--synnical-muted)]">{Math.max(1, Math.round((featureState.durationByGame?.[session.gameId] || 0) / 60))} min played</p></div> })}</div>
-              </section>
-            )}
-            {featureState?.screenshots?.length > 0 && !search && !activeTag && (
-              <section className="mb-5">
-                <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold">Private screenshots</h2><span className="text-xs text-[var(--synnical-muted)]">Only you can view these screenshots</span></div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">{featureState.screenshots.slice(0, 20).map((shot: any) => <div key={shot.id} className="group relative overflow-hidden rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)]"><img data-image-viewer={shot.fileUrl} role="button" tabIndex={0} aria-label="Open uploaded image" src={shot.fileUrl} alt="Private game screenshot" className="aspect-video w-full object-cover" loading="lazy" /><button type="button" onClick={async () => { const response = await fetch(shot.fileUrl, { method: "DELETE", credentials: "include" }); if (!response.ok) return toast.error("Could not delete screenshot"); toast.success("Screenshot deleted"); refreshFeatures() }} className="absolute right-1 top-1 rounded-md bg-black/80 p-1.5 text-red-300 opacity-0 transition-opacity group-hover:opacity-100" aria-label="Delete screenshot"><Trash2 className="h-3.5 w-3.5" /></button><p className="truncate px-2 py-1.5 text-[10px] text-[var(--synnical-muted)]">{games.find((entry) => entry.game_key === shot.gameId)?.name || "Unknown game"}</p></div>)}</div>
-              </section>
-            )}
-            {catalogError ? (
-              <div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-red-300"><WifiOff className="h-10 w-10 opacity-50" /><p className="max-w-lg text-sm">{catalogError}</p></div>
-            ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 gap-3 text-[var(--synnical-muted)]"><Gamepad2 className="h-10 w-10 opacity-20" /><p className="text-sm">No cloud games match your search</p></div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                {filtered.map((game) => <GameCard key={game.game_key} game={game} onClick={() => { setSelectedLocal(null); setSelected(game); if (sessionState.phase === "error") setSessionState({ phase: "idle" }) }} />)}
-              </div>
-            )}
-          </>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {filtered.map((game) => <GameCard key={game.game_key} game={game} onClick={() => { setSelected(game); if (sessionState.phase === "error") setSessionState({ phase: "idle" }) }} />)}
+          </div>
         )}
       </div>
     </div>
