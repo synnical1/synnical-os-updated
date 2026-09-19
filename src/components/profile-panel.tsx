@@ -141,7 +141,7 @@ export function ProfilePanel() {
     // so every frame is transformed instead of flattening the first frame.
     // Animated WebP/APNG still upload as-is until they have equivalent
     // frame-aware crop support.
-    const animatedNonGif = (file.type === "image/webp" || file.type === "image/apng") && file.type !== "image/gif"
+    const animatedNonGif = file.type === "image/webp" || file.type === "image/apng"
     if (animatedNonGif) {
       void uploadDirect(mode, file)
       toast.info("Animated image uploaded as-is — animation preserved.")
