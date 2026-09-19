@@ -13,8 +13,8 @@ import { InfractionsPanel } from "@/components/infractions-panel"
 import { Ban, Check, ChevronLeft, ChevronRight, Coins, FileWarning, History, Images, Loader2, Search, Shield, Trash2, Users, X } from "lucide-react"
 import { toast } from "sonner"
 
-const rank: Record<string, number> = { MEMBER: 0, MOD: 1, ADMIN: 2, HEAD_ADMIN: 3, OWNER: 4 }
-const roles = ["ALL", "MEMBER", "MOD", "ADMIN", "HEAD_ADMIN", "OWNER"] as const
+const rank: Record<string, number> = { MEMBER: 0, MOD: 1, ADMIN: 2, HEAD_ADMIN: 2, OWNER: 3 }
+const roles = ["ALL", "MEMBER", "MOD", "ADMIN", "OWNER"] as const
 
 type PendingMedia = {
   id: string
@@ -185,7 +185,7 @@ export function StaffAccountsPanel() {
         </div>
         <div className="grid gap-2 md:grid-cols-[1fr_160px_160px]">
           <div className="relative"><Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--synnical-muted)]" /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search members…" className="pl-8" /></div>
-          <Select value={role} onValueChange={(value) => { setRole(value); setPage(1) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{roles.map((item) => <SelectItem key={item} value={item}>{item === "ALL" ? "All roles" : item === "HEAD_ADMIN" ? "Head Admin" : item[0] + item.slice(1).toLowerCase()}</SelectItem>)}</SelectContent></Select>
+          <Select value={role} onValueChange={(value) => { setRole(value); setPage(1) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{roles.map((item) => <SelectItem key={item} value={item}>{item === "ALL" ? "All roles" : item[0] + item.slice(1).toLowerCase()}</SelectItem>)}</SelectContent></Select>
           <Select value={status} onValueChange={(value) => { setStatus(value); setPage(1) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">All accounts</SelectItem><SelectItem value="ACTIVE">Not muted</SelectItem><SelectItem value="MUTED">Muted</SelectItem><SelectItem value="STAFF">Staff only</SelectItem><SelectItem value="MEMBERS">Members only</SelectItem></SelectContent></Select>
         </div>
 
