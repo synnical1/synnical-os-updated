@@ -756,7 +756,7 @@ function ConnectionsSection() {
         )}
 
         {showForm ? (
-          <div className="rounded-lg border border-[#2a2a2a] bg-[#070707] p-4 space-y-3">
+          <div className="rounded-lg border border-[#2a2a2a] bg-[var(--synnical-surface-2)] p-4 space-y-3">
             <h3 className="text-sm font-semibold text-[var(--synnical-text)]">{editId ? "Edit connection" : "Add a connection"}</h3>
             <div className="space-y-2">
               <Label htmlFor="conn-platform">Platform</Label>
@@ -1230,9 +1230,9 @@ function LegalSection() {
       <section className="rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)] p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--synnical-muted)]">Build information</p>
         <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
-          <div className="rounded-lg border border-[var(--synnical-border)] bg-[#070707] p-3"><p className="text-xs text-[var(--synnical-muted)]">Version</p><p className="mt-1 font-medium">{SYNNICAL_VERSION}</p></div>
-          <div className="rounded-lg border border-[var(--synnical-border)] bg-[#070707] p-3"><p className="text-xs text-[var(--synnical-muted)]">Build</p><p className="mt-1 break-all font-medium">{SYNNICAL_BUILD}</p></div>
-          <div className="rounded-lg border border-[var(--synnical-border)] bg-[#070707] p-3"><p className="text-xs text-[var(--synnical-muted)]">Build date</p><p className="mt-1 font-medium">{SYNNICAL_BUILD_DATE}</p></div>
+          <div className="rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] p-3"><p className="text-xs text-[var(--synnical-muted)]">Version</p><p className="mt-1 font-medium">{SYNNICAL_VERSION}</p></div>
+          <div className="rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] p-3"><p className="text-xs text-[var(--synnical-muted)]">Build</p><p className="mt-1 break-all font-medium">{SYNNICAL_BUILD}</p></div>
+          <div className="rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] p-3"><p className="text-xs text-[var(--synnical-muted)]">Build date</p><p className="mt-1 font-medium">{SYNNICAL_BUILD_DATE}</p></div>
         </div>
       </section>
 
@@ -1243,6 +1243,12 @@ function LegalSection() {
         <p className="text-sm leading-6 text-[var(--synnical-muted)]">Synnical may send limited content to configured service providers when a feature requires it, such as moderation, AI, GIF search, or other integrations. Those providers process data under their own terms and privacy practices. Do not put secrets or information you do not want processed into features that use third-party services.</p>
         <p className="text-sm leading-6 text-[var(--synnical-muted)]">Staff can access moderation information when needed to investigate safety, abuse, account, and service issues. Data may also be retained when reasonably necessary for security, dispute handling, or legal obligations.</p>
         <p className="text-xs leading-5 text-[var(--synnical-muted)]">This in-app policy describes the product behaviour in this build. It is not a substitute for jurisdiction-specific legal advice.</p>
+      </section>
+
+      <section className="mt-5 space-y-3 rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)] p-5">
+        <h2 className="text-lg font-semibold">Credits &amp; required notices</h2>
+        <p className="text-sm leading-6 text-[var(--synnical-muted)]">This website uses Stratus API to provide some of its services</p>
+        <p className="text-xs leading-5 text-[var(--synnical-muted)]">Stratus API code is used by Synnical&apos;s cloud-gaming integration under the Stratus Public License. This notice is displayed here to satisfy the project&apos;s public-facing attribution requirement.</p>
       </section>
 
       <section className="mt-5 space-y-3 rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)] p-5">
@@ -1585,7 +1591,7 @@ function BillingSection() {
     <div>
       <SectionTitle title="Billing" desc="Your subscription and plan details." />
       <div className="space-y-4">
-        <div className="rounded-xl border border-[#2a2a2a] bg-[#070707] p-4">
+        <div className="rounded-xl border border-[#2a2a2a] bg-[var(--synnical-surface-2)] p-4">
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sm font-semibold text-[var(--synnical-text)]">Free Plan</p>
