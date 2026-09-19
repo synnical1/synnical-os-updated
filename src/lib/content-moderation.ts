@@ -397,6 +397,9 @@ async function moderateAndSanitizeImageInner(buffer: Buffer, surface: ImageModer
   }
 
   let safeBuffer: Buffer
+  const preserveAnimatedGif = isAnimated && metadata.format === "gif"
+  const safeExtension = preserveAnimatedGif ? ".gif" : ".webp"
+  const safeMime = preserveAnimatedGif ? "image/gif" : "image/webp"
   try {
     const target = isAnimated
       ? surface === "pfp"
@@ -416,10 +419,10 @@ async function moderateAndSanitizeImageInner(buffer: Buffer, surface: ImageModer
       limitInputPixels: MAX_ANIMATED_PIXELS,
     })
     if (!isAnimated) pipeline.rotate()
-    safeBuffer = await pipeline
-      .resize({ ...target, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: isAnimated ? 80 : 86, effort: 4, loop: 0 })
-      .toBuffer()
+    pipeline.resize({ ...target, fit: "inside", withoutEnlargement: true })
+    safeBuffer = preserveAnimatedGif
+      ? await pipeline.gif({ loop: metadata.loop ?? 0, delay: metadata.delay, keepDuplicateFrames: true, reoptimise: true, effort: 7 }).toBuffer()
+      : await pipeline.webp({ quality: isAnimated ? 80 : 86, effort: 4, loop: 0 }).toBuffer()
   } catch {
     return blockedImage("AUTOMOD_IMAGE_UNSAFE", "image_processing", "[AUTOMOD_IMAGE_UNSAFE] Image sanitisation failed.")
   }
@@ -427,8 +430,8 @@ async function moderateAndSanitizeImageInner(buffer: Buffer, surface: ImageModer
   if (surface === "chat") {
     return {
       buffer: safeBuffer,
-      extension: ".webp",
-      mime: "image/webp",
+      extension: safeExtension,
+      mime: safeMime,
       animated: isAnimated,
       result: ok("local"),
     }
@@ -467,8 +470,8 @@ async function moderateAndSanitizeImageInner(buffer: Buffer, surface: ImageModer
       if (classification.decision !== "allow") {
         return {
           buffer: safeBuffer,
-          extension: ".webp",
-          mime: "image/webp",
+          extension: safeExtension,
+          mime: safeMime,
           animated: reviewPages > 1,
           result: classification,
         }
@@ -476,8 +479,8 @@ async function moderateAndSanitizeImageInner(buffer: Buffer, surface: ImageModer
     }
     return {
       buffer: safeBuffer,
-      extension: ".webp",
-      mime: "image/webp",
+      extension: safeExtension,
+      mime: safeMime,
       animated: reviewPages > 1,
       result: ok("openai"),
     }
@@ -486,8 +489,8 @@ async function moderateAndSanitizeImageInner(buffer: Buffer, surface: ImageModer
     console.error("[moderation/image]", detail)
     return {
       buffer: safeBuffer,
-      extension: ".webp",
-      mime: "image/webp",
+      extension: safeExtension,
+      mime: safeMime,
       animated: reviewPages > 1,
       result: unavailable(`[MODERATION_UNAVAILABLE] Image moderation could not complete: ${detail.slice(0, 140)}`),
     }
