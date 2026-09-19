@@ -170,3 +170,23 @@ test("Synn Bot understands natural custom-tag wording including thumbs-up and wh
   assert.match(ai, /Your product identity is Synn Bot/)
   assert.match(ai, /Never claim that you are LFM/)
 })
+
+
+test("Games is cloud-only and bundled Stratus cannot be disabled by stale legacy config", () => {
+  const games = read("src/components/games-panel.tsx")
+  const server = read("server.ts")
+  const env = read(".env.example")
+  const smoke = read("scripts/smoke-recovery.mjs")
+  const sites = read("stratus/sites.synnical.json")
+  assert.doesNotMatch(games, /LocalGameEntry|libraryMode|selectedLocal|\/api\/games\/local/)
+  assert.doesNotMatch(games, />Local</)
+  assert.match(games, /const STRATUS_API_KEY = "synnical-cloud-public-v1"/)
+  assert.match(server, /sites\.synnical\.json/)
+  assert.match(server, /SYNNICAL_DISABLE_STRATUS/)
+  assert.match(server, /configuredStratusSitesPath && existsSync\(configuredStratusSitesPath\)/)
+  assert.match(sites, /"api_key": "synnical-cloud-public-v1"/)
+  assert.doesNotMatch(env, /GAMES_DIR=/)
+  assert.doesNotMatch(env, /STRATUS_ENABLED=/)
+  assert.match(smoke, /\/api\/games\/cloud\/v1\/health/)
+  assert.match(smoke, /\/api\/games\/cloud\/v1\/games/)
+})
