@@ -70,7 +70,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script
           // Resolve Light/Dark before hydration. This touches only the
           // appearance marker; applyTheme commits the final palette atomically.
-          dangerouslySetInnerHTML={{ __html: `try { const raw = localStorage.getItem('synnical:settings:appearance.mode'); const mode = raw ? JSON.parse(raw) : 'dark'; const safe = mode === 'light' ? 'light' : 'dark'; document.documentElement.dataset.appearance = safe; document.documentElement.style.colorScheme = safe; document.documentElement.classList.toggle('dark', safe === 'dark'); } catch (_) { document.documentElement.dataset.appearance = 'dark'; document.documentElement.style.colorScheme = 'dark'; document.documentElement.classList.add('dark'); }` }}
+          dangerouslySetInnerHTML={{ __html: `try { const settingKey = 'synnical:settings:appearance.mode'; const migrationKey = 'synnical:appearance-dark-default-v1'; if (!localStorage.getItem(migrationKey)) { localStorage.setItem(settingKey, JSON.stringify('dark')); localStorage.setItem(migrationKey, '1'); } const raw = localStorage.getItem(settingKey); const mode = raw ? JSON.parse(raw) : 'dark'; const safe = mode === 'light' ? 'light' : 'dark'; document.documentElement.dataset.appearance = safe; document.documentElement.style.colorScheme = safe; document.documentElement.classList.toggle('dark', safe === 'dark'); } catch (_) { document.documentElement.dataset.appearance = 'dark'; document.documentElement.style.colorScheme = 'dark'; document.documentElement.classList.add('dark'); }` }}
         />
       </head>
       <body
