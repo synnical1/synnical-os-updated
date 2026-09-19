@@ -26,8 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // across visits / devices (cookie lasts 1 year).
   const refresh = useCallback(async () => {
     try {
-      const { user } = await api.me()
-      setUserState(user)
+      const result = await api.me()
+      if (result.token) setSvgSessionToken(result.token)
+      setUserState(result.user)
     } catch {
       setUserState(null)
     } finally {
