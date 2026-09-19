@@ -6,9 +6,10 @@ import { SYNN_BOT_COMMANDS, SYNN_BOT_RESPONSE_POOL_SIZES, synnBotReply } from ".
 
 const read = (file: string) => readFile(file, "utf8")
 
-test("Synn Bot keeps exactly 1000 unique commands and meaningful local response pools", () => {
-  assert.equal(SYNN_BOT_COMMANDS.length, 1000)
-  assert.equal(new Set(SYNN_BOT_COMMANDS.map((command) => command.name)).size, 1000)
+test("Synn Bot keeps a concise unique command palette and meaningful local response pools", () => {
+  assert.ok(SYNN_BOT_COMMANDS.length > 100)
+  assert.ok(SYNN_BOT_COMMANDS.length < 200)
+  assert.equal(new Set(SYNN_BOT_COMMANDS.map((command) => command.name)).size, SYNN_BOT_COMMANDS.length)
   assert.ok(SYNN_BOT_RESPONSE_POOL_SIZES.eightBall >= 20)
   assert.ok(SYNN_BOT_RESPONSE_POOL_SIZES.jokes >= 20)
   assert.ok(SYNN_BOT_RESPONSE_POOL_SIZES.facts >= 20)

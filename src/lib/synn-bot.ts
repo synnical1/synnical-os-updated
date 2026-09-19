@@ -174,6 +174,9 @@ const FEATURE_COMMANDS: SynnBotCommand[] = [
   { name: "ban", usage: "/ban @user <reason>", description: "Device-ban a user with a required reason", category: "Safety", kind: "local" },
   { name: "unban", usage: "/unban @user <reason>", description: "Revoke a user's active permanent ban", category: "Safety", kind: "local" },
   { name: "staffcom", usage: "/staffcom <staff request>", description: "Ask Synn Bot to perform staff actions you are allowed to run", category: "Safety", kind: "local" },
+  { name: "purge", usage: "/purge [count]", description: "Owner: purge messages from the current channel with an undo point", category: "Owner", kind: "local" },
+  { name: "undo", usage: "/undo", description: "Owner: restore the latest reversible Synn Bot operation in this channel", category: "Owner", kind: "local" },
+  { name: "provider", usage: "/provider", description: "Show Synn Bot’s live configured completion provider status", category: "Bot", kind: "local" },
   { name: "profile", usage: "/profile <username>", description: "Show a compact Synnical profile", category: "Social", kind: "local" },
   { name: "game", usage: "/game <title>", description: "Search the Synnical game catalog", category: "Games", kind: "local" },
   { name: "botstats", usage: "/botstats", description: "Show Synn Bot command analytics", category: "Bot", kind: "local" },
@@ -181,22 +184,20 @@ const FEATURE_COMMANDS: SynnBotCommand[] = [
 
 export const SYNN_BOT_ASYNC_COMMANDS = new Set(FEATURE_COMMANDS.map((command) => command.name))
 
-const AI_COMMANDS: SynnBotCommand[] = AI_TASKS.flatMap((task) => AI_MODES.map((mode) => ({
-  name: `${task.name}${mode.suffix}`,
-  usage: `/${task.name}${mode.suffix} <request>`,
-  description: `${mode.label}: ${task.description}`,
+const AI_COMMANDS: SynnBotCommand[] = AI_TASKS.map((task) => ({
+  name: task.name,
+  usage: `/${task.name} <request>`,
+  description: task.description,
   category: task.name === "debug" || ["reviewcode", "refactor", "optimize", "tests", "regex", "sql", "html", "css", "javascript", "typescript", "python", "java", "csharp", "cpp", "bash", "git", "api", "json", "markdown"].includes(task.name) ? "Coding" : "Assistant",
   kind: "ai" as const,
-})))
+}))
 
-// Keep the historical product contract of exactly 1,000 searchable commands.
-// Feature commands replace generated AI variants at the tail rather than
-// inflating the catalog with duplicate-ish entries.
-const AI_COMMAND_BUDGET = 1000 - LOCAL_COMMANDS.length - FEATURE_COMMANDS.length
-export const SYNN_BOT_COMMANDS: SynnBotCommand[] = [...LOCAL_COMMANDS, ...FEATURE_COMMANDS, ...AI_COMMANDS.slice(0, AI_COMMAND_BUDGET)]
+// Keep the palette real and searchable instead of manufacturing near-identical
+// aliases. Owner administration runs through typed server capabilities.
+export const SYNN_BOT_COMMANDS: SynnBotCommand[] = [...LOCAL_COMMANDS, ...FEATURE_COMMANDS, ...AI_COMMANDS]
 
-if (LOCAL_COMMANDS.length !== 30 || AI_TASKS.length !== 97 || SYNN_BOT_COMMANDS.length !== 1000 || new Set(SYNN_BOT_COMMANDS.map((command) => command.name)).size !== 1000) {
-  throw new Error(`Synn Bot command catalog must contain exactly 1000 unique commands (received ${SYNN_BOT_COMMANDS.length})`)
+if (new Set(SYNN_BOT_COMMANDS.map((command) => command.name)).size !== SYNN_BOT_COMMANDS.length) {
+  throw new Error("Synn Bot command names must be unique")
 }
 
 const commandMap = new Map(SYNN_BOT_COMMANDS.map((command) => [command.name, command]))
@@ -317,7 +318,7 @@ export function synnBotAiRequest(input: string): SynnBotAiRequest | null {
 }
 
 function commandList(): string {
-  return "Synn Bot has exactly **1,000 commands**. Type `/` to open the searchable command browser, then keep typing to filter it. Main groups include assistant, study, writing, coding, planning, safety, text tools, and fun. Try `/ask`, `/explain-simple`, `/summarize-quick`, `/debug-steps`, or `/plan-detailed`."
+  return "Type `/` to search Synn Bot’s real commands. Owners can use normal language for built-in administration, for example: “make a Donator tag with a pink heart”, “disable Movies”, or “undo that”."
 }
 
 export function synnBotReply(input: string): string | null {
@@ -370,5 +371,5 @@ export function synnBotReply(input: string): string | null {
     const result = op === "+" ? left + right : op === "-" ? left - right : op === "*" ? left * right : op === "/" ? left / right : op === "%" ? left % right : left ** right
     return Number.isFinite(result) ? `Calculation: ${left} ${op} ${right} = ${result}` : "That result is too large."
   }
-  return `Unknown command /${command}. Type / to search all 1,000 Synn Bot commands.`
+  return `Unknown command /${command}. Type / to search the available Synn Bot commands.`
 }

@@ -23,6 +23,7 @@ import {
 } from "./channel-permissions"
 import { isDmSendBlocked } from "./blocks"
 import { getSynnBotProfile, runSynnBotFeature } from "./synn-bot-features"
+import { runOwnerJarvisRequest } from "./synn-bot-owner"
 import { addXp, advanceChallenge, earnAchievement, logSystemEvent } from "./feature-platform"
 import { setSocketClientCount } from "./runtime-health"
 import { normalizeRichPresenceActivity, presenceMode, presenceSection, type PresenceMode, type RichPresenceActivity } from "./presence"
@@ -901,6 +902,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         }
 
         let replySnapshot: { replyToId: string; replyToName: string; replyToContent: string } | null = null
+        let replyToUserId: string | null = null
         let replyingToSynnBot = false
         if (replyToId !== undefined) {
           if (!validId(replyToId)) {
@@ -921,6 +923,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
             replyToName: (target.user?.displayName || target.username).slice(0, 80),
             replyToContent: targetPreview,
           }
+          replyToUserId = target.userId
           replyingToSynnBot = target.username === "synn-bot" && target.userId === null
         }
 
@@ -1038,15 +1041,26 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         void enqueuePostSendBookkeeping(created.id, postSendTasks)
 
         let botReply = synnBotReply(text)
+        let ownerAction = null as Awaited<ReturnType<typeof runOwnerJarvisRequest>>
+        try {
+          ownerAction = await runOwnerJarvisRequest(text, { id: user.userId, username: user.username, role: user.role, channelId, sourceMessageId: created.id, replyToUserId })
+        } catch (error) {
+          console.error("[synn-bot] owner action failed:", error)
+          ownerAction = { reply: "That Owner operation failed safely before I reported success. Nothing was claimed as completed." }
+        }
+        if (ownerAction?.deletedMessageIds?.length) {
+          for (const id of ownerAction.deletedMessageIds) await emitAuthorizedChannel(channelId, "message-deleted", { id, channelId })
+        }
         let botFeature = null as Awaited<ReturnType<typeof runSynnBotFeature>>
-        try { botFeature = await runSynnBotFeature(text, { userId: user.userId, username: user.username, role: user.role, channelId, replyingToSynnBot }) } catch (error) {
+        try { botFeature = ownerAction ? null : await runSynnBotFeature(text, { userId: user.userId, username: user.username, role: user.role, channelId, replyingToSynnBot }) } catch (error) {
           console.error("[synn-bot] feature command failed:", error)
           botReply = "That Synn Bot tool hit a temporary error. Nothing was partially applied."
         }
-        if (botFeature) botReply = botFeature.reply
+        if (ownerAction) botReply = ownerAction.reply
+        else if (botFeature) botReply = botFeature.reply
         const botCommand = text.trim().match(/^\/([a-z0-9_-]+)/i)?.[1]?.toLowerCase()
         if (botCommand) await db.botUsage.create({ data: { userId: user.userId, command: botCommand, success: Boolean(botReply || synnBotAiRequest(text)) } }).catch(() => {})
-        const botAi = botFeature ? null : synnBotAiRequest(text) || (replyingToSynnBot && text
+        const botAi = ownerAction || botFeature ? null : synnBotAiRequest(text) || (replyingToSynnBot && text
           ? { command: "reply", instruction: "Continue the Synn Bot conversation and answer the user's follow-up.", mode: "Use the most appropriate clear format", request: text.slice(0, 4000) }
           : null)
         if (botAi) {

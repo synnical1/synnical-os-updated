@@ -12,6 +12,7 @@ import { AutomationBridge } from "@/components/automation-bridge"
 import { CommandPalette } from "@/components/command-palette"
 import { DesktopShell } from "@/components/desktop-shell"
 import { YouTubeIcon, GeForceNowIcon } from "@/components/brand-app-icons"
+import { UnderConstructionPanel } from "@/components/under-construction-panel"
 
 // Lazy load panels — only load what the user actually opens
 const DiscoveryPanel = lazy(() => import("@/components/discovery-panel").then(m => ({ default: m.DiscoveryPanel })))
@@ -89,12 +90,18 @@ export function AppShell() {
   const { user, refresh } = useAuth()
   useEffect(() => { if (user) return startChatRealtime(user.id, refresh) }, [user?.id, refresh])
   const [labVisible, setLabVisible] = useState(false)
+  const [appControls, setAppControls] = useState<Array<{ appId: string; enabled: boolean; maintenance: boolean; allowedRoles: string[] }>>([])
 
   // Catch global unhandled errors and promise rejections
   useGlobalErrorHandler()
 
   const isMod = user?.role === "OWNER" || user?.role === "HEAD_ADMIN" || user?.role === "ADMIN" || user?.role === "MOD"
-  const visibleApps = APP_NAV.filter((item) => (!safeMode || SAFE_MODE_APPS.has(item.id)) && (!item.modOnly || isMod) && (!item.authOnly || Boolean(user)) && (!item.labOnly || labVisible))
+  const appAvailable = (id: string) => {
+    const control = appControls.find((row) => row.appId === (id === "cineb" ? "movies" : id))
+    if (!control || !control.enabled) return !control
+    return !control.allowedRoles.length || Boolean(user && (control.allowedRoles.includes(user.role) || (control.allowedRoles.includes("BETA_TESTER") && user.tags.includes("BETA TESTER"))))
+  }
+  const visibleApps = APP_NAV.filter((item) => appAvailable(item.id) && (!safeMode || SAFE_MODE_APPS.has(item.id)) && (!item.modOnly || isMod) && (!item.authOnly || Boolean(user)) && (!item.labOnly || labVisible))
 
   useEffect(() => {
     if (!user || panel !== "auth") return
@@ -109,6 +116,17 @@ export function AppShell() {
       .then((body) => { if (!cancelled) setLabVisible(Boolean(body?.eligible || body?.admin)) })
       .catch(() => { if (!cancelled) setLabVisible(false) })
     return () => { cancelled = true }
+  }, [user?.id])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = () => fetch("/api/features/bot", { credentials: "include", cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((body) => { if (!cancelled && Array.isArray(body?.appControls)) setAppControls(body.appControls) })
+      .catch(() => {})
+    void load()
+    const timer = window.setInterval(load, 15_000)
+    return () => { cancelled = true; window.clearInterval(timer) }
   }, [user?.id])
 
   // Other tools (for example Music) can hand a URL to the real proxied
@@ -136,6 +154,7 @@ export function AppShell() {
       const target = requested as Panel
       const targetNav = APP_NAV.find((item) => item.id === target)
       if (!targetNav) return
+      if (!appAvailable(target)) return
       if (targetNav.modOnly && !isMod) return
       if (targetNav.authOnly && !user) return
       if (targetNav.labOnly && !labVisible) return
@@ -144,7 +163,7 @@ export function AppShell() {
     }
     window.addEventListener("synnical-open-panel", openPanel)
     return () => window.removeEventListener("synnical-open-panel", openPanel)
-  }, [isMod, user, labVisible])
+  }, [isMod, user, labVisible, appControls])
 
   useEffect(() => {
     const onPageShow = (event: PageTransitionEvent) => {
@@ -178,7 +197,12 @@ export function AppShell() {
     }
   }, [panel])
 
-  const renderDesktopPanel = (target: Panel, openPanel: (target: Panel) => void) => safeMode && !SAFE_MODE_APPS.has(target) ? null : (
+  const renderDesktopPanel = (target: Panel, openPanel: (target: Panel) => void) => {
+    const control = appControls.find((row) => row.appId === (target === "cineb" ? "movies" : target))
+    if (safeMode && !SAFE_MODE_APPS.has(target)) return null
+    if (!appAvailable(target)) return null
+    if (control?.maintenance) return <UnderConstructionPanel appName={APP_NAV.find((app) => app.id === target)?.label || "This app"} eyebrow="Owner-managed maintenance" description="This app is temporarily under construction while Synnical works on a reliable update." />
+    return (
     <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--synnical-accent)] border-t-transparent" /></div>}>
       {target === "discover" ? <ErrorBoundary name="Search"><DiscoveryPanel onPanel={openPanel} /></ErrorBoundary> : null}
       {target === "chat" ? <ErrorBoundary name="Chat">{user ? <ChatPanel key={user.id} /> : <AuthScreen embedded />}</ErrorBoundary> : null}
@@ -209,7 +233,8 @@ export function AppShell() {
       {target === "lab" && labVisible ? <ErrorBoundary name="Synnical Lab"><SynnicalLabPanel /></ErrorBoundary> : null}
       {target === "settings" ? <ErrorBoundary name="Synnical Settings"><SynnicalSettingsApp /></ErrorBoundary> : null}
     </Suspense>
-  )
+    )
+  }
 
 
   if (bootMode === null) return null

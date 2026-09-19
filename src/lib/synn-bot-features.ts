@@ -358,12 +358,15 @@ export async function runSynnBotFeature(input: string, ctx: BotFeatureContext): 
 
   // Staff-created commands are checked after built-ins, so an owner cannot
   // silently shadow a safety or platform command.
-  const builtin = new Set(["customcmd","delcmd","remind","poll","countdown","weather","define","convert","currency","teams","bracket","findmsg","modsummary","warn","mute","ban","unban","staffcom","profile","game","botstats"])
+  const builtin = new Set(["customcmd","delcmd","remind","poll","countdown","weather","define","convert","currency","teams","bracket","findmsg","modsummary","warn","mute","ban","unban","staffcom","purge","undo","provider","profile","game","botstats"])
   if (!builtin.has(command)) {
     const custom = await db.botCustomCommand.findUnique({ where: { name: command } }).catch(() => null)
     if (custom?.enabled) return { reply: custom.response }
     return null
   }
+
+  if (command === "purge" || command === "undo") return { reply: "That Synn Bot operation is available only to the verified Owner." }
+  if (command === "provider") return { reply: "Provider status is handled by Synn Bot’s live server-side adapter." }
 
   if (command === "customcmd") {
     if (!admin(ctx.role)) return { reply: "Only admins can create Synn Bot custom commands." }

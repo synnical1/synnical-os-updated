@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { isStaffRole } from "@/lib/shop-economy"
+import { getGlobalAppControls, getOwnerBotOperations, undoOwnerOperation } from "@/lib/synn-bot-owner"
 
 export const dynamic = "force-dynamic"
 const clean = (value: unknown, max = 300) => typeof value === "string" ? value.trim().slice(0, max) : ""
@@ -9,13 +10,15 @@ const fail = (error: string, status = 400) => NextResponse.json({ error }, { sta
 
 export async function GET() {
   const me = await getCurrentUser()
-  if (!me) return fail("Unauthorized", 401)
+  const appControls = await getGlobalAppControls()
+  if (!me) return NextResponse.json({ appControls, signedIn: false })
   const [reminders, usage] = await Promise.all([
     db.botReminder.findMany({ where: { userId: me.id, status: { in: ["pending", "sending"] } }, orderBy: { dueAt: "asc" }, take: 100 }),
     db.botUsage.groupBy({ by: ["command"], _count: { command: true }, orderBy: { _count: { command: "desc" } }, take: 50 }),
   ])
   const customCommands = isStaffRole(me.role) ? await db.botCustomCommand.findMany({ orderBy: { name: "asc" } }) : []
-  return NextResponse.json({ reminders, usage: usage.map((row) => ({ command: row.command, count: row._count.command })), customCommands, staff: isStaffRole(me.role) })
+  const ownerOperations = me.role === "OWNER" ? await getOwnerBotOperations(me.id) : []
+  return NextResponse.json({ reminders, usage: usage.map((row) => ({ command: row.command, count: row._count.command })), customCommands, staff: isStaffRole(me.role), appControls, ownerOperations, signedIn: true, owner: me.role === "OWNER" })
 }
 
 export async function POST(req: NextRequest) {
@@ -23,6 +26,12 @@ export async function POST(req: NextRequest) {
   if (!me) return fail("Unauthorized", 401)
   const body = await req.json().catch(() => ({}))
   const action = clean(body.action, 64)
+
+  if (action === "undo-owner-operation") {
+    if (me.role !== "OWNER") return fail("Owner only", 403)
+    const result = await undoOwnerOperation(me, clean(body.channelId, 128))
+    return NextResponse.json({ result })
+  }
 
   if (action === "cancel-reminder") {
     const id = clean(body.id, 128)

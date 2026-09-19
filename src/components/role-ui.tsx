@@ -1,7 +1,7 @@
 "use client"
 import type { ReactNode } from "react"
 import type { Role } from "@/lib/api"
-import { BadgeCheck, Crown, Sparkles, Shield, Tag, Code2, FlaskConical, Trophy } from "lucide-react"
+import { BadgeCheck, Crown, Sparkles, Shield, Tag, Code2, FlaskConical, Trophy, Heart, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AvatarDecoration, AvatarDecorationBackdrop } from "@/components/avatar-decorations"
 import { ProfileEffectLayer as ProfileEffectVisualLayer } from "@/components/profile-effects"
@@ -66,7 +66,17 @@ export function DisplayName({ name, role, className }: { name: ReactNode; role: 
 export function TagsDisplay({ tags, className }: { tags: string[]; className?: string }) {
   const visible = ordinaryTags(tags)
   if (!visible.length) return null
-  return <div className={cn("flex flex-wrap gap-1", className)}>{visible.map((t) => <span key={t} className="inline-flex items-center gap-1 rounded border border-[#242424] bg-[#0d0d0d] px-1 py-px text-[8px] leading-3 text-[#a7a7a7]"><Tag className="h-2.5 w-2.5 shrink-0 text-[#707070]" />{t}</span>)}</div>
+  const custom = (value: string) => {
+    const match = /^custom:([a-z0-9-]{1,24}):(heart|crown|star|shield|code|tag):(pink|red|orange|amber|yellow|green|blue|cyan|purple|violet|white|gray)$/i.exec(value)
+    if (!match) return null
+    const [, slug, icon, colour] = match
+    const palette: Record<string, string> = {
+      pink: "border-pink-400/70 bg-pink-500/15 text-pink-200 shadow-[0_0_11px_rgba(244,114,182,.6)]", red: "border-red-400/70 bg-red-500/15 text-red-200 shadow-[0_0_11px_rgba(248,113,113,.55)]", orange: "border-orange-300/70 bg-orange-500/15 text-orange-100", amber: "border-amber-300/70 bg-amber-500/15 text-amber-100", yellow: "border-yellow-300/70 bg-yellow-500/15 text-yellow-100", green: "border-emerald-300/70 bg-emerald-500/15 text-emerald-100", blue: "border-blue-300/70 bg-blue-500/15 text-blue-100", cyan: "border-cyan-300/70 bg-cyan-500/15 text-cyan-100", purple: "border-purple-300/70 bg-purple-500/15 text-purple-100", violet: "border-violet-300/70 bg-violet-500/15 text-violet-100", white: "border-white/70 bg-white/15 text-white", gray: "border-slate-300/70 bg-slate-500/15 text-slate-100",
+    }
+    const Icon = icon === "heart" ? Heart : icon === "crown" ? Crown : icon === "star" ? Star : icon === "shield" ? Shield : icon === "code" ? Code2 : Tag
+    return <span key={value} className={cn("inline-flex items-center gap-1 rounded border px-1 py-px text-[8px] font-semibold leading-3", palette[colour.toLowerCase()] || palette.violet)}><Icon className="h-2.5 w-2.5 shrink-0" />{slug.replaceAll("-", " ")}</span>
+  }
+  return <div className={cn("flex flex-wrap gap-1", className)}>{visible.map((tag) => custom(tag) || <span key={tag} className="inline-flex items-center gap-1 rounded border border-[#242424] bg-[#0d0d0d] px-1 py-px text-[8px] leading-3 text-[#a7a7a7]"><Tag className="h-2.5 w-2.5 shrink-0 text-[#707070]" />{tag}</span>)}</div>
 }
 
 export function AvatarWithDeco({
