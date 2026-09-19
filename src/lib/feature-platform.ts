@@ -31,17 +31,38 @@ export function levelForXp(xp: number): number {
   return Math.max(1, Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1)
 }
 
-export async function ensureFeatureSeeds() {
+let featureSeedsPromise: Promise<void> | null = null
+const yieldToRealtimeWork = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+async function seedFeatureDefinitions() {
   for (const item of ACHIEVEMENTS) {
-    await db.achievement.upsert({ where: { id: item.id }, update: item, create: item }).catch(() => {})
+    await db.achievement.upsert({ where: { id: item.id }, update: item, create: item })
+    await yieldToRealtimeWork()
   }
   for (const item of WEEKLY_CHALLENGES) {
     await db.challenge.upsert({
       where: { id: item.id },
       update: { ...item, period: "weekly", active: true },
       create: { ...item, period: "weekly", active: true },
-    }).catch(() => {})
+    })
+    await yieldToRealtimeWork()
   }
+}
+
+/**
+ * Seeds are shared by every feature caller in this Node process. SQLite only
+ * has one writer, so concurrent XP/challenge calls must join the same seed
+ * pass instead of each issuing the full upsert set.
+ */
+export function ensureFeatureSeeds(): Promise<void> {
+  if (!featureSeedsPromise) {
+    featureSeedsPromise = seedFeatureDefinitions().catch((error) => {
+      // A transient SQLite error must be retryable by the next caller.
+      featureSeedsPromise = null
+      throw error
+    })
+  }
+  return featureSeedsPromise
 }
 
 export async function getProgress(userId: string) {

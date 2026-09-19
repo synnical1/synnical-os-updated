@@ -49,6 +49,18 @@ function event(socket, name) {
     socket.once(name, handler)
   })
 }
+function matchingEvent(socket, name, predicate) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { socket.off(name, handler); reject(new Error(`Timed out: ${name}`)) }, 15000)
+    const handler = (value) => {
+      if (!predicate(value)) return
+      clearTimeout(timer)
+      socket.off(name, handler)
+      resolve(value)
+    }
+    socket.on(name, handler)
+  })
+}
 try {
   await writeFile(path.join(root, "test.db"), "", { flag: "wx", mode: 0o600 })
   execFileSync(process.execPath, ["node_modules/prisma/build/index.js", "db", "push", "--skip-generate"], { env, stdio: "pipe" })
@@ -189,9 +201,29 @@ try {
   assert.equal(first.clientNonce, clientNonce)
   sent = event(socket, "message"); socket.emit("send-message", payload); assert.equal((await sent).id, first.id)
   assert.equal(await db.message.count({ where: { userId: a.id, clientNonce } }), 1)
+  const rapidSocket = io(base, { autoConnect: false, transports: ["websocket"], extraHeaders: { Cookie: b.cookie }, reconnection: false })
+  sockets.push(rapidSocket); const rapidConnected = event(rapidSocket, "connect"); rapidSocket.connect(); await rapidConnected
+  const rapidHistory = event(rapidSocket, "message-history"); rapidSocket.emit("join-channel", { channelId: channel.id, history: true }); await rapidHistory
+  // Keep the initial message's reward work in flight while rapidly sending
+  // from a second account. This avoids consuming the owner fixture's command
+  // rate-limit budget. Each receipt is matched by nonce so concurrent
+  // Socket.IO events cannot accidentally satisfy the wrong assertion.
+  const rapidPayloads = Array.from({ length: 3 }, (_, index) => ({
+    channelId: channel.id,
+    content: `Rapid recovery message ${index}`,
+    clientNonce: randomBytes(16).toString("hex"),
+  }))
+  const rapidReceipts = rapidPayloads.map((rapid) => matchingEvent(rapidSocket, "message", (message) => message?.clientNonce === rapid.clientNonce))
+  for (const rapid of rapidPayloads) rapidSocket.emit("send-message", rapid)
+  const rapidMessages = await Promise.all(rapidReceipts)
+  assert.equal(new Set(rapidMessages.map((message) => message.id)).size, rapidPayloads.length)
+  const rapidDuplicate = matchingEvent(rapidSocket, "message", (message) => message?.clientNonce === rapidPayloads[0].clientNonce)
+  rapidSocket.emit("send-message", rapidPayloads[0])
+  assert.equal((await rapidDuplicate).id, rapidMessages[0].id)
+  assert.equal(await db.message.count({ where: { userId: b.id, clientNonce: rapidPayloads[0].clientNonce } }), 1)
   const refreshed = event(socket, "message-history"); socket.emit("join-channel", { channelId: channel.id, history: true })
   assert.ok((await refreshed).messages.some((message) => message.clientNonce === clientNonce))
-  pass("Socket.IO websocket send, duplicate nonce idempotency and reconnect history identity")
+  pass("Socket.IO websocket rapid send, duplicate nonce idempotency, background rewards and reconnect history identity")
   const polling = io(base, { autoConnect: false, transports: ["polling", "websocket"], extraHeaders: { Cookie: b.cookie }, reconnection: false })
   sockets.push(polling); const pollConnected = event(polling, "connect"); polling.connect(); await pollConnected
   pass("Socket.IO polling handshake with upgrade dispatch intact")

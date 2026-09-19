@@ -75,6 +75,36 @@ type DbUserLike = {
   tags: string | null
 }
 
+type PostSendTask = { name: string; run: () => Promise<unknown> }
+const yieldToRealtimeWork = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+// SQLite permits a single writer. Keep non-critical message bookkeeping off
+// the send path and drain it in order, so a busy chat cannot create a burst of
+// competing Prisma writes. The durable message has already been broadcast.
+let postSendBookkeepingTail: Promise<void> = Promise.resolve()
+
+function enqueuePostSendBookkeeping(messageId: string, tasks: PostSendTask[]) {
+  const run = async () => {
+    const failed: string[] = []
+    for (const task of tasks) {
+      try {
+        await task.run()
+      } catch (error) {
+        failed.push(task.name)
+        console.error(`[chat] post-send ${task.name} failed for message ${messageId}:`, error)
+      }
+      // Do not let a busy rewards backlog monopolise Node's microtask queue.
+      // Socket.IO handlers (including retries and staff commands) can run here.
+      await yieldToRealtimeWork()
+    }
+    if (failed.length) console.error(`[chat] ${failed.length} post-send task(s) failed for message ${messageId}`)
+  }
+  postSendBookkeepingTail = postSendBookkeepingTail.then(run, run).catch((error) => {
+    console.error(`[chat] post-send queue failed for message ${messageId}:`, error)
+  })
+  return postSendBookkeepingTail
+}
+
 function safeUser(u: DbUserLike): ClientUser {
   let parsedTags: string[] = []
   try { parsedTags = JSON.parse(u.tags || '[]') } catch {}
@@ -986,28 +1016,26 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         // Everything below is secondary bookkeeping. The durable message is
         // broadcast first; XP, bonds, credits and automations must never make
         // recipients wait for unrelated database or economy work.
-        void (async () => {
-          const tasks: Promise<unknown>[] = [
-            db.user.update({ where: { id: user.userId }, data: { messageCount: { increment: 1 } } }),
-            addXp(user.userId, 2),
-            advanceChallenge(user.userId, "messages", 1),
-            earnAchievement(user.userId, "first-message"),
-            runAutomationTrigger(user.userId, "message_contains", { content: text, direction: "outgoing", channelId }),
-          ]
-          if (dmPeerId) {
-            tasks.push(recordFriendshipMessage(user.userId, dmPeerId))
-            tasks.push(runAutomationTrigger(dmPeerId, "message_contains", { content: text, direction: "incoming", channelId, fromUserId: user.userId, fromUsername: user.username }))
-          }
-          if (image) tasks.push(db.chatImageUpload.update({ where: { id: image.id }, data: { consumedAt: new Date() } }))
-          if (voice) tasks.push(db.voiceUpload.update({ where: { id: voice.id }, data: { consumedAt: new Date() } }))
-          tasks.push((async () => {
+        const postSendTasks: PostSendTask[] = [
+          { name: "message count", run: () => db.user.update({ where: { id: user.userId }, data: { messageCount: { increment: 1 } } }) },
+          { name: "XP", run: () => addXp(user.userId, 2) },
+          { name: "challenge", run: () => advanceChallenge(user.userId, "messages", 1) },
+          { name: "achievement", run: () => earnAchievement(user.userId, "first-message") },
+          { name: "outgoing automation", run: () => runAutomationTrigger(user.userId, "message_contains", { content: text, direction: "outgoing", channelId }) },
+          { name: "message reward", run: async () => {
             const { rewardMessage } = await import("./shop")
             await rewardMessage(user.userId)
-          })())
-          const results = await Promise.allSettled(tasks)
-          const failures = results.filter((result) => result.status === "rejected")
-          if (failures.length) console.error(`[chat] ${failures.length} post-send task(s) failed for message ${created.id}`)
-        })()
+          } },
+        ]
+        if (dmPeerId) {
+          postSendTasks.push(
+            { name: "friendship", run: () => recordFriendshipMessage(user.userId, dmPeerId) },
+            { name: "incoming automation", run: () => runAutomationTrigger(dmPeerId, "message_contains", { content: text, direction: "incoming", channelId, fromUserId: user.userId, fromUsername: user.username }) },
+          )
+        }
+        if (image) postSendTasks.push({ name: "image consumption", run: () => db.chatImageUpload.update({ where: { id: image.id }, data: { consumedAt: new Date() } }) })
+        if (voice) postSendTasks.push({ name: "voice consumption", run: () => db.voiceUpload.update({ where: { id: voice.id }, data: { consumedAt: new Date() } }) })
+        void enqueuePostSendBookkeeping(created.id, postSendTasks)
 
         let botReply = synnBotReply(text)
         let botFeature = null as Awaited<ReturnType<typeof runSynnBotFeature>>

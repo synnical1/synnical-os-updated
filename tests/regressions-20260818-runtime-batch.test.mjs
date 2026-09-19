@@ -41,7 +41,7 @@ test("runtime batch: chat sends optimistically and ordinary typing avoids redund
   assert.match(chat, /pendingMessageTimersRef/)
   assert.match(chat, /failedLocal: true/)
   assert.match(server, /clientNonce: normalizedClientNonce/)
-  assert.ok(server.indexOf('await emitAuthorizedChannel(channelId, "message"') < server.indexOf('const tasks: Promise<unknown>\[\]'))
+  assert.ok(server.indexOf('await emitAuthorizedChannel(channelId, "message"') < server.indexOf('void enqueuePostSendBookkeeping'))
 })
 
 test("runtime batch: staff slash moderation is guided and server-backed", () => {

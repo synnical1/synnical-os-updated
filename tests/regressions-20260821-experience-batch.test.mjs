@@ -97,7 +97,9 @@ test("experience batch: chat optimistic rows reconcile or become visibly failed"
   assert.match(client, /const unresolved = pendingLocal.filter/)
   assert.match(client, /message\.clientNonce === candidate\.clientNonce && message\.userId === candidate\.userId/)
   assert.match(server, /normalizedClientNonce/)
-  assert.match(server, /Promise\.allSettled\(tasks\)/)
+  assert.match(server, /enqueuePostSendBookkeeping/)
+  assert.match(server, /await task\.run\(\)/)
+  assert.doesNotMatch(server, /Promise\.allSettled\(tasks\)/)
 })
 
 test("experience batch: boot is entry-only and lasts 1500 ms", () => {
