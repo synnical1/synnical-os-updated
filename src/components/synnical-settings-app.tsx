@@ -18,7 +18,7 @@ import { readSetting, writeSetting } from "@/lib/settings-runtime"
 import { SYNNICAL_BUILD, SYNNICAL_BUILD_DATE, SYNNICAL_VERSION } from "@/lib/build-info"
 import { cn } from "@/lib/utils"
 import { useBrowser } from "@/hooks/use-browser"
-import { THEMES } from "@/lib/themes"
+import { THEMES, type ThemeId } from "@/lib/themes"
 import { toast } from "sonner"
 import { SYNNICAL_APPS } from "@/lib/app-registry"
 
@@ -87,7 +87,7 @@ function WallpaperPreview({ src }: { src: string }) {
   </div>
 }
 
-function ThemeGallery({ activeTheme, onSelect }: { activeTheme: string; onSelect: (id: string) => void }) {
+function ThemeGallery({ activeTheme, onSelect }: { activeTheme: string; onSelect: (id: ThemeId) => void }) {
   const selected = THEMES.find((item) => item.id === activeTheme) || THEMES[0]
   return (
     <div className="mt-3 space-y-3">
