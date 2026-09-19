@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { PROXY_RUNTIME_VERSION, proxyAsset as versionedAsset } from "@/lib/proxy-runtime"
 import { readSetting } from "@/lib/settings-runtime"
+import { isSvgClientRuntime } from "@/lib/svg-client"
 
 // ---------------------------------------------------------------------------
 // Scramjet controller loader + lifecycle hook
@@ -287,22 +288,39 @@ export async function ensureScramjetControllerRoute(controller: any): Promise<bo
   return ensureControllerRoute(worker, controller)
 }
 
-function getWispUrl(): string {
+async function getWispUrl(): Promise<string> {
   const proto = location.protocol === "https:" ? "wss" : "ws"
   const privacyRoute = readSetting<string>("browser.vpnCountry", "direct")
+  let websocket: string
+
   if (privacyRoute === "netherlands") {
     // Never silently fall back to the direct route when the user explicitly
     // selected the Netherlands route. If the server has no configured Dutch
     // SOCKS5 egress this socket fails, and Settings reports it unavailable.
-    return `${proto}://${location.host}/wisp-nl/`
+    websocket = `${proto}://${location.host}/wisp-nl/`
+  } else {
+    // External Wisp overrides remain a direct-route operator feature.
+    const override = process.env.NEXT_PUBLIC_WISP_URL
+    websocket = override && override.trim().length > 0
+      ? (override.endsWith("/") ? override : `${override}/`)
+      : `${proto}://${location.host}/wisp/`
   }
 
-  // External Wisp overrides remain a direct-route operator feature.
-  const override = process.env.NEXT_PUBLIC_WISP_URL
-  if (override && override.trim().length > 0) {
-    return override.endsWith("/") ? override : `${override}/`
+  if (!isSvgClientRuntime()) return websocket
+
+  const response = await fetch("/api/proxy/ticket", {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+  })
+  const body = await response.json().catch(() => ({})) as { ticket?: string; error?: string }
+  if (!response.ok || !body.ticket) {
+    throw new Error(body.error || "Could not authorize the SVG browser proxy.")
   }
-  return `${proto}://${location.host}/wisp/`
+
+  const url = new URL(websocket)
+  url.searchParams.set("ticket", body.ticket)
+  return url.toString()
 }
 
 async function initController(): Promise<any> {
@@ -328,7 +346,7 @@ async function initController(): Promise<any> {
     // A separate WebSocket precheck used to add as much as
     // five seconds while deliberately ignoring its own result. The transport
     // is the authoritative connection test and exposes its actual error.
-    const websocket = getWispUrl()
+    const websocket = await getWispUrl()
     // libcurl-transport v2 names this option `websocket`. Keep `wisp` too for
     // compatibility with older locally bundled builds during a rolling update.
     const transport = new LibcurlClient({ websocket, wisp: websocket })
