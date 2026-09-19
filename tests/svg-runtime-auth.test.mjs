@@ -29,6 +29,24 @@ test("SVG auth bootstraps and persists tokens from me/login/register", () => {
   assert.match(serverAuth, /refererUrl\.searchParams\.get\("synnicalClient"\) === "svg"/)
 })
 
+test("SVG session recovery bridges a first-party session into the embedded runtime", () => {
+  const client = read("src/lib/svg-client.ts")
+  const handoff = read("src/app/api/auth/svg-handoff/route.ts")
+
+  assert.match(client, /requestStorageAccess/)
+  assert.match(client, /window\.open\(/)
+  assert.match(client, /\/api\/auth\/svg-handoff\?synnicalClient=svg/)
+  assert.match(client, /window\.addEventListener\("message"/)
+  assert.match(client, /event\.origin !== window\.location\.origin/)
+  assert.match(client, /window\.location\.reload\(\)/)
+
+  assert.match(handoff, /getCurrentSession/)
+  assert.match(handoff, /window\.opener\.postMessage/)
+  assert.match(handoff, /window\.location\.origin/)
+  assert.match(handoff, /Cache-Control/)
+  assert.match(handoff, /frame-ancestors 'none'/)
+})
+
 test("SVG Chat passes bearer session through Socket.IO handshake auth", () => {
   const realtime = read("src/lib/chat-realtime.ts")
   const server = read("src/lib/chat-server.ts")
