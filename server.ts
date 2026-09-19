@@ -18,7 +18,7 @@ import { validateEnv } from "./src/lib/env"
 import { existsSync } from "fs"
 import { resolve } from "path"
 import { createBlockedUdpSocketClass, createSocks5TcpSocketClass, parseSocks5Url } from "./src/lib/wisp-socks"
-import { authenticatedProxyRequest, allowedSocketOrigin } from "./src/lib/server-request-auth"
+import { authenticatedProxyRequest, allowedSocketOrigin, stripProxyTicketFromRequest } from "./src/lib/server-request-auth"
 
 // Stratus + wisp ship as CommonJS. Load via createRequire so we keep
 // server.ts as ESM.
@@ -226,6 +226,7 @@ async function main() {
     // the operator configured a real SOCKS5 endpoint in the Netherlands.
     if (wispNlRouteRequest && (url === WISP_NL_PATH || url.startsWith(`${WISP_NL_PATH}/`))) {
       if (!await authenticatedProxyRequest(req)) { socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n"); return }
+      stripProxyTicketFromRequest(req)
       wispNlRouteRequest(req, socket, head)
       return
     }
@@ -233,6 +234,7 @@ async function main() {
     // 2b. Direct Wisp proxy WS
     if (wispRouteRequest && (url === WISP_PATH || url.startsWith(`${WISP_PATH}/`))) {
       if (!await authenticatedProxyRequest(req)) { socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n"); return }
+      stripProxyTicketFromRequest(req)
       wispRouteRequest(req, socket, head)
       return
     }

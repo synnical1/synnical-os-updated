@@ -4,12 +4,14 @@ import { useSyncExternalStore } from "react"
 import { api, type ChatMessage } from "./api"
 import { messageNotification } from "./chat-mentions"
 import { readSetting } from "./settings-runtime"
+import { getSvgSessionToken } from "./svg-client"
 
 type UnreadState = { unread: Record<string, number>; mentions: Record<string, boolean> }
 const EMPTY: UnreadState = { unread: {}, mentions: {} }
 let state = EMPTY
 let socket: Socket | null = null
 let accountId: string | null = null
+let socketSessionToken: string | null = null
 let readingChannel: string | null = null
 const subscribers = new Set<() => void>()
 const subscribe = (fn: () => void) => { subscribers.add(fn); return () => { subscribers.delete(fn) } }
@@ -25,10 +27,20 @@ export function setReadingChannel(channelId: string | null) {
   if (channelId && (state.unread[channelId] || state.mentions[channelId])) publish({ unread: { ...state.unread, [channelId]: 0 }, mentions: { ...state.mentions, [channelId]: false } })
 }
 export function getChatSocket(userId: string): Socket {
-  if (socket && accountId === userId) return socket
+  const token = getSvgSessionToken()
+  if (socket && accountId === userId && socketSessionToken === token) return socket
   socket?.disconnect()
   accountId = userId
-  socket = io({ path: process.env.NEXT_PUBLIC_SOCKET_URL || "/socket.io", transports: ["websocket", "polling"], withCredentials: true, reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 5000 })
+  socketSessionToken = token
+  socket = io({
+    path: process.env.NEXT_PUBLIC_SOCKET_URL || "/socket.io",
+    transports: ["websocket", "polling"],
+    withCredentials: true,
+    auth: token ? { token } : undefined,
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+  })
   return socket
 }
 /** One connection and notification owner for the whole signed-in desktop. */
