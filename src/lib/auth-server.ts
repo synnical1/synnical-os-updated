@@ -161,7 +161,7 @@ export async function destroySession(): Promise<void> {
     await db.session.deleteMany({ where: { token } }).catch(() => {})
     if (existing?.userId) await logSecurityEvent(existing.userId, "logout", "This browser session signed out.").catch(() => {})
   }
-  store.delete(SESSION_COOKIE)
+  await clearSessionCookie(store)
 }
 
 export async function getCurrentSession() {
