@@ -25,3 +25,10 @@ export const SYNNICAL_APPS = [
   { id: "profile", label: "Profile", aliases: ["identity", "personas"], authOnly: true },
   { id: "settings", label: "Settings", aliases: ["preferences", "security", "privacy"], authOnly: true },
 ] as const
+
+
+export const CORE_OS_APP_IDS = ["chat"] as const
+
+export function isCoreOsApp(appId: string) {
+  return (CORE_OS_APP_IDS as readonly string[]).includes(appId)
+}

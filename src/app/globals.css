@@ -828,27 +828,126 @@ video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--s
 .synnical-os-root [class*="synnical-desktop-app-icon"] ~ span { color: var(--synnical-desktop-foreground) !important; text-shadow: var(--synnical-desktop-label-shadow) !important; }
 .synnical-os-root .synnical-desktop-app-icon + span { border-radius: 5px; }
 
-.synnical-music { background: transparent !important; color: var(--synnical-text) !important; }
+.synnical-music {
+  --synnical-music-glass: color-mix(in srgb, var(--synnical-surface) 26%, transparent);
+  --synnical-music-glass-mid: color-mix(in srgb, var(--synnical-surface) 34%, transparent);
+  --synnical-music-glass-strong: color-mix(in srgb, var(--synnical-surface) 44%, transparent);
+  --synnical-music-glass-hover: color-mix(in srgb, var(--synnical-text) 8%, transparent);
+  --synnical-music-glass-active: color-mix(in srgb, var(--synnical-accent) 18%, var(--synnical-music-glass-mid));
+  background: transparent !important;
+  color: var(--synnical-text) !important;
+}
+:root[data-appearance="dark"] .synnical-music {
+  --synnical-music-glass: color-mix(in srgb, var(--synnical-surface) 38%, transparent);
+  --synnical-music-glass-mid: color-mix(in srgb, var(--synnical-surface) 48%, transparent);
+  --synnical-music-glass-strong: color-mix(in srgb, var(--synnical-surface) 58%, transparent);
+}
 .synnical-music-header,
 .synnical-music-sidebar,
 .synnical-music-context,
-.synnical-music > .border-b,
-.synnical-music > .absolute.bottom-0 {
-  background: var(--synnical-glass) !important;
+.synnical-music-toolbar,
+.synnical-music-search,
+.synnical-music-card,
+.synnical-music-list,
+.synnical-music-queue,
+.synnical-music-player {
+  border-color: color-mix(in srgb, var(--synnical-glass-highlight) 40%, var(--synnical-glass-border)) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(1.42) !important;
+  backdrop-filter: blur(30px) saturate(1.42) !important;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--synnical-glass-highlight) 55%, transparent),
+    0 10px 34px rgba(15, 23, 42, .10);
+}
+.synnical-music-header {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--synnical-glass-highlight) 18%, transparent), transparent), var(--synnical-music-glass-mid) !important;
+}
+.synnical-music-sidebar,
+.synnical-music-context {
+  background: var(--synnical-music-glass) !important;
+}
+.synnical-music-main {
+  background: color-mix(in srgb, var(--synnical-surface) 7%, transparent) !important;
+}
+.synnical-music-toolbar {
+  background: var(--synnical-music-glass) !important;
+}
+.synnical-music-search,
+.synnical-music-card,
+.synnical-music-list {
+  background: var(--synnical-music-glass-mid) !important;
+}
+.synnical-music-queue,
+.synnical-music-player {
+  background: var(--synnical-music-glass-strong) !important;
+}
+.synnical-music-track {
+  background: transparent !important;
+  border-color: color-mix(in srgb, var(--synnical-glass-border) 74%, transparent) !important;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+.synnical-music-track:hover {
+  background: var(--synnical-music-glass-hover) !important;
+}
+.synnical-music-track.is-active {
+  background: var(--synnical-music-glass-active) !important;
+  box-shadow: inset 3px 0 0 var(--synnical-accent);
+}
+.synnical-music-primary,
+.synnical-music-play-button {
+  background: color-mix(in srgb, var(--synnical-accent) 72%, var(--synnical-glass-strong)) !important;
+  border: 1px solid color-mix(in srgb, var(--synnical-accent) 45%, var(--synnical-glass-highlight)) !important;
+  color: #fff !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.34), 0 8px 24px color-mix(in srgb, var(--synnical-accent) 18%, transparent);
+}
+.synnical-music-art {
+  background: var(--synnical-music-glass-mid) !important;
+  border: 1px solid var(--synnical-glass-border);
+}
+.synnical-music .bg-black,
+.synnical-music .bg-black\/40,
+.synnical-music .bg-black\/95,
+.synnical-music [class*="bg-[#080808]"],
+.synnical-music [class*="bg-[#111]"] {
+  background: var(--synnical-music-glass-mid) !important;
+}
+.synnical-music .border-white\/10,
+.synnical-music .border-white\/8,
+.synnical-music .border-white\/7,
+.synnical-music .border-white\/12 {
   border-color: var(--synnical-glass-border) !important;
-  -webkit-backdrop-filter: blur(22px) saturate(1.08);
-  backdrop-filter: blur(22px) saturate(1.08);
 }
-.synnical-music-header { background: var(--synnical-glass-strong) !important; }
-.synnical-music > .absolute.bottom-0 {
-  background: color-mix(in srgb, var(--synnical-glass-strong) 92%, transparent) !important;
+.synnical-music .text-white,
+.synnical-music .text-white\/90,
+.synnical-music .text-white\/75 { color: var(--synnical-text) !important; }
+.synnical-music .text-white\/60,
+.synnical-music .text-white\/55,
+.synnical-music .text-white\/50,
+.synnical-music .text-white\/45,
+.synnical-music .text-white\/40,
+.synnical-music .text-white\/35,
+.synnical-music .text-white\/30,
+.synnical-music .text-white\/25,
+.synnical-music .text-white\/20 { color: var(--synnical-muted) !important; }
+.synnical-music-backdrop {
+  background:
+    radial-gradient(circle at 48% 26%, color-mix(in srgb, var(--synnical-accent) 8%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--synnical-bg) 3%, transparent), color-mix(in srgb, var(--synnical-bg) 12%, transparent) 58%, color-mix(in srgb, var(--synnical-bg) 24%, transparent));
 }
-.synnical-music .bg-black, .synnical-music [class*="bg-[#080808]"], .synnical-music [class*="bg-[#111]"] { background: var(--synnical-glass) !important; }
-.synnical-music .border-white\/10, .synnical-music .border-white\/8, .synnical-music .border-white\/7 { border-color: var(--synnical-glass-border) !important; }
-.synnical-music .text-white, .synnical-music .text-white\/90, .synnical-music .text-white\/75 { color: var(--synnical-text) !important; }
-.synnical-music .text-white\/45, .synnical-music .text-white\/40, .synnical-music .text-white\/35, .synnical-music .text-white\/30 { color: var(--synnical-muted) !important; }
-.synnical-music .bg-white, .synnical-music .bg-white\/10, .synnical-music .bg-white\/8 { background: var(--synnical-selected) !important; }
-.synnical-music-backdrop { background: linear-gradient(180deg, color-mix(in srgb, var(--synnical-bg) 12%, transparent), color-mix(in srgb, var(--synnical-bg) 38%, transparent) 52%, color-mix(in srgb, var(--synnical-bg) 70%, transparent)); }
+@media (prefers-reduced-transparency: reduce) {
+  .synnical-music-header,
+  .synnical-music-sidebar,
+  .synnical-music-context,
+  .synnical-music-toolbar,
+  .synnical-music-search,
+  .synnical-music-card,
+  .synnical-music-list,
+  .synnical-music-queue,
+  .synnical-music-player {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: var(--synnical-surface) !important;
+  }
+}
 
 :root[data-appearance="light"] .synnical-settings-app { background: var(--synnical-glass-strong) !important; color: var(--synnical-text); }
 :root[data-appearance="light"] .synnical-settings-app > aside { background: var(--synnical-toolbar) !important; }
