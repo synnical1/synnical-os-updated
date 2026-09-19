@@ -13,6 +13,7 @@ import { CommandPalette } from "@/components/command-palette"
 import { DesktopShell } from "@/components/desktop-shell"
 import { YouTubeIcon, GeForceNowIcon } from "@/components/brand-app-icons"
 import { UnderConstructionPanel } from "@/components/under-construction-panel"
+import { isCoreOsApp } from "@/lib/app-registry"
 
 // Lazy load panels — only load what the user actually opens
 const DiscoveryPanel = lazy(() => import("@/components/discovery-panel").then(m => ({ default: m.DiscoveryPanel })))
@@ -95,6 +96,7 @@ export function AppShell() {
 
   const isMod = user?.role === "OWNER" || user?.role === "HEAD_ADMIN" || user?.role === "ADMIN" || user?.role === "MOD"
   const appAvailable = (id: string) => {
+    if (isCoreOsApp(id)) return true
     const control = appControls.find((row) => row.appId === id)
     if (!control || !control.enabled) return !control
     return !control.allowedRoles.length || Boolean(user && (control.allowedRoles.includes(user.role) || (control.allowedRoles.includes("BETA_TESTER") && user.tags.includes("BETA TESTER"))))
@@ -199,7 +201,7 @@ export function AppShell() {
     const control = appControls.find((row) => row.appId === target)
     if (safeMode && !SAFE_MODE_APPS.has(target)) return null
     if (!appAvailable(target)) return null
-    if (control?.maintenance) return <UnderConstructionPanel appName={APP_NAV.find((app) => app.id === target)?.label || "This app"} eyebrow="Owner-managed maintenance" description="This app is temporarily under construction while Synnical works on a reliable update." />
+    if (!isCoreOsApp(target) && control?.maintenance) return <UnderConstructionPanel appName={APP_NAV.find((app) => app.id === target)?.label || "This app"} eyebrow="Owner-managed maintenance" description="This app is temporarily under construction while Synnical works on a reliable update." />
     return (
     <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--synnical-accent)] border-t-transparent" /></div>}>
       {target === "discover" ? <ErrorBoundary name="Search"><DiscoveryPanel onPanel={openPanel} /></ErrorBoundary> : null}
