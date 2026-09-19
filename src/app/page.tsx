@@ -3,35 +3,28 @@
 import { useAuth } from "@/hooks/use-auth"
 import { AppShell } from "@/components/app-shell"
 import { Loader2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 type BootStage = "checking" | "playing" | "done"
-// Keep the first painted frame aligned with the OS default.  This must not be
-// a legacy fallback: it is visible before account preferences hydrate.
-const DEFAULT_WALLPAPER = "/brand/wallpapers/thorfinn.webp"
 
-function WallpaperBackdrop() {
-  return <img className="pointer-events-none absolute inset-0 h-full w-full object-cover" src={DEFAULT_WALLPAPER} alt="" />
+function BootSurface({ children, className = "", ariaHidden = false }: { children?: ReactNode; className?: string; ariaHidden?: boolean }) {
+  return <div className={`synnical-boot-stage ${className}`.trim()} aria-hidden={ariaHidden || undefined}>{children}</div>
 }
 
 function SynnicalBoot() {
   return (
-    <div
-      className="synnical-boot relative overflow-hidden"
-      role="status"
-      aria-label="Starting Synnical"
-    >
-      <WallpaperBackdrop />
-      <div className="absolute inset-0 bg-black/20" aria-hidden="true" />
+    <BootSurface className="synnical-boot">
       <div className="synnical-boot-aura" aria-hidden="true" />
-      <div className="synnical-boot-mark" aria-hidden="true">
-        <span className="synnical-boot-orbit synnical-boot-orbit-one" />
-        <span className="synnical-boot-orbit synnical-boot-orbit-two" />
-        <img src="/logo.svg" alt="" />
+      <div className="synnical-boot-card" role="status" aria-label="Starting Synnical">
+        <div className="synnical-boot-mark" aria-hidden="true">
+          <span className="synnical-boot-orbit synnical-boot-orbit-one" />
+          <span className="synnical-boot-orbit synnical-boot-orbit-two" />
+          <img src="/logo.svg" alt="" />
+        </div>
+        <div className="synnical-boot-wordmark" aria-hidden="true">SYNNICAL</div>
+        <div className="synnical-boot-track" aria-hidden="true"><span /></div>
       </div>
-      <div className="synnical-boot-wordmark" aria-hidden="true">SYNNICAL</div>
-      <div className="synnical-boot-track" aria-hidden="true"><span /></div>
-    </div>
+    </BootSurface>
   )
 }
 
@@ -41,8 +34,6 @@ export default function Home() {
 
   useEffect(() => {
     const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined
-    // A document-level `navigate` is a genuine entry into Synnical. Reloads,
-    // history restores and client-side panel changes must never replay boot.
     if (navigation?.type !== "navigate") {
       setBootStage("done")
       return
@@ -52,21 +43,19 @@ export default function Home() {
     return () => window.clearTimeout(timer)
   }, [])
 
-  if (bootStage === "checking") return <div className="relative min-h-screen overflow-hidden" aria-hidden="true"><WallpaperBackdrop /><div className="absolute inset-0 bg-black/20" /></div>
+  if (bootStage === "checking") return <BootSurface ariaHidden />
   if (bootStage === "playing") return <SynnicalBoot />
 
   if (loading) {
     return (
-      <div className="relative flex min-h-screen flex-col items-center justify-center gap-3 overflow-hidden">
-        <WallpaperBackdrop />
-        <div className="absolute inset-0 bg-black/20" />
-        <Loader2 className="h-7 w-7 animate-spin text-[var(--synnical-accent)]" />
-        <p className="text-sm text-[#888888]">Loading Synnical…</p>
+      <div className="synnical-auth-loading">
+        <div className="synnical-auth-loading-card" role="status" aria-label="Loading Synnical">
+          <Loader2 className="h-7 w-7 animate-spin text-[var(--synnical-accent)]" />
+          <p className="text-sm">Loading Synnical…</p>
+        </div>
       </div>
     )
   }
 
-  // Synnical OS is the direct landing experience. Authentication and
-  // account-only apps are handled inside the shared shell.
   return <AppShell />
 }
