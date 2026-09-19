@@ -16,6 +16,24 @@ test("Owner Jarvis uses typed server operations with audit and reversible snapsh
   assert.doesNotMatch(owner, /\$queryRaw|child_process|process\.env|fetch\(/)
 })
 
+test("destructive Owner actions require confirmation before any mutation", () => {
+  const owner = read("src/lib/synn-bot-owner.ts")
+  assert.match(owner, /synn-bot-owner-confirmation/)
+  assert.match(owner, /CONFIRMATION_TTL_MS = 2 \* 60_000/)
+  assert.match(owner, /Nothing has been deleted yet/)
+  assert.match(owner, /Nothing has changed yet/)
+  assert.match(owner, /confirmPendingOwnerAction/)
+  assert.match(owner, /clearPendingConfirmation/)
+  assert.match(owner, /Reply “confirm” within 2 minutes/)
+})
+
+test("restore chat phrases restore the latest reversible purge", () => {
+  const owner = read("src/lib/synn-bot-owner.ts")
+  assert.match(owner, /restore\(\?: it\| that\| chat\| messages\?/)
+  assert.match(owner, /deleted: true \}, data: \{ deleted: false \}/)
+  assert.match(owner, /Say “restore chat” or “undo that”/)
+})
+
 test("Owner natural language covers tags, credits, app control, purges and truthful providers", () => {
   const owner = read("src/lib/synn-bot-owner.ts")
   assert.match(owner, /make\|create/)
