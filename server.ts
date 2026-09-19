@@ -15,6 +15,7 @@ import type { Duplex } from "stream"
 import next from "next"
 import { attachChat } from "./src/lib/chat-server"
 import { validateEnv } from "./src/lib/env"
+import { existsSync } from "fs"
 import { resolve } from "path"
 import { createBlockedUdpSocketClass, createSocks5TcpSocketClass, parseSocks5Url } from "./src/lib/wisp-socks"
 import { authenticatedProxyRequest, allowedSocketOrigin } from "./src/lib/server-request-auth"
@@ -48,8 +49,12 @@ const SYNNICAL_SVG_ALLOWED_ORIGINS = new Set([
 // kill-switch via SYNNICAL_DISABLE_STRATUS=true.
 const STRATUS_BASE_PATH = "/api/games"
 const STRATUS_ENABLED = process.env.SYNNICAL_DISABLE_STRATUS !== "true"
+const BUNDLED_STRATUS_SITES_PATH = resolve(process.cwd(), "stratus", "sites.synnical.json")
+const configuredStratusSitesPath = process.env.STRATUS_SITES_PATH?.trim()
 const STRATUS_SITES_PATH =
-  process.env.STRATUS_SITES_PATH || resolve(process.cwd(), "stratus", "sites.synnical.json")
+  configuredStratusSitesPath && existsSync(configuredStratusSitesPath)
+    ? configuredStratusSitesPath
+    : BUNDLED_STRATUS_SITES_PATH
 const STRATUS_PUBLIC_DIR =
   process.env.STRATUS_PUBLIC_DIR || resolve(process.cwd(), "stratus", "public")
 
@@ -81,6 +86,10 @@ interface StratusHandle {
 let stratus: StratusHandle | null = null
 let wispRouteRequest: ((req: IncomingMessage, socket: Duplex, head: Buffer) => void) | null = null
 let wispNlRouteRequest: ((req: IncomingMessage, socket: Duplex, head: Buffer) => void) | null = null
+
+if (configuredStratusSitesPath && configuredStratusSitesPath !== STRATUS_SITES_PATH) {
+  console.warn(`> Stratus: configured sites path ${configuredStratusSitesPath} does not exist; using bundled Synnical config.`)
+}
 
 // Initialise Stratus
 if (STRATUS_ENABLED) {
