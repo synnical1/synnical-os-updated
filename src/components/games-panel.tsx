@@ -1146,9 +1146,9 @@ export function GamesPanel() {
   // ── Detail view ──
   if (selected && sessionState.phase !== "active") {
     return (
-      <div className="flex flex-col h-full bg-black overflow-y-auto custom-scroll">
+      <div className="flex flex-col h-full bg-[var(--synnical-bg)] text-[var(--synnical-text)] overflow-y-auto custom-scroll">
         {/* Back */}
-        <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-3 border-b border-[var(--synnical-border)] bg-black shrink-0">
+        <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-3 border-b border-[var(--synnical-glass-border)] bg-[var(--synnical-glass-strong)] backdrop-blur-xl shrink-0">
           <button
             onClick={() => { setSelected(null); if (sessionState.phase === "error") setSessionState({ phase: "idle" }) }}
             className="flex items-center gap-1.5 text-xs text-[var(--synnical-muted)] hover:text-[var(--synnical-text)] transition-colors"
