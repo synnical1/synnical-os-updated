@@ -322,7 +322,7 @@ export function ProfilePanel() {
                       style={platform ? { backgroundColor: `#${platform.color}1a` } : undefined}
                     >
                       {platform ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
+
                         <img src={platform.iconUrl} alt={platform.name} className="h-4 w-4" />
                       ) : null}
                     </div>

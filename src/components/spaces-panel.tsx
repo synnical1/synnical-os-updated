@@ -43,7 +43,7 @@ function DrawingBoard({ item, spaceId, onSaved }: { item: Item; spaceId: string;
       for (const p of pts.slice(1)) ctx.lineTo(Number(p.x) || 0, Number(p.y) || 0)
       ctx.stroke()
     }
-  }, [item.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [item.updatedAt])
   useEffect(() => { redraw() }, [redraw])
 
   const point = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -103,7 +103,7 @@ export function SpacesPanel() {
   const loadList = useCallback(async () => { try { const body=await json<{spaces:Space[]}>("/api/features/spaces"); setSpaces(body.spaces||[]) } finally { setLoading(false) } }, [])
   const loadDetail = useCallback(async (id=selectedId) => { if (!id) return; try { setDetail(await json<Detail>(`/api/features/spaces?spaceId=${encodeURIComponent(id)}`)) } catch { setSelectedId(""); setDetail(null); void loadList() } }, [selectedId, loadList])
   useEffect(()=>{void loadList()},[loadList])
-  useEffect(()=>{if(selectedId)void loadDetail(selectedId)},[selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(selectedId)void loadDetail(selectedId)},[selectedId])
   useEffect(()=>{if(!selectedId)return;const t=setInterval(()=>void loadDetail(selectedId),3500);return()=>clearInterval(t)},[selectedId,loadDetail])
 
   const add = async (kind: string) => {

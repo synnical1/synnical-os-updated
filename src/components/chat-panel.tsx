@@ -2252,7 +2252,7 @@ const MessageRow = React.memo(function MessageRow({
             ) : null}
             {m.voiceUrl && <VoiceMessage url={m.voiceUrl} transcript={m.voiceTranscript} />}
             {m.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
+
               <img
                 src={m.imageUrl}
                 data-image-viewer={m.imageUrl} role="button" tabIndex={0} aria-label="Open image"
@@ -2263,7 +2263,7 @@ const MessageRow = React.memo(function MessageRow({
               />
             )}
             {m.gifUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
+
               <img
                 src={m.gifUrl}
                 data-image-viewer={m.gifUrl} role="button" tabIndex={0} aria-label="Open GIF"

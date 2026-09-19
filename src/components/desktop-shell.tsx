@@ -719,7 +719,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
   useEffect(() => {
     const usable = windows.filter((win) => allowed.has(win.panel))
     if (usable.length !== windows.length) persistWindows(usable)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [allowed])
 
   useEffect(() => {
@@ -764,7 +764,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
     const lock = () => { if (!user) return; closeFlyouts(); setUnlockPassword(""); setUnlockPin(""); setUnlockMode("password"); setUnlockError(""); setForgotOpen(false); setLockRequiresPassword(true); setLockStage("lock"); setLocked(true) }
     window.addEventListener("synnical-os-lock", lock)
     return () => window.removeEventListener("synnical-os-lock", lock)
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id])
   useEffect(() => {
     if (!user || os.autoLockMinutes <= 0 || locked || poweredOff) return
     let timer = 0
@@ -1195,7 +1195,9 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
     saveWorkspaceRows(remaining)
     if (workspace === id) { setWorkspace(fallback); writeSetting(WORKSPACE_KEY, fallback) }
   }
-  const showDesktop = () => setWindows((current) => current.map((win) => win.workspace === workspace ? { ...win, minimized: true } : win))
+  function showDesktop() {
+    setWindows((current) => current.map((win) => win.workspace === workspace ? { ...win, minimized: true } : win))
+  }
   const activateSnapGroup = (group: string) => {
     setWindows((current) => {
       const rows = current.filter((win) => win.snapGroup === group && win.workspace === workspace)
@@ -1405,7 +1407,9 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
     setStartOpen(true); setStartQuery(query)
   }
 
-  const closeFlyouts = () => { setStartOpen(false); setQuickOpen(false); setNoticeOpen(false); setWidgetsOpen(false); setTaskViewOpen(false); setClipboardOpen(false); setEmojiOpen(false); setContextMenu(null); setPowerMenu(false); setTrayOverflow(false); setDesktopFolderOpen(null); setRunOpen(false) }
+  function closeFlyouts() {
+    setStartOpen(false); setQuickOpen(false); setNoticeOpen(false); setWidgetsOpen(false); setTaskViewOpen(false); setClipboardOpen(false); setEmojiOpen(false); setContextMenu(null); setPowerMenu(false); setTrayOverflow(false); setDesktopFolderOpen(null); setRunOpen(false)
+  }
 
   if (poweredOff) return <div className="synnical-os-root grid h-[100dvh] w-full place-items-center bg-black text-white"><button onClick={() => setPoweredOff(false)} className="flex flex-col items-center gap-4 rounded-2xl p-8 hover:bg-white/[0.04]"><img src="/logo.svg" alt="Synnical" className="h-14 w-14" /><span className="text-sm text-white/60">Start Synnical</span></button></div>
   if (locked) return <div className="synnical-os-lock relative h-[100dvh] overflow-hidden bg-black text-white" style={lockWallpaperIsVideo ? undefined : lockWallpaperStyle} onClick={() => lockStage === "lock" && setLockStage("signin")}>

@@ -62,7 +62,7 @@ function useLocalSetting<T>(key: string, fallback: T) {
     }
     window.addEventListener("synnical-setting-changed", handler)
     return () => window.removeEventListener("synnical-setting-changed", handler)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [key])
   const update = useCallback(
     (next: T) => {
@@ -382,7 +382,7 @@ function AccountSection() {
       <div className="rounded-xl overflow-hidden border border-[var(--synnical-border)] mb-6">
         <div className="relative h-28 bg-[var(--synnical-surface-2)]">
           {user.bannerUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
+
             <img src={user.bannerUrl} alt="banner" className="h-full w-full object-cover" />
           )}
           <button
@@ -730,7 +730,7 @@ function ConnectionsSection() {
                     style={platform ? { backgroundColor: `#${platform.color}1a` } : undefined}
                   >
                     {platform ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
+
                       <img src={platform.iconUrl} alt={platform.name} className="h-5 w-5" />
                     ) : (
                       <Link2 className="h-4 w-4 text-[var(--synnical-muted)]" />
@@ -768,7 +768,7 @@ function ConnectionsSection() {
                   {PLATFORMS.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       <span className="inline-flex items-center gap-2">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        { }
                         <img src={p.iconUrl} alt="" className="h-4 w-4" />
                         {p.name}
                       </span>
@@ -819,18 +819,11 @@ function AppearanceSection() {
       <SectionTitle title="Appearance" desc="Choose your base appearance independently of your accent theme." />
 
       <div className="settings-section-list">
-        <SettingRow title="Interface" desc="True OLED black, white controls, static stars and moving meteors.">
-          <span className="border border-[#303030] bg-black px-3 py-1.5 text-xs font-semibold text-white">OLED Black</span>
+        <SettingRow title="Interface" desc="A Synnical desktop that respects your Light or Dark preference.">
+          <span className="border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] px-3 py-1.5 text-xs font-semibold text-[var(--synnical-text)]">Synnical</span>
         </SettingRow>
 
         <AppearanceModeControl />
-
-        <SettingRow title="Browser tab" desc="The tab title and favicon stay on Google Classroom.">
-          <div className="flex items-center gap-2 text-xs text-[#bdbdbd]">
-            <img src="/brand/google-classroom.png" alt="" className="h-5 w-5" />
-            <span>Google Classroom</span>
-          </div>
-        </SettingRow>
 
       </div>
     </div>

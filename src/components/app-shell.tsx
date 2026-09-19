@@ -26,7 +26,7 @@ const AIPanel = lazy(() => import("@/components/ai-panel").then(m => ({ default:
 const ShopPanel = lazy(() => import("@/components/shop-panel").then(m => ({ default: m.ShopPanel })))
 const GamesPanel = lazy(() => import("@/components/games-panel").then(m => ({ default: m.GamesPanel })))
 const StaffAccountsPanel = lazy(() => import("@/components/staff-accounts-panel").then(m => ({ default: m.StaffAccountsPanel })))
-const SynnFlixPanel = lazy(() => import("@/components/synnflix-panel").then(m => ({ default: m.SynnFlixPanel })))
+const SynnFlixPanel = lazy(() => import("@/components/synnflix-unavailable-panel").then(m => ({ default: m.SynnFlixUnavailablePanel })))
 const CineBPanel = lazy(() => import("@/components/cineb-panel").then(m => ({ default: m.CineBPanel })))
 const SynnimePanel = lazy(() => import("@/components/synnime-panel").then(m => ({ default: m.SynnimePanel })))
 const SynnDrivePanel = lazy(() => import("@/components/synn-drive-panel").then(m => ({ default: m.SynnDrivePanel })))
@@ -99,7 +99,7 @@ export function AppShell() {
   useEffect(() => {
     if (!user || panel !== "auth") return
     setPanel("profile")
-  }, [user, panel]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, panel])
 
   useEffect(() => {
     if (!user) { setLabVisible(false); return }
@@ -127,7 +127,7 @@ export function AppShell() {
     }
     window.addEventListener("synnical-open-browser", openBrowser)
     return () => window.removeEventListener("synnical-open-browser", openBrowser)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const openPanel = (event: Event) => {
@@ -144,7 +144,7 @@ export function AppShell() {
     }
     window.addEventListener("synnical-open-panel", openPanel)
     return () => window.removeEventListener("synnical-open-panel", openPanel)
-  }, [isMod, user, labVisible]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isMod, user, labVisible])
 
   useEffect(() => {
     const onPageShow = (event: PageTransitionEvent) => {
@@ -213,7 +213,7 @@ export function AppShell() {
 
 
   if (bootMode === null) return null
-  if (bootMode === "recover") return <main className="min-h-screen bg-black text-white p-8 space-y-4"><h1 className="text-2xl">Synnical Recovery</h1><p>Reset this browser's OS preferences or start with essential apps. Account records and uploads are kept.</p><button className="rounded border p-3" onClick={() => { for (const key of Object.keys(localStorage)) if (key.startsWith("synnical:os:") && !key.includes("settings-snapshots")) localStorage.removeItem(key); location.assign("/?safe=1") }}>Reset local OS preferences</button><a className="block underline" href="/?safe=1">Start Safe Mode</a><a className="block underline" href="/">Start normally</a></main>
+  if (bootMode === "recover") return <main className="min-h-screen bg-black text-white p-8 space-y-4"><h1 className="text-2xl">Synnical Recovery</h1><p>Reset this browser's OS preferences or start with essential apps. Account records and uploads are kept.</p><button className="rounded border p-3" onClick={() => { for (const key of Object.keys(localStorage)) if (key.startsWith("synnical:os:") && !key.includes("settings-snapshots")) localStorage.removeItem(key); window.location.href = "/?safe=1" }}>Reset local OS preferences</button><a className="block underline" href="/?safe=1">Start Safe Mode</a><a className="block underline" href="/">Start normally</a></main>
   return (
     <>
       {safeMode && <a href="/" className="fixed right-3 top-2 z-[30000] rounded bg-amber-950 px-3 py-1 text-xs text-white">Safe Mode · Exit</a>}

@@ -47,7 +47,6 @@ import {
   synnFlixAvatar,
   type SynnFlixProfile,
 } from "@/lib/synnflix-profiles"
-import { UnderConstructionPanel } from "@/components/under-construction-panel"
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 const TMDB_LOGO = "https://www.themoviedb.org/assets/2/v4/logos/v2/blue_square_2-d537fb228cf3ded904ef09b136fe3fec72548ebc1fea3fbbd1ad9e36364db38b.svg"
@@ -463,7 +462,7 @@ function LoadingGrid() {
   )
 }
 
-function SynnFlixProviderPanel({ catalogMode = "synnflix" }: { catalogMode?: CatalogMode }) {
+export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: CatalogMode }) {
   const animeMode = catalogMode === "anime"
   const brandName = animeMode ? "Synnime" : "SynnFlix"
   const brandSubtitle = animeMode ? "Anime only" : "Movies + TV"
@@ -1689,12 +1688,6 @@ function SynnFlixProviderPanel({ catalogMode = "synnflix" }: { catalogMode?: Cat
       ) : null}
     </section>
   )
-}
-
-// The previous provider is unavailable. Keep the old implementation isolated
-// for a future approved provider rather than exposing a broken catalogue/player.
-export function SynnFlixPanel() {
-  return <UnderConstructionPanel appName="SynnFlix" eyebrow="Films and series" description="We’re lining up a dependable, properly authorised provider before bringing movies and shows back online." />
 }
 
 function SynnFlixCredits() {

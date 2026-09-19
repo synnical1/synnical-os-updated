@@ -50,7 +50,7 @@ Synnical product facts:
 - Settings can be opened without an account. Chat requires login; guests use the dedicated Log in/Create account flow.
 - Ownership verification is NOT DNS verification. A signed-in Synnical account opens Settings > Owner Verification and enters the server owner password. The server compares it with OWNER_PASSWORD and, on success, assigns the OWNER role. Never reveal or guess that password.
 - Verified staff accounts (MOD, ADMIN, HEAD_ADMIN and OWNER) are exempt from automatic moderation bans. Their prohibited content is still blocked and logged.
-- The default shell is opaque OLED black with static stars and moving meteors.
+- The default shell is the Synnical desktop, with a user-controlled Light or Dark appearance.
 - SynnFlix uses TMDB metadata and Vidking's supported movie/TV embed player. Playback availability can still depend on Vidking's upstream catalogue.
 - Music uses Audius as its built-in full-track source, SoundCloud's official widget, radio, and optional owner-configured Piped/Invidious/Cobalt bridges.
 - Browser search supports DuckDuckGo, Brave Search, and Google. Google can challenge datacenter IP traffic; DuckDuckGo is the default.

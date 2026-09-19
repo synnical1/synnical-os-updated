@@ -36,7 +36,7 @@ function darkTheme(id: ThemeId, name: string, accent: string, hover: string, sof
 
 export const THEMES: ThemeDef[] = [
   darkTheme("blood", "Blood", "#dc2626", "#ef4444", "#1f0909"),
-  darkTheme("synnical", "OLED Black", "#ffffff", "#e8e8e8", "#151515"),
+  darkTheme("synnical", "Synnical", "#ffffff", "#e8e8e8", "#151515"),
   darkTheme("ocean", "Ocean", "#2563eb", "#3b82f6", "#07142e"),
   darkTheme("forest", "Forest", "#16a34a", "#22c55e", "#071b0e"),
   darkTheme("sunset", "Sunset", "#ea580c", "#f97316", "#261006"),

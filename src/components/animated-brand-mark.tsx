@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 export function AnimatedBrandMark({ className }: { className?: string }) {
   const [fallback, setFallback] = useState(false)
   return (
-    // eslint-disable-next-line @next/next/no-img-element
+
     <img
       src={fallback ? "/logo.svg" : "/brand/rose.png"}
       alt="Synnical"

@@ -112,6 +112,7 @@ export function MusicPanel() {
   const { user } = useAuth()
   const [library, setLibrary] = useState<{ favorites: MusicTrack[]; history: MusicTrack[] }>({ favorites: [], history: [] })
   const [libraryView, setLibraryView] = useState<"browse" | "favorites" | "history">("browse")
+  const [favorites, setFavorites] = useState<Set<string>>(() => new Set())
   const reloadLibrary = useCallback(async () => {
     const response = await fetch("/api/music/library", { cache: "no-store" })
     if (!response.ok) return
@@ -137,7 +138,6 @@ export function MusicPanel() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [position, setPosition] = useState(0)
   const [duration, setDuration] = useState(0)
-  const [favorites, setFavorites] = useState<Set<string>>(() => new Set())
   const [soundCloudInput, setSoundCloudInput] = useState("")
   const [soundCloudUrl, setSoundCloudUrl] = useState("")
   const [cobaltInput, setCobaltInput] = useState("")
@@ -158,6 +158,7 @@ export function MusicPanel() {
   const [musicFeatures, setMusicFeatures] = useState<any>(null)
   const [queueOpen, setQueueOpen] = useState(false)
   const [dragQueueIndex, setDragQueueIndex] = useState<number | null>(null)
+  const musicActivitySharingEnabled = musicFeatures?.activity?.shareEnabled !== false
 
   const refreshMusicFeatures = useCallback(async () => {
     try { setMusicFeatures(await featureApi.music.state()) } catch {}
@@ -237,9 +238,9 @@ export function MusicPanel() {
 
   const publishMusicActivity = useCallback(async () => {
     if (!musicFeatures) return
-    const result = await featureApi.music.action("activity", { track: current, isPlaying, shareEnabled: musicFeatures?.activity?.shareEnabled !== false })
+    const result = await featureApi.music.action("activity", { track: current, isPlaying, shareEnabled: musicActivitySharingEnabled })
     if (result?.activity) setMusicFeatures((previous: any) => previous ? { ...previous, activity: result.activity } : previous)
-  }, [current, isPlaying, Boolean(musicFeatures), musicFeatures?.activity?.shareEnabled])
+  }, [current, isPlaying, musicFeatures, musicActivitySharingEnabled])
 
   useEffect(() => {
     if (!musicFeatures) return
@@ -251,11 +252,11 @@ export function MusicPanel() {
 
   const clearMusicActivity = useCallback(async () => {
     try {
-      if (musicFeatures?.activity?.shareEnabled === false) return
-      await featureApi.music.action("activity", { clear: true, isPlaying: false, shareEnabled: musicFeatures?.activity?.shareEnabled !== false })
+      if (!musicActivitySharingEnabled) return
+      await featureApi.music.action("activity", { clear: true, isPlaying: false, shareEnabled: musicActivitySharingEnabled })
       setMusicFeatures((previous: any) => previous ? { ...previous, activity: previous.activity ? { ...previous.activity, trackId: null, title: null, artist: null, artwork: null, isPlaying: false } : previous.activity } : previous)
     } catch {}
-  }, [musicFeatures?.activity?.shareEnabled])
+  }, [musicActivitySharingEnabled])
 
   useEffect(() => {
     if (!current || musicFeatures?.activity?.shareEnabled === false) {

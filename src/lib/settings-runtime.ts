@@ -220,7 +220,7 @@ export function useSetting<T extends string | number | boolean>(
 
   useEffect(() => {
     setValue(readSetting<T>(key, fallback))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [key])
 
   useEffect(() => {
@@ -230,7 +230,7 @@ export function useSetting<T extends string | number | boolean>(
     }
     window.addEventListener("synnical-setting-changed", handler)
     return () => window.removeEventListener("synnical-setting-changed", handler)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [key])
 
   const update = useCallback((v: T) => {
@@ -276,23 +276,6 @@ function applyPerformanceMode(root: HTMLElement) {
 }
 
 function applySpecialSetting(root: HTMLElement, key: string, value: string | number | boolean) {
-  if (key === "privacy.tabCloak") {
-    // The browser tab identity is intentionally fixed. Keeping this here also
-    // migrates older saved "off" values without requiring users to clear
-    // localStorage.
-    document.title = "Google Classroom"
-    let icon = document.querySelector<HTMLLinkElement>('link[data-synnical-tab-icon="true"]')
-    if (!icon) {
-      icon = document.createElement("link")
-      icon.rel = "icon"
-      icon.dataset.synnicalTabIcon = "true"
-      document.head.appendChild(icon)
-    }
-    icon.href = "/brand/google-classroom.png"
-    icon.type = "image/png"
-    return
-  }
-
   if (key === "a11y.reduceMotion") {
     root.classList.toggle("reduce-motion", value === true)
     return
@@ -441,8 +424,6 @@ export function applyAllSettings(sections: RuntimeSettingSection[]) {
   applySpecialSetting(root, "a11y.captionBackground", readSetting("a11y.captionBackground", "black"))
   applySpecialSetting(root, "chat.msgDensity", readSetting("chat.msgDensity", "cozy"))
   applySpecialSetting(root, "a11y.fontScale", readSetting("a11y.fontScale", 100))
-  applySpecialSetting(root, "privacy.tabCloak", "google-classroom")
-
   for (const [key, config] of Object.entries(PERF_TOGGLES)) {
     applySpecialSetting(root, key, readSetting(key, config.fallback))
   }

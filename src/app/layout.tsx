@@ -36,9 +36,9 @@ export const metadata: Metadata = {
     description: "Your social desktop on the web.",
   },
   icons: {
-    icon: "/brand/google-classroom.png",
-    shortcut: "/brand/google-classroom.png",
-    apple: "/brand/google-classroom.png",
+    icon: "/brand/rose.png",
+    shortcut: "/brand/rose.png",
+    apple: "/brand/rose.png",
   },
 }
 
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
 const PreloadLinks = () => (
   <>
     {/* Preload critical images */}
-    <link rel="preload" href="/brand/google-classroom.png" as="image" type="image/png" />
+    <link rel="preload" href="/brand/rose.png" as="image" type="image/png" />
     <link rel="preload" href="/brand/wallpapers/thorfinn.webp" as="image" type="image/webp" />
     {/* Browser is part of the initial shell, so fetch its local proxy runtime
         immediately. This removes asset-download latency from the first search;

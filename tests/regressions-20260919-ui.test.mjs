@@ -33,8 +33,26 @@ test("oversized GIFs are rejected consistently before upload", async () => {
 })
 
 test("provider-dependent video surfaces remain unavailable until a provider is ready", () => {
-  for (const path of ["src/components/synnflix-panel.tsx", "src/components/synnime-panel.tsx", "src/components/cineb-panel.tsx"]) {
+  assert.match(read("src/components/app-shell.tsx"), /synnflix-unavailable-panel/)
+  for (const path of ["src/components/synnflix-unavailable-panel.tsx", "src/components/synnime-panel.tsx", "src/components/cineb-panel.tsx"]) {
     assert.match(read(path), /UnderConstructionPanel/)
     assert.match(read(path), /reliab|dependable|authorised/i)
   }
+})
+
+test("Synnical keeps its own tab identity instead of applying a hidden tab cloak", () => {
+  const layout = read("src/app/layout.tsx")
+  const settings = read("src/lib/settings-runtime.ts")
+  assert.match(layout, /\/brand\/rose\.png/)
+  assert.doesNotMatch(settings, /Google Classroom|privacy\.tabCloak/)
+})
+
+test("theme styles no longer contain the retired OLED force-overrides", () => {
+  const css = read("src/app/globals.css")
+  assert.doesNotMatch(css, /\.synnical-wallpaper \{ display: none !important; \}/)
+  assert.doesNotMatch(css, /\.synnical-shell \[class\*="bg-pink-"\]/)
+  assert.doesNotMatch(css, /Primary app surfaces never use glass blur/)
+  assert.match(css, /--synnical-page: #edf2f8/)
+  assert.match(css, /:root\[data-appearance="dark"\]/)
+  assert.match(css, /:root\[data-appearance="dark"\][\s\S]*--synnical-bg: #090d16/)
 })

@@ -26,7 +26,6 @@ type Tab = {
   input: string
   title: string
   frame: any | null
-  iframeEl: HTMLIFrameElement | null
   groupId?: string | null
 }
 
@@ -231,7 +230,7 @@ function searchEngineMark(id: string): string {
 
 function newTab(initialUrl = ""): Tab {
   const url = initialUrl.trim()
-  return { id: safeUUID(), url: url || null, input: url, title: url || "New Tab", frame: null, iframeEl: null }
+  return { id: safeUUID(), url: url || null, input: url, title: url || "New Tab", frame: null }
 }
 
 function normalizeUrl(raw: string, engineId: string): string {
@@ -306,20 +305,20 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
     if (sSearchEngine && sSearchEngine !== searchEngineId) {
       setSearchEngine(sSearchEngine)
     }
-  }, [sSearchEngine]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sSearchEngine])
 
   useEffect(() => {
     if (sHomepage !== homepage) {
       setHomepage(sHomepage)
     }
-  }, [sHomepage]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sHomepage])
 
   // When zustand store changes (e.g. from browser settings popover), sync back to settings
   useEffect(() => {
     if (searchEngineId && searchEngineId !== sSearchEngine) {
       setSSearchEngine(searchEngineId)
     }
-  }, [searchEngineId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchEngineId])
 
   // Older builds silently wrote Google as the default. Migrate that persisted
   // value once so existing users stop hitting Google's VPS-IP challenge. Google
@@ -363,7 +362,7 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
     if (homepage !== sHomepage) {
       setSHomepage(homepage)
     }
-  }, [homepage]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [homepage])
 
   // This setting promises history clearing only. pagehide covers reloads and
   // closes; cleanup covers panel removal during client-side navigation.
@@ -698,7 +697,7 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
             ),
           })
           frameMapRef.current.set(tabId, { frame, iframe })
-          updateTab(tabId, { frame, iframeEl: iframe })
+          updateTab(tabId, { frame })
           return frame
         } catch (error) {
           try { iframe.remove() } catch {}
@@ -866,7 +865,7 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
     if (!controller) return
     frameGenerationRef.current += 1
     for (const tabId of Array.from(frameMapRef.current.keys())) releaseFrame(tabId)
-    setTabs((previous) => previous.map((tab) => ({ ...tab, frame: null, iframeEl: null })))
+    setTabs((previous) => previous.map((tab) => ({ ...tab, frame: null })))
     if (!temporaryProfile) {
       normalCookieSnapshotRef.current = controller.cookieJar?.dump?.() || null
       controller.cookieJar?.clear?.()
@@ -917,7 +916,7 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
     if (!workspace || !Array.isArray(workspace.tabs) || !workspace.tabs.length) return
     frameGenerationRef.current += 1
     for (const tabId of Array.from(frameMapRef.current.keys())) releaseFrame(tabId)
-    const restored: Tab[] = workspace.tabs.slice(0, 50).map((row: any) => ({ id: safeUUID(), url: typeof row.url === "string" ? row.url : null, input: typeof row.input === "string" ? row.input : (row.url || ""), title: typeof row.title === "string" ? row.title : (row.url || "New Tab"), groupId: typeof row.groupId === "string" ? row.groupId : null, frame: null, iframeEl: null }))
+    const restored: Tab[] = workspace.tabs.slice(0, 50).map((row: any) => ({ id: safeUUID(), url: typeof row.url === "string" ? row.url : null, input: typeof row.input === "string" ? row.input : (row.url || ""), title: typeof row.title === "string" ? row.title : (row.url || "New Tab"), groupId: typeof row.groupId === "string" ? row.groupId : null, frame: null }))
     setTabs(restored); setActiveId(restored[0].id); setSplitTabId(workspace.layout === "split" && restored.length > 1 ? restored[1].id : null)
     const groups = Array.isArray(workspace.notes?.groups) ? workspace.notes.groups : []
     setBrowserGroups(groups); void featureApi.browser.action("save-groups", { groups }).catch(() => {})
@@ -979,9 +978,8 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
     if (splitTabId === id) setSplitTabId(null)
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.id === id)
-      const closing = prev.find((t) => t.id === id)
       const liveFrame = frameMapRef.current.get(id)
-      const iframe = liveFrame?.iframe || closing?.iframeEl
+      const iframe = liveFrame?.iframe
       if (iframe) {
         try {
           iframe.src = "about:blank"
@@ -1017,12 +1015,6 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
     navigationTimeoutRef.current.clear()
   }, [])
 
-  useEffect(() => {
-    for (const t of tabs) {
-      if (t.iframeEl) t.iframeEl.style.display = t.id === activeId ? "block" : "none"
-    }
-  }, [tabs, activeId])
-
   const splitTab = splitTabId && splitTabId !== activeId ? tabs.find((tab) => tab.id === splitTabId) || null : null
   useEffect(() => {
     if (!panelVisible || !splitTab?.url || splitTab.frame || frameMapRef.current.has(splitTab.id) || framePromiseRef.current.has(splitTab.id)) return
@@ -1047,7 +1039,7 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
         live.iframe.remove(); frameMapRef.current.delete(tab.id)
         const timeout = navigationTimeoutRef.current.get(tab.id); if (timeout) clearTimeout(timeout)
         navigationTimeoutRef.current.delete(tab.id)
-        updateTab(tab.id, { frame: null, iframeEl: null })
+        updateTab(tab.id, { frame: null })
       }
     }, 10_000)
     return () => window.clearInterval(timer)
@@ -1056,7 +1048,7 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
   useEffect(() => {
     const safeZoom = Math.min(200, Math.max(50, zoomLevel))
     for (const tab of tabs) {
-      const iframe = tab.iframeEl
+      const iframe = frameMapRef.current.get(tab.id)?.iframe
       if (!iframe) continue
       const isPrimary = tab.id === activeId
       const isSecondary = Boolean(splitTab && tab.id === splitTab.id)

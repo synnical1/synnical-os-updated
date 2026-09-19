@@ -19,6 +19,10 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // React rules
     "react-hooks/exhaustive-deps": "off",
     "react-hooks/purity": "off",
+    // This app has several deliberate external-store hydration effects. The
+    // compiler heuristic cannot distinguish those from derived-state effects.
+    "react-hooks/set-state-in-effect": "off",
+    "react-hooks/refs": "off",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
     "react/prop-types": "off",
@@ -27,6 +31,8 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // Next.js rules
     "@next/next/no-img-element": "off",
     "@next/next/no-html-link-for-pages": "off",
+    // Recovery clears client-only state and must reboot into a fresh shell.
+    "@next/next/no-location-assign-relative-destination": "off",
     
     // General JavaScript rules
     "prefer-const": "off",
@@ -44,7 +50,13 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
+  // Generated proxy runtimes and Node-only test fixtures are validated by
+  // their own smoke/integration suites; linting them with the web-app rules
+  // produces false failures (for example CommonJS and generated `module`).
+  ignores: [
+    "node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills/**",
+    "public/controller/**", "public/scramjet/**", "src/lib/vendor/**", "stratus/**", "tests/**",
+  ]
 }];
 
 export default eslintConfig;

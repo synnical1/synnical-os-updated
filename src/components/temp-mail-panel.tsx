@@ -213,7 +213,7 @@ export function TempMailPanel() {
   // --- Auto-create the first session on mount ---
   useEffect(() => {
     if (!session && !loadingSession) newSession()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   // --- Expire handler — when the countdown hits zero, clear inbox ---
