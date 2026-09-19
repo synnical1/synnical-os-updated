@@ -82,7 +82,6 @@ const RECENTS_KEY = "synnical:os:recents:v2"
 const CLIPBOARD_KEY = "synnical:os:clipboard:v1"
 const START_SEARCH_HISTORY_KEY = "synnical:os:start-search-history:v1"
 const PRIVACY_HISTORY_KEY = "synnical:os:privacy-history:v1"
-const FREE_DESKTOP_MIGRATION_KEY = "synnical:os:migration:free-desktop-v1"
 const TASKBAR_HEIGHT = 48
 const MIN_WIDTH = 420
 const MIN_HEIGHT = 280
@@ -593,23 +592,10 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
     })
   }, [os.workspaces, workspace])
 
-  useEffect(() => {
-    if (os.restoreWindows) return
-    setWindows([])
-    try { localStorage.removeItem(WINDOW_KEY) } catch {}
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(FREE_DESKTOP_MIGRATION_KEY) === "true") return
-      localStorage.setItem(FREE_DESKTOP_MIGRATION_KEY, "true")
-      if (os.restoreWindows || os.desktopAlignGrid) {
-        const next = { ...os, restoreWindows: false, desktopAlignGrid: false }
-        setOs(next)
-        void persistOsSettings(next)
-      }
-    } catch {}
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Window state belongs to the OS, not to an individual app render.  Older
+  // releases erased it on every shell mount and even migrated users back to
+  // that destructive setting.  Keep the saved records; closing a window is
+  // the explicit way to remove one.
 
   const playTone = useCallback((kind: "open" | "notify" | "snap") => {
     if (os.uiSoundVolume <= 0) return

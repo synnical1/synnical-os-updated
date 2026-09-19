@@ -96,6 +96,63 @@ html[data-synnical-theme] {
   --sidebar-ring: #ffffff;
 }
 
+/* Semantic surfaces keep light and dark mode coherent across every OS app. */
+:root {
+  --synnical-page: #edf2f8;
+  --synnical-desktop-foreground: #f8fbff;
+  --synnical-desktop-label-shadow: 0 2px 8px rgba(0, 0, 0, .9), 0 0 2px rgba(0, 0, 0, .9);
+  --synnical-surface-elevated: rgba(255, 255, 255, .78);
+  --synnical-glass: rgba(250, 252, 255, .68);
+  --synnical-glass-strong: rgba(250, 252, 255, .86);
+  --synnical-toolbar: rgba(241, 246, 252, .82);
+  --synnical-titlebar: rgba(248, 251, 255, .78);
+  --synnical-input-surface: rgba(255, 255, 255, .82);
+  --synnical-selected: color-mix(in srgb, var(--synnical-accent) 16%, transparent);
+  --synnical-hover: rgba(24, 39, 65, .07);
+  --synnical-pressed: rgba(24, 39, 65, .13);
+  --synnical-modal-backdrop: rgba(17, 28, 47, .42);
+  --synnical-shadow: 0 20px 56px rgba(20, 35, 59, .20);
+  --synnical-glass-border: rgba(76, 96, 127, .30);
+  --synnical-glass-highlight: rgba(255, 255, 255, .72);
+}
+
+:root[data-appearance="light"] {
+  color-scheme: light;
+  --synnical-bg: #edf2f8;
+  --synnical-surface: #f7faff;
+  --synnical-surface-2: #e7edf6;
+  --synnical-border: #b9c6d8;
+  --synnical-text: #15243a;
+  --synnical-muted: #53647c;
+  --background: var(--synnical-bg);
+  --foreground: var(--synnical-text);
+  --card: var(--synnical-surface);
+  --card-foreground: var(--synnical-text);
+  --popover: var(--synnical-surface-elevated);
+  --popover-foreground: var(--synnical-text);
+  --input: var(--synnical-border);
+  --border: var(--synnical-border);
+}
+
+:root[data-appearance="dark"] {
+  color-scheme: dark;
+  --synnical-page: #090d16;
+  --synnical-desktop-foreground: #f8fbff;
+  --synnical-surface-elevated: rgba(16, 23, 36, .86);
+  --synnical-glass: rgba(11, 17, 28, .70);
+  --synnical-glass-strong: rgba(11, 17, 28, .88);
+  --synnical-toolbar: rgba(14, 21, 34, .82);
+  --synnical-titlebar: rgba(22, 30, 45, .78);
+  --synnical-input-surface: rgba(8, 13, 23, .82);
+  --synnical-selected: color-mix(in srgb, var(--synnical-accent) 24%, transparent);
+  --synnical-hover: rgba(255, 255, 255, .08);
+  --synnical-pressed: rgba(255, 255, 255, .14);
+  --synnical-modal-backdrop: rgba(0, 0, 0, .56);
+  --synnical-shadow: 0 24px 80px rgba(0, 0, 0, .48);
+  --synnical-glass-border: rgba(210, 225, 255, .18);
+  --synnical-glass-highlight: rgba(255, 255, 255, .16);
+}
+
 @layer base {
   * { @apply border-border outline-ring/50; }
 html, body {
@@ -867,3 +924,51 @@ video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--s
 [data-keyboard-theme="light"] button { background: #fff !important; color: #15151a !important; border-color: #bbb !important; }
 [data-keyboard-theme="contrast"] { background: black !important; color: white !important; border: 2px solid yellow !important; }
 [data-keyboard-theme="contrast"] button { border: 1px solid white !important; }
+
+/* The old OLED shell deliberately disabled wallpaper and blur.  Keep desktop
+   artwork visible and use the same token stack in both appearances. */
+.synnical-wallpaper { display: block !important; }
+.synnical-os-root { background: var(--synnical-page) !important; color: var(--synnical-text) !important; }
+.synnical-os-root .synnical-os-window {
+  background: var(--synnical-glass-strong) !important;
+  border-color: var(--synnical-glass-border) !important;
+  box-shadow: var(--synnical-shadow) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  backdrop-filter: blur(24px) saturate(125%);
+}
+.synnical-os-root .synnical-os-window.is-focused { border-color: color-mix(in srgb, var(--synnical-accent) 48%, var(--synnical-glass-border)) !important; }
+.synnical-os-root .synnical-os-titlebar { background: var(--synnical-titlebar) !important; border-color: var(--synnical-glass-border) !important; color: var(--synnical-text) !important; }
+.synnical-os-root .synnical-os-window > div { background: var(--synnical-glass) !important; color: var(--synnical-text); }
+.synnical-os-root .synnical-taskbar { background: var(--synnical-toolbar) !important; border-color: var(--synnical-glass-border) !important; box-shadow: 0 -8px 28px rgba(16, 27, 45, .14); }
+.synnical-os-root .synnical-taskbar-app { background: transparent !important; color: var(--synnical-text); }
+.synnical-os-root .synnical-taskbar-app:hover { background: var(--synnical-hover) !important; border-color: var(--synnical-glass-border) !important; }
+.synnical-os-root .synnical-taskbar-app.is-active { background: var(--synnical-selected) !important; border-color: color-mix(in srgb, var(--synnical-accent) 42%, var(--synnical-glass-border)) !important; }
+.synnical-os-root .synnical-desktop-app-icon { color: var(--synnical-desktop-foreground) !important; filter: drop-shadow(0 2px 4px rgba(0,0,0,.82)) !important; }
+.synnical-os-root .synnical-desktop-app-icon + span,
+.synnical-os-root [class*="synnical-desktop-app-icon"] ~ span { color: var(--synnical-desktop-foreground) !important; text-shadow: var(--synnical-desktop-label-shadow) !important; }
+.synnical-os-root .synnical-desktop-app-icon + span { border-radius: 5px; }
+
+.synnical-music { background: var(--synnical-glass) !important; color: var(--synnical-text) !important; }
+.synnical-music-header, .synnical-music > .border-b, .synnical-music > .absolute.bottom-0 { background: var(--synnical-glass-strong) !important; border-color: var(--synnical-glass-border) !important; -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); }
+.synnical-music .bg-black, .synnical-music [class*="bg-[#080808]"], .synnical-music [class*="bg-[#111]"] { background: var(--synnical-glass) !important; }
+.synnical-music .border-white\/10, .synnical-music .border-white\/8, .synnical-music .border-white\/7 { border-color: var(--synnical-glass-border) !important; }
+.synnical-music .text-white, .synnical-music .text-white\/90, .synnical-music .text-white\/75 { color: var(--synnical-text) !important; }
+.synnical-music .text-white\/45, .synnical-music .text-white\/40, .synnical-music .text-white\/35, .synnical-music .text-white\/30 { color: var(--synnical-muted) !important; }
+.synnical-music .bg-white, .synnical-music .bg-white\/10, .synnical-music .bg-white\/8 { background: var(--synnical-selected) !important; }
+.synnical-music-backdrop { background: linear-gradient(180deg, color-mix(in srgb, var(--synnical-bg) 12%, transparent), color-mix(in srgb, var(--synnical-bg) 38%, transparent) 52%, color-mix(in srgb, var(--synnical-bg) 70%, transparent)); }
+
+:root[data-appearance="light"] .synnical-settings-app { background: var(--synnical-glass-strong) !important; color: var(--synnical-text); }
+:root[data-appearance="light"] .synnical-settings-app > aside { background: var(--synnical-toolbar) !important; }
+:root[data-appearance="light"] .synnical-settings-app .text-white { color: var(--synnical-text) !important; }
+:root[data-appearance="light"] .synnical-settings-app .text-white\/60, :root[data-appearance="light"] .synnical-settings-app .text-white\/45, :root[data-appearance="light"] .synnical-settings-app .text-white\/40 { color: var(--synnical-muted) !important; }
+
+:root[data-appearance="light"] [data-radix-popper-content-wrapper] > * { background: var(--synnical-glass-strong) !important; color: var(--synnical-text) !important; border-color: var(--synnical-glass-border) !important; }
+.synnical-dialog-overlay { background: var(--synnical-modal-backdrop) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.synnical-dialog-content { background: var(--synnical-glass-strong) !important; color: var(--synnical-text) !important; border-color: var(--synnical-glass-border) !important; box-shadow: var(--synnical-shadow) !important; }
+.synnical-profile-modal { overflow: visible; }
+.synnical-profile-card { box-shadow: var(--synnical-shadow) !important; }
+.synnical-under-construction { background: var(--synnical-page); color: var(--synnical-text); }
+.synnical-under-construction > div { background: var(--synnical-glass-strong); border-color: var(--synnical-glass-border); color: var(--synnical-text); }
+.synnical-under-construction span { background: var(--synnical-selected); color: var(--synnical-accent); }
+.synnical-under-construction p { color: var(--synnical-muted); }
+.synnical-under-construction > div > div { border-color: var(--synnical-glass-border); background: var(--synnical-hover); color: var(--synnical-text); }

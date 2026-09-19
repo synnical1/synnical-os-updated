@@ -11,9 +11,9 @@ import { proxyAsset } from "@/lib/proxy-runtime"
 
 
 export const metadata: Metadata = {
-  title: "Google Classroom",
-  description: "Google Classroom",
-  applicationName: "Google Classroom",
+  title: "Synnical",
+  description: "Your social desktop on the web.",
+  applicationName: "Synnical",
   robots: {
     index: false,
     follow: false,
@@ -25,15 +25,15 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "Google Classroom",
-    description: "Google Classroom",
-    siteName: "Google Classroom",
+    title: "Synnical",
+    description: "Your social desktop on the web.",
+    siteName: "Synnical",
     type: "website",
   },
   twitter: {
     card: "summary",
-    title: "Google Classroom",
-    description: "Google Classroom",
+    title: "Synnical",
+    description: "Your social desktop on the web.",
   },
   icons: {
     icon: "/brand/google-classroom.png",
@@ -48,6 +48,7 @@ const PreloadLinks = () => (
   <>
     {/* Preload critical images */}
     <link rel="preload" href="/brand/google-classroom.png" as="image" type="image/png" />
+    <link rel="preload" href="/brand/wallpapers/thorfinn.webp" as="image" type="image/webp" />
     {/* Browser is part of the initial shell, so fetch its local proxy runtime
         immediately. This removes asset-download latency from the first search;
         repeat navigations reuse the already-warm singleton. */}
@@ -63,6 +64,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" suppressHydrationWarning>
       <head>
         <PreloadLinks />
+        <script
+          // The app stores settings as JSON. Apply the persisted appearance
+          // before React runs so neither preference gets a flash of the other.
+          dangerouslySetInnerHTML={{ __html: `try { const raw = localStorage.getItem('synnical:settings:appearance.mode'); const mode = raw ? JSON.parse(raw) : 'light'; const safe = mode === 'dark' ? 'dark' : 'light'; document.documentElement.dataset.appearance = safe; document.documentElement.style.colorScheme = safe; document.documentElement.classList.toggle('dark', safe === 'dark'); } catch (_) { document.documentElement.dataset.appearance = 'light'; document.documentElement.style.colorScheme = 'light'; }` }}
+        />
       </head>
       <body
         className="antialiased"

@@ -55,13 +55,13 @@ test("experience batch: Continue Watching resumes ten seconds early and can be r
   assert.match(flix, /setPlayerRevision\(\(value\) => value \+ 1\)/)
 })
 
-test("experience batch: desktop starts free-positioned and does not restore old windows by default", () => {
+test("experience batch: desktop stays free-positioned while restoring saved windows by default", () => {
   const desktop = read("src/lib/os-settings.ts")
   const shell = read("src/components/desktop-shell.tsx")
   assert.match(desktop, /desktopAlignGrid: false/)
-  assert.match(desktop, /restoreWindows: false/)
-  assert.match(shell, /FREE_DESKTOP_MIGRATION_KEY/)
-  assert.match(shell, /restoreWindows: false, desktopAlignGrid: false/)
+  assert.match(desktop, /restoreWindows: true/)
+  assert.doesNotMatch(shell, /FREE_DESKTOP_MIGRATION_KEY/)
+  assert.doesNotMatch(shell, /restoreWindows: false, desktopAlignGrid: false/)
 })
 
 test("experience batch: recognition tags include DEV and render icon metadata", () => {

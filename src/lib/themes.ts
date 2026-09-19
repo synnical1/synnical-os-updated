@@ -66,7 +66,7 @@ export function applyTheme(id: string, mode: "light" | "dark" = "dark") {
   for (const [key, value] of Object.entries(theme.vars)) root.style.setProperty(key, value)
 
   const v = { ...theme.vars }
-  if (mode === "light") Object.assign(v, { "--synnical-bg": "#f5f7fb", "--synnical-surface": "#ffffff", "--synnical-surface-2": "#edf1f7", "--synnical-border": "#cbd5e1", "--synnical-text": "#172033", "--synnical-muted": "#526078", "--synnical-accent-soft": "#e5eaf5" })
+  if (mode === "light") Object.assign(v, { "--synnical-bg": "#edf2f8", "--synnical-surface": "#f7faff", "--synnical-surface-2": "#e7edf6", "--synnical-border": "#b9c6d8", "--synnical-text": "#15243a", "--synnical-muted": "#53647c", "--synnical-accent-soft": "#e1e9f5" })
   if (mode === "light" && ["synnical", "monochrome"].includes(theme.id)) v["--synnical-accent"] = "#334155"
   root.dataset.appearance = mode
   root.style.colorScheme = mode
@@ -79,7 +79,7 @@ export function applyTheme(id: string, mode: "light" | "dark" = "dark") {
   root.style.setProperty("--popover", v["--synnical-surface"])
   root.style.setProperty("--popover-foreground", v["--synnical-text"])
   root.style.setProperty("--primary", v["--synnical-accent"])
-  root.style.setProperty("--primary-foreground", theme.id === "synnical" ? "#000000" : "#ffffff")
+  root.style.setProperty("--primary-foreground", mode === "light" ? "#ffffff" : theme.id === "synnical" ? "#000000" : "#ffffff")
   root.style.setProperty("--secondary", v["--synnical-surface-2"])
   root.style.setProperty("--secondary-foreground", v["--synnical-text"])
   root.style.setProperty("--muted", v["--synnical-surface-2"])
@@ -92,7 +92,7 @@ export function applyTheme(id: string, mode: "light" | "dark" = "dark") {
   root.style.setProperty("--destructive", "#ef4444")
   root.style.setProperty("--sidebar", v["--synnical-surface"])
   root.style.setProperty("--sidebar-foreground", v["--synnical-text"])
-  root.style.setProperty("--sidebar-border", "#242424")
+  root.style.setProperty("--sidebar-border", v["--synnical-border"])
   root.style.setProperty("--sidebar-accent", v["--synnical-accent-soft"])
-  root.style.setProperty("--sidebar-accent-foreground", "#ffffff")
+  root.style.setProperty("--sidebar-accent-foreground", v["--synnical-text"])
 }

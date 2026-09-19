@@ -20,6 +20,7 @@ import { ProfileCosmeticsDialog, type CosmeticPickerTab } from "@/components/pro
 import type { ProfileThemeStyle } from "@/lib/profile-theme"
 import { ProfileAdvancedEditor } from "@/components/profile-advanced-editor"
 import { IdentityStudio } from "@/components/identity-studio"
+import { gifUploadError } from "@/lib/media-limits"
 
 export function ProfilePanel() {
   const { user, setUser } = useAuth()
@@ -137,12 +138,18 @@ export function ProfilePanel() {
       return
     }
 
+    const gifError = gifUploadError(file)
+    if (gifError) {
+      toast.error(gifError)
+      return
+    }
+
     const animated = file.type === "image/gif" || file.type === "image/webp" || file.type === "image/apng"
     if (animated) {
       // GIFs skip the cropper — canvas crop destroys animation frames.
       // Upload as-is, the CSS object-cover handles display.
       void uploadDirect(mode, file)
-      toast.info("GIF uploaded as-is — animation preserved (crop not available for animated images)")
+      toast.info("Animated GIF uploaded as-is — animation preserved.")
       return
     }
 

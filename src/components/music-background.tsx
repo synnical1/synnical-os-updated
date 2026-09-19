@@ -17,5 +17,5 @@ export function MusicBackground() {
     motion.addEventListener("change", update)
     return () => { video.pause(); observer.disconnect(); document.removeEventListener("visibilitychange", update); motion.removeEventListener("change", update) }
   }, [])
-  return <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"><video ref={ref} src="/brand/music/live-background.mp4" autoPlay muted loop playsInline preload="metadata" className="h-full w-full object-cover opacity-70" /><div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/30 to-black/75" /></div>
+  return <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"><video ref={ref} src="/brand/music/live-background.mp4" autoPlay muted loop playsInline preload="metadata" className="h-full w-full object-cover opacity-70" /><div className="synnical-music-backdrop absolute inset-0" /></div>
 }

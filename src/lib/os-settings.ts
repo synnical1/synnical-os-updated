@@ -78,7 +78,7 @@ export const OS_DEFAULTS = {
   startRecommended: true,
   startSearchHistory: true,
   startFolders: [] as Array<{ id: string; name: string; apps: string[] }>,
-  restoreWindows: false,
+  restoreWindows: true,
   startupApps: [] as string[],
   hiddenLauncherApps: [] as string[],
   autoFullscreen: true,

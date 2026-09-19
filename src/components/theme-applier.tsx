@@ -12,7 +12,7 @@ import { applyTheme } from "@/lib/themes"
  */
 export function ThemeApplier() {
   const theme = useBrowser(s => s.theme)
-  const [mode] = useSetting<string>("appearance.mode", "dark")
+  const [mode] = useSetting<string>("appearance.mode", "light")
 
   // Apply theme
   useEffect(() => {

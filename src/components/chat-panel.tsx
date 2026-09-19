@@ -29,6 +29,7 @@ import { canDeleteMessage } from "@/lib/message-permissions"
 import { onlineDurationLabel, presenceSectionLabel, publicPresenceLabel, type PresenceMode, type RichPresenceActivity } from "@/lib/presence"
 import { VoiceRecorder, VoiceMessage } from "@/components/voice-recorder"
 import { CHAT_EMOJI_CATEGORIES } from "@/lib/chat-emojis"
+import { gifUploadError } from "@/lib/media-limits"
 import {
   canManageChannels,
   channelAudienceFromRoleList,
@@ -1016,6 +1017,11 @@ export function ChatPanel() {
     if (!file || !activeChannel || !connected) return
     if (!file.type.startsWith("image/")) {
       toast.error("Choose an image file.")
+      return
+    }
+    const gifError = gifUploadError(file)
+    if (gifError) {
+      toast.error(gifError)
       return
     }
     setImageUploading(true)

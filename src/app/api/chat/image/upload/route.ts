@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth-server"
 import { moderateAndSanitizeImage, PROFILE_UPLOAD_MAX_BYTES } from "@/lib/content-moderation"
 import { db } from "@/lib/db"
 import { uploadsDir } from "@/lib/uploads"
+import { GIF_UPLOAD_MAX_BYTES, GIF_UPLOAD_MAX_LABEL } from "@/lib/media-limits"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -19,12 +20,17 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File) || file.size === 0) {
       return NextResponse.json({ error: "Missing image" }, { status: 400 })
     }
+    const input = Buffer.from(await file.arrayBuffer())
+    const hasGifSignature = input.subarray(0, 6).toString("ascii") === "GIF87a" || input.subarray(0, 6).toString("ascii") === "GIF89a"
+    if ((hasGifSignature || file.type === "image/gif" || /\.gif$/i.test(file.name)) && file.size > GIF_UPLOAD_MAX_BYTES) {
+      return NextResponse.json({ error: GIF_UPLOAD_MAX_LABEL }, { status: 413 })
+    }
     if (file.size > PROFILE_UPLOAD_MAX_BYTES) {
       const maxMegabytes = Math.floor(PROFILE_UPLOAD_MAX_BYTES / (1024 * 1024))
       return NextResponse.json({ error: `Image too large (${maxMegabytes} MB max)` }, { status: 413 })
     }
 
-    const checked = await moderateAndSanitizeImage(Buffer.from(await file.arrayBuffer()), "chat")
+    const checked = await moderateAndSanitizeImage(input, "chat")
     if (!checked.buffer || !checked.extension) {
       return NextResponse.json({ error: checked.result.reason || "Image could not be processed" }, { status: 400 })
     }

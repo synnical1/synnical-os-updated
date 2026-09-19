@@ -442,12 +442,12 @@ export function MusicPanel() {
   }
 
   return (
-    <section className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-black text-white"><MusicBackground />
-      <header className="shrink-0 border-b border-white/10 bg-black/35 px-5 py-4">
+    <section className="synnical-music relative isolate flex h-full min-h-0 flex-col overflow-hidden"><MusicBackground />
+      <header className="synnical-music-header shrink-0 px-5 py-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="mr-auto min-w-[180px]">
-            <p className="text-[10px] font-bold uppercase tracking-[.2em] text-white/35">Synnical Music</p>
-            <div className="mt-1 flex items-center gap-2"><Waves className="h-5 w-5" /><h1 className="text-xl font-semibold">Listen without leaving Synnical</h1></div>
+            <p className="text-[10px] font-bold uppercase tracking-[.2em] text-[var(--synnical-muted)]">Synnical</p>
+            <div className="mt-1 flex items-center gap-2"><Waves className="h-5 w-5" /><h1 className="text-xl font-semibold">Music</h1></div>
           </div>
           <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-white/10 bg-black p-1">
             <button className="px-3 text-xs" onClick={() => { setStoredSource("audius"); setLibraryView("favorites") }}>Favorites</button>

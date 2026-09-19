@@ -6,7 +6,9 @@ import { Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
 
 type BootStage = "checking" | "playing" | "done"
-const DEFAULT_WALLPAPER = "/brand/wallpapers/synnical-static-ink-wallpaper.png"
+// Keep the first painted frame aligned with the OS default.  This must not be
+// a legacy fallback: it is visible before account preferences hydrate.
+const DEFAULT_WALLPAPER = "/brand/wallpapers/thorfinn.webp"
 
 function WallpaperBackdrop() {
   return <img className="pointer-events-none absolute inset-0 h-full w-full object-cover" src={DEFAULT_WALLPAPER} alt="" />

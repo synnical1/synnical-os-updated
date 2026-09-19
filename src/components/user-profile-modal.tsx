@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react"
 import { Loader2, MessageSquare, CalendarDays, AlertCircle, Link2, Music, Gamepad2, Trophy, ExternalLink, UserPlus } from "lucide-react"
 import { io } from "socket.io-client"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { AvatarWithDeco, DisplayName, RoleBadge, TagsDisplay } from "@/components/role-ui"
 import { ProfileCardFrame } from "@/components/profile-card-preview"
 import { profileThemeTextColor } from "@/lib/profile-theme"
@@ -207,12 +207,13 @@ export function UserProfileModal({ userId, onClose }: { userId: string | null; o
 
   return (
     <Dialog open={!!userId} onOpenChange={(value) => { if (!value) onClose() }}>
-      <DialogContent className="max-w-[372px] border-0 bg-transparent p-4 shadow-none">
+      <DialogContent showCloseButton={false} className="synnical-profile-modal max-w-[372px] border-0 bg-transparent p-0 shadow-none">
         <DialogTitle className="sr-only">{user ? `${user.displayName}'s profile` : "Profile"}</DialogTitle>
         {loading && <div className="flex h-56 items-center justify-center rounded-[22px] border border-white/10 bg-[#111]"><Loader2 className="h-5 w-5 animate-spin text-[var(--synnical-muted)]" /></div>}
         {error && !loading && <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-[22px] border border-white/10 bg-[#111] px-6 text-center"><AlertCircle className="h-5 w-5 text-red-400" /><p className="text-sm text-[#cccccc]">{error}</p></div>}
         {user && !loading && (
-          <ProfileCardFrame user={user}>
+          <ProfileCardFrame user={user} className="synnical-profile-card">
+            <DialogClose aria-label="Close profile" className="absolute right-3 top-3 z-30 grid h-8 w-8 place-items-center rounded-full border text-sm shadow-sm transition-colors" style={{ background: themeSurface, borderColor: themeBorder, color: themeText }}>×</DialogClose>
             <div className="relative h-[27%] min-h-[92px] max-h-[170px] overflow-hidden bg-black/20">
               {user.bannerUrl && <img data-image-viewer={user.bannerUrl} role="button" tabIndex={0} aria-label="Open uploaded image" src={user.bannerUrl} alt="" className="h-full w-full object-cover" style={{ objectPosition: `${featureProfile?.profile?.bannerPositionX ?? 50}% ${featureProfile?.profile?.bannerPositionY ?? 50}%` }} loading={user.bannerIsGif ? "eager" : "lazy"} decoding={user.bannerIsGif ? "sync" : "async"} />}
               {featureProfile?.profile?.profileAccentGradient && <div className="pointer-events-none absolute inset-0 opacity-25" style={{ background: featureProfile.profile.profileAccentGradient }} />}
