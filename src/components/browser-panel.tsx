@@ -32,17 +32,7 @@ type Tab = {
 const SEARCH_ENGINE_MIGRATION_KEY = "synnical:browser-search-default-v3"
 const BLOOD_THEME_MIGRATION_KEY = "synnical:blood-default-v14"
 const BROWSER_RUNTIME_MIGRATION_KEY = "synnical:browser-runtime-defaults-v21"
-const DISCORD_INVITE_URL = "https://discord.com/invite/chromebook"
-
 const NEW_TAB_ID = "new-tab"
-
-function DiscordLogo({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="currentColor">
-      <path d="M19.2 5.3A16.6 16.6 0 0 0 15.1 4l-.5 1a14 14 0 0 0-5.2 0l-.5-1a16.6 16.6 0 0 0-4.1 1.3C2.2 9.1 1.5 12.8 1.9 16.5a16.8 16.8 0 0 0 5 2.5l1.2-1.7-1.8-.9.4-.3c3.4 1.6 7.2 1.6 10.6 0l.4.3-1.8.9 1.2 1.7a16.8 16.8 0 0 0 5-2.5c.5-4.3-.8-7.9-2.9-11.2ZM8.6 14.5c-1 0-1.9-.9-1.9-2s.8-2 1.9-2 1.9.9 1.9 2-.9 2-1.9 2Zm6.8 0c-1 0-1.9-.9-1.9-2s.8-2 1.9-2 1.9.9 1.9 2-.9 2-1.9 2Z" />
-    </svg>
-  )
-}
 
 // Safe UUID generator — crypto.randomUUID is only available in secure contexts
 // (HTTPS or localhost). On HTTP it throws "crypto.randomUUID is not a function",
@@ -1370,12 +1360,6 @@ function NewTabPage({
               </button>
             ))}
           </div>
-
-          <a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="browser-community-link mx-auto mt-6 flex w-fit items-center gap-2.5 rounded-full px-4 py-2 text-sm font-medium text-white">
-            <DiscordLogo className="h-5 w-5 shrink-0" />
-            <span>Join LUCIDE Discord</span>
-            <ExternalLink className="h-3.5 w-3.5 opacity-55" />
-          </a>
 
           <section className="mx-auto mt-7 max-w-2xl" aria-labelledby="shortcut-heading">
             <h2 id="shortcut-heading" className="sr-only">Shortcuts</h2>
