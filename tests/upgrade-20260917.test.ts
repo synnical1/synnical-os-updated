@@ -5,6 +5,7 @@ import { mayModerate } from "../src/lib/moderation-service"
 import { parseModerationCommand } from "../src/lib/bot-moderation"
 import { recognitionTags } from "../src/lib/recognition-tags"
 import { sanitizeOsSettings, DEFAULT_OS_WALLPAPER } from "../src/lib/os-settings"
+import { mediaProviderStatus, providerUrl } from "../src/lib/media-providers"
 import { readFileSync } from "node:fs"
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8")
 test("staff hierarchy excludes cosmetic badges and denies self/equal/higher moderation", () => {
@@ -51,4 +52,16 @@ test("bot reply detection remains server-backed; SynnVM has no live virtualizati
   assert.match(source("src/lib/chat-server.ts"), /replyingToSynnBot && text/)
   assert.match(source("src/components/linux-vm-panel.tsx"), /Coming Soon/)
   assert.doesNotMatch(source("src/app/linux-vm/page.tsx"), /NEXT_PUBLIC_SYNN_VM_URL|iframe/)
+})
+test("provider viewers stay allowlisted and reject off-domain ad redirects", () => {
+  assert.equal(providerUrl("anikura", "/browse?status=releasing"), "https://anikura.club/browse?status=releasing")
+  assert.equal(providerUrl("cineb"), "https://cineblog01film.com/cineb/")
+  assert.equal(providerUrl("cineb", "/movies/example"), "https://cineblog01film.com/movies/example")
+  assert.equal(providerUrl("cineb", "https://totalav.com/started"), null)
+  assert.deepEqual(mediaProviderStatus("cineb", { status: 302, location: "https://totalav.com/started" }), {
+    id: "cineb", label: "CineB", available: false, embeddable: false, reason: "redirected",
+  })
+  assert.equal(mediaProviderStatus("cineb", { status: 302 }).reason, "redirected")
+  assert.equal(mediaProviderStatus("anikura", { status: 200, xFrameOptions: "SAMEORIGIN" }).reason, "frame-blocked")
+  assert.equal(mediaProviderStatus("anikura", { status: 200 }).embeddable, true)
 })
