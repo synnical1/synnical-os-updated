@@ -507,8 +507,14 @@ export function GamesPanel() {
       const result = await featureApi.games.action("session-start", { gameId: selectedLocal.id, gameName: selectedLocal.title })
       localSessionIdRef.current = typeof result?.session?.id === "string" ? result.session.id : null
       refreshFeatures()
-      const recent = [{ id: selectedLocal.id, name: selectedLocal.title, at: Date.now() }]
-      window.dispatchEvent(new CustomEvent("synnical-recent-games-changed", { detail: { games: recent } }))
+      try {
+        const key = "synnical:os:recent-games:v1"
+        const raw = JSON.parse(localStorage.getItem(key) || "[]")
+        const rows = Array.isArray(raw) ? raw : []
+        const recent = [{ id: selectedLocal.id, name: selectedLocal.title, at: Date.now() }, ...rows.filter((row: any) => row?.id !== selectedLocal.id)].slice(0, 8)
+        localStorage.setItem(key, JSON.stringify(recent))
+        window.dispatchEvent(new CustomEvent("synnical-recent-games-changed", { detail: { games: recent } }))
+      } catch {}
     } catch (error) {
       setLocalPlaying(false)
       window.dispatchEvent(new CustomEvent("synnical-game-focus", { detail: { active: false } }))
