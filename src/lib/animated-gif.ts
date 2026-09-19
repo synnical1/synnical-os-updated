@@ -1,5 +1,3 @@
-import "server-only"
-
 import sharp from "sharp"
 import { GIF_UPLOAD_MAX_BYTES, GIF_UPLOAD_MAX_LABEL } from "@/lib/media-limits"
 
