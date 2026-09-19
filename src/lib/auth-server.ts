@@ -56,7 +56,7 @@ async function clearSessionCookie(store: Awaited<ReturnType<typeof cookies>>) {
     })
     return
   }
-  await clearSessionCookie(store)
+  store.delete(SESSION_COOKIE)
 }
 
 export function isTrustedSvgClient(req: NextRequest): boolean {
