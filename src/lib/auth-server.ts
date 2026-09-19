@@ -14,10 +14,28 @@ const SVG_CLIENT_ORIGINS = new Set([
 ])
 
 export function isTrustedSvgClient(req: NextRequest): boolean {
-  return (
-    req.headers.get("x-synnical-client") === "svg" &&
-    SVG_CLIENT_ORIGINS.has(req.headers.get("origin") || "")
-  )
+  if (req.headers.get("x-synnical-client") !== "svg") return false
+
+  const origin = req.headers.get("origin") || ""
+  if (SVG_CLIENT_ORIGINS.has(origin)) return true
+
+  // The current SVG entry point embeds the real Synnical app with
+  // ?synnicalClient=svg. Requests from that iframe are same-origin with
+  // synnical.co.uk, so the Referer marker is the trust signal instead of the
+  // outer jsDelivr Origin.
+  try {
+    const originUrl = origin ? new URL(origin) : null
+    const referer = req.headers.get("referer")
+    const refererUrl = referer ? new URL(referer) : null
+    const sameOrigin = !originUrl || originUrl.host === req.nextUrl.host
+    return Boolean(
+      sameOrigin &&
+      refererUrl?.host === req.nextUrl.host &&
+      refererUrl.searchParams.get("synnicalClient") === "svg",
+    )
+  } catch {
+    return false
+  }
 }
 
 async function requestSessionToken(): Promise<string | null> {
