@@ -113,11 +113,11 @@ async function jsonFetch<T>(url: string, opts?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  me: () => jsonFetch<{ user: SafeUser | null }>("/api/auth/me"),
+  me: () => jsonFetch<{ user: SafeUser | null; token?: string }>("/api/auth/me"),
   register: (username: string, password: string, securityQuestion: string, securityAnswer: string) =>
-    jsonFetch<{ user: SafeUser }>("/api/auth/register", { method: "POST", body: JSON.stringify({ username, password, securityQuestion, securityAnswer }) }),
+    jsonFetch<{ user: SafeUser; token?: string }>("/api/auth/register", { method: "POST", body: JSON.stringify({ username, password, securityQuestion, securityAnswer }) }),
   login: (username: string, password: string, recoveryCode?: string) =>
-    jsonFetch<{ user: SafeUser }>("/api/auth/login", { method: "POST", body: JSON.stringify(recoveryCode ? { username, recoveryCode } : { username, password }) }),
+    jsonFetch<{ user: SafeUser; token?: string }>("/api/auth/login", { method: "POST", body: JSON.stringify(recoveryCode ? { username, recoveryCode } : { username, password }) }),
   logout: () => jsonFetch<{ ok: true }>("/api/auth/logout", { method: "POST" }),
 
   listChannels: () => jsonFetch<{ channels: Channel[] }>("/api/chat/channels"),
