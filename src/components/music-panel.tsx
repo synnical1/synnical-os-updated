@@ -517,6 +517,7 @@ export function MusicPanel() {
           <div className="mb-2 px-2 pt-1 text-[10px] font-bold uppercase tracking-[.18em] text-[var(--synnical-muted)]">Discover</div>
           <SourceButton active={source === "audius" && libraryView === "browse" && !activeQuery} onClick={() => { void loadAudius() }} icon={Waves} label="Home" />
           <SourceButton active={source === "audius" && libraryView === "browse" && Boolean(activeQuery)} onClick={() => { setStoredSource("audius"); setLibraryView("browse"); requestAnimationFrame(() => searchInputRef.current?.focus()) }} icon={Search} label="Search" />
+          <div className="mb-1 mt-4 px-2 text-[10px] font-bold uppercase tracking-[.18em] text-[var(--synnical-muted)]">Your library</div>
           <button className={cn("flex h-9 items-center gap-2 rounded-lg px-3 text-left text-xs", source === "audius" && libraryView === "favorites" ? "bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "text-[var(--synnical-muted)] hover:bg-[var(--synnical-hover)]")} onClick={() => { setStoredSource("audius"); setLibraryView("favorites") }}><Heart className="h-4 w-4" />Favorites</button>
           <button className={cn("flex h-9 items-center gap-2 rounded-lg px-3 text-left text-xs", source === "audius" && libraryView === "history" ? "bg-[var(--synnical-selected)] text-[var(--synnical-text)]" : "text-[var(--synnical-muted)] hover:bg-[var(--synnical-hover)]")} onClick={() => { setStoredSource("audius"); setLibraryView("history") }}><History className="h-4 w-4" />Recently played</button>
           <div className="my-2 h-px bg-[var(--synnical-glass-border)]" />
@@ -555,6 +556,36 @@ export function MusicPanel() {
               <div className="grid min-h-[320px] place-items-center text-sm text-white/35">No tracks to show.</div>
             ) : (
               <>
+                {!activeQuery && libraryView === "browse" && tracks.length > 0 ? (
+                  <section className="mb-7">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--synnical-muted)]">Made for right now</p>
+                        <h2 className="mt-1 text-xl font-bold tracking-tight">Quick picks</h2>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                      {tracks.slice(0, 6).map((track) => (
+                        <button
+                          key={`quick:${trackKey(track)}`}
+                          type="button"
+                          onClick={() => playTrack(track, tracks)}
+                          className="synnical-music-quick group flex min-w-0 items-center gap-3 overflow-hidden rounded-xl border border-[var(--synnical-glass-border)] bg-[var(--synnical-music-glass-mid)] p-2 text-left backdrop-blur-xl transition hover:bg-[var(--synnical-music-glass-strong)]"
+                        >
+                          <span className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[var(--synnical-surface-2)]">
+                            {track.artwork ? <img src={track.artwork} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center"><Music2 className="h-5 w-5 text-[var(--synnical-muted)]" /></span>}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <strong className="block truncate text-sm">{track.title}</strong>
+                            <span className="mt-0.5 block truncate text-xs text-[var(--synnical-muted)]">{track.artist}</span>
+                          </span>
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--synnical-accent)] text-white opacity-0 shadow-lg transition group-hover:opacity-100"><Play className="ml-0.5 h-4 w-4" fill="currentColor" /></span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
                 <div className="mb-4 flex items-end justify-between gap-4">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--synnical-muted)]">{activeQuery ? "Search" : "Audius charts"}</p>
