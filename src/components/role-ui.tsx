@@ -9,15 +9,15 @@ import { BETA_TESTER_TAG, GOAT_TAG, BIG_SITE_OWNER_TAG, DEV_TAG, NOTABLE_PERSON_
 
 const style: Record<Role, string> = {
   OWNER: "border-amber-300/70 bg-amber-400/15 text-amber-200 shadow-[0_0_14px_rgba(251,191,36,.6)]",
-  HEAD_ADMIN: "border-orange-300/75 bg-orange-500/10 text-white shadow-[0_0_15px_rgba(249,115,22,.8),0_0_7px_rgba(255,255,255,.45)]",
-  ADMIN: "border-red-500/70 bg-black text-red-300 shadow-[0_0_14px_rgba(239,68,68,.65)]",
+  HEAD_ADMIN: "border-red-500/70 bg-red-500/10 text-red-300 shadow-[0_0_14px_rgba(239,68,68,.65)]",
+  ADMIN: "border-red-500/70 bg-red-500/10 text-red-300 shadow-[0_0_14px_rgba(239,68,68,.65)]",
   MOD: "border-blue-300/70 bg-blue-500/10 text-white shadow-[0_0_14px_rgba(96,165,250,.65)]",
-  MEMBER: "border-[#2a2a2a] bg-[#0d0d0d] text-[#cfcfcf]",
+  MEMBER: "border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] text-[var(--synnical-muted)]",
 }
 
 const roleMeta: Record<Exclude<Role, "MEMBER">, { label: string; icon: typeof Crown; className: string }> = {
   OWNER: { label: "OWNER", icon: Crown, className: "text-amber-100" },
-  HEAD_ADMIN: { label: "HEAD ADMIN", icon: Crown, className: "text-orange-100" },
+  HEAD_ADMIN: { label: "ADMIN", icon: Shield, className: "text-red-200" },
   ADMIN: { label: "ADMIN", icon: Shield, className: "text-red-200" },
   MOD: { label: "MOD", icon: BadgeCheck, className: "text-blue-100" },
 }
@@ -60,7 +60,7 @@ export function RoleBadge({ role, tags, className }: { role: Role; tags?: string
 }
 
 export function DisplayName({ name, role, className }: { name: ReactNode; role: Role; className?: string }) {
-  return <span className={cn(role !== "MEMBER" && "font-semibold", role === "OWNER" && "text-amber-200 drop-shadow-[0_0_7px_rgba(251,191,36,.8)]", role === "HEAD_ADMIN" && "text-orange-100 drop-shadow-[0_0_8px_rgba(249,115,22,.95)]", role === "ADMIN" && "text-red-300 drop-shadow-[0_0_7px_rgba(239,68,68,.85)]", role === "MOD" && "text-blue-100 drop-shadow-[0_0_7px_rgba(96,165,250,.9)]", className)}>{name}</span>
+  return <span className={cn(role !== "MEMBER" && "font-semibold", role === "OWNER" && "text-amber-200 drop-shadow-[0_0_7px_rgba(251,191,36,.8)]", role === "HEAD_ADMIN" && "text-red-300 drop-shadow-[0_0_7px_rgba(239,68,68,.85)]", role === "ADMIN" && "text-red-300 drop-shadow-[0_0_7px_rgba(239,68,68,.85)]", role === "MOD" && "text-blue-100 drop-shadow-[0_0_7px_rgba(96,165,250,.9)]", className)}>{name}</span>
 }
 
 export function TagsDisplay({ tags, className }: { tags: string[]; className?: string }) {
@@ -76,7 +76,7 @@ export function TagsDisplay({ tags, className }: { tags: string[]; className?: s
     const Icon = icon === "heart" ? Heart : icon === "crown" ? Crown : icon === "star" ? Star : icon === "shield" ? Shield : icon === "code" ? Code2 : Tag
     return <span key={value} className={cn("inline-flex items-center gap-1 rounded border px-1 py-px text-[8px] font-semibold leading-3", palette[colour.toLowerCase()] || palette.violet)}><Icon className="h-2.5 w-2.5 shrink-0" />{slug.replaceAll("-", " ")}</span>
   }
-  return <div className={cn("flex flex-wrap gap-1", className)}>{visible.map((tag) => custom(tag) || <span key={tag} className="inline-flex items-center gap-1 rounded border border-[#242424] bg-[#0d0d0d] px-1 py-px text-[8px] leading-3 text-[#a7a7a7]"><Tag className="h-2.5 w-2.5 shrink-0 text-[#707070]" />{tag}</span>)}</div>
+  return <div className={cn("flex flex-wrap gap-1", className)}>{visible.map((tag) => custom(tag) || <span key={tag} className="inline-flex items-center gap-1 rounded border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] px-1 py-px text-[8px] leading-3 text-[var(--synnical-muted)]"><Tag className="h-2.5 w-2.5 shrink-0 text-[var(--synnical-muted)]" />{tag}</span>)}</div>
 }
 
 export function AvatarWithDeco({
@@ -96,7 +96,7 @@ export function AvatarWithDeco({
     <div className={cn("relative shrink-0 overflow-visible", sizes[size], className)}>
       {avatarDeco ? <AvatarDecorationBackdrop deco={avatarDeco} /> : null}
       <div className={cn("relative h-full w-full overflow-hidden rounded-full border p-[2px]", style[role], avatarClassName)}>
-        {src ? <img src={src} alt="" className="h-full w-full rounded-full object-cover" /> : <div className="flex h-full w-full items-center justify-center rounded-full bg-[#101010] text-xs">{name.slice(0, 1).toUpperCase()}</div>}
+        {src ? <img src={src} alt="" className="h-full w-full rounded-full object-cover" /> : <div className="flex h-full w-full items-center justify-center rounded-full bg-[var(--synnical-surface-2)] text-xs">{name.slice(0, 1).toUpperCase()}</div>}
       </div>
       {avatarDeco ? <AvatarDecoration deco={avatarDeco} /> : null}
     </div>
