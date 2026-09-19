@@ -1,10 +1,37 @@
 {
   "schema": 1,
+  "repos": {
+    "gmshelf/truffled": {
+      "ref": "dd6d6778c400af16f19e1d3ce32baac3adf2b4e6",
+      "root": "truffled",
+      "expectedTopLevelGames": 269
+    },
+    "gmshelf/seraph": {
+      "ref": "09db8cd3197d1ad00d81b91b0f35444520269100",
+      "root": "seraph",
+      "expectedTopLevelGames": 492
+    },
+    "gmshelf/ugs": {
+      "ref": "f70d14fd460a82d907347477407c303dbb234784",
+      "root": "ugs",
+      "manifest": "ugs.json",
+      "expectedManifestGames": 1512
+    },
+    "gmshelf/ckv": {
+      "ref": "fb3ea866ec92cdb1876e601b525113161315a2d2",
+      "root": "ckv",
+      "manifest": "ckv.json",
+      "expectedManifestGames": 849
+    }
+  },
   "approved": {
     "gmshelf/seraph:2048": {
+      "slug": "2048-seraph",
+      "title": "2048",
+      "sourcePath": "seraph/2048",
       "license": "MIT",
       "licensePath": "seraph/2048/LICENSE.txt",
-      "note": "Per-game MIT license is present upstream and must be copied with the game."
+      "note": "Per-game MIT license is present upstream and must remain bundled."
     }
   }
 }
