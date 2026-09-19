@@ -45,6 +45,7 @@ export function ProfilePanel() {
 
   const [cropOpen, setCropOpen] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
+  const [cropFile, setCropFile] = useState<File | null>(null)
   const [cropMode, setCropMode] = useState<"pfp" | "banner">("pfp")
   const pfpInput = useRef<HTMLInputElement>(null)
   const bannerInput = useRef<HTMLInputElement>(null)
@@ -122,14 +123,6 @@ export function ProfilePanel() {
     }
   }
 
-  /**
-   * Animated formats must NEVER go through the cropper.
-   *
-   * The cropper draws a single frame to a <canvas> and calls
-   * `canvas.toBlob(..., "image/png")`. Canvas has no concept of frames, so the
-   * result is always a static PNG — which is exactly why uploaded GIFs stopped
-   * moving. Animated files are uploaded as-is instead.
-   */
   const pickImage = (e: React.ChangeEvent<HTMLInputElement>, mode: "pfp" | "banner") => {
     const file = e.target.files?.[0]
     e.target.value = ""
@@ -144,16 +137,19 @@ export function ProfilePanel() {
       return
     }
 
-    const animated = file.type === "image/gif" || file.type === "image/webp" || file.type === "image/apng"
-    if (animated) {
-      // GIFs skip the cropper — canvas crop destroys animation frames.
-      // Upload as-is, the CSS object-cover handles display.
+    // GIFs now use the server-backed animation crop path in ImageCropperV2,
+    // so every frame is transformed instead of flattening the first frame.
+    // Animated WebP/APNG still upload as-is until they have equivalent
+    // frame-aware crop support.
+    const animatedNonGif = (file.type === "image/webp" || file.type === "image/apng") && file.type !== "image/gif"
+    if (animatedNonGif) {
       void uploadDirect(mode, file)
-      toast.info("Animated GIF uploaded as-is — animation preserved.")
+      toast.info("Animated image uploaded as-is — animation preserved.")
       return
     }
 
     setCropSrc(URL.createObjectURL(file))
+    setCropFile(file)
     setCropMode(mode)
     setCropOpen(true)
   }
@@ -174,12 +170,16 @@ export function ProfilePanel() {
   const onCropConfirm = async (blob: Blob) => {
     setCropOpen(false)
     await uploadDirect(cropMode, blob)
-    if (cropSrc) URL.revokeObjectURL(cropSrc); setCropSrc(null)
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+    setCropFile(null)
   }
 
   const onCropCancel = () => {
     setCropOpen(false)
-    if (cropSrc) URL.revokeObjectURL(cropSrc); setCropSrc(null)
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+    setCropFile(null)
   }
 
   return (
@@ -355,7 +355,7 @@ export function ProfilePanel() {
         </div>
       </div>
 
-      <ImageCropperV2 open={cropOpen} src={cropSrc} aspect={cropMode === "pfp" ? 1 : 3} circular={cropMode === "pfp"} title={cropMode === "pfp" ? "Crop profile picture" : "Crop banner"} onConfirm={onCropConfirm} onCancel={onCropCancel} />
+      <ImageCropperV2 open={cropOpen} src={cropSrc} sourceFile={cropFile} cropMode={cropMode} aspect={cropMode === "pfp" ? 1 : 3} circular={cropMode === "pfp"} title={cropMode === "pfp" ? "Crop profile picture" : "Crop banner"} onConfirm={onCropConfirm} onCancel={onCropCancel} />
 
       <ProfileCosmeticsDialog
         open={cosmeticsOpen}
