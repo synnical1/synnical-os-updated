@@ -828,8 +828,21 @@ video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--s
 .synnical-os-root [class*="synnical-desktop-app-icon"] ~ span { color: var(--synnical-desktop-foreground) !important; text-shadow: var(--synnical-desktop-label-shadow) !important; }
 .synnical-os-root .synnical-desktop-app-icon + span { border-radius: 5px; }
 
-.synnical-music { background: var(--synnical-glass) !important; color: var(--synnical-text) !important; }
-.synnical-music-header, .synnical-music > .border-b, .synnical-music > .absolute.bottom-0 { background: var(--synnical-glass-strong) !important; border-color: var(--synnical-glass-border) !important; -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); }
+.synnical-music { background: transparent !important; color: var(--synnical-text) !important; }
+.synnical-music-header,
+.synnical-music-sidebar,
+.synnical-music-context,
+.synnical-music > .border-b,
+.synnical-music > .absolute.bottom-0 {
+  background: var(--synnical-glass) !important;
+  border-color: var(--synnical-glass-border) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  backdrop-filter: blur(22px) saturate(1.08);
+}
+.synnical-music-header { background: var(--synnical-glass-strong) !important; }
+.synnical-music > .absolute.bottom-0 {
+  background: color-mix(in srgb, var(--synnical-glass-strong) 92%, transparent) !important;
+}
 .synnical-music .bg-black, .synnical-music [class*="bg-[#080808]"], .synnical-music [class*="bg-[#111]"] { background: var(--synnical-glass) !important; }
 .synnical-music .border-white\/10, .synnical-music .border-white\/8, .synnical-music .border-white\/7 { border-color: var(--synnical-glass-border) !important; }
 .synnical-music .text-white, .synnical-music .text-white\/90, .synnical-music .text-white\/75 { color: var(--synnical-text) !important; }

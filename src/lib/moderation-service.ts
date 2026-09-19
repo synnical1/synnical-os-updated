@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import type { Prisma } from "@prisma/client"
 import { db } from "@/lib/db"
 import { canModerate } from "@/lib/auth"
+import { canModerateTarget, roleRank } from "@/lib/roles"
 import { AUTO_PUNISHMENTS } from "@/lib/constants"
 import { publishModeration } from "./moderation-events"
 import { auditData } from "@/lib/audit-log"
@@ -9,9 +10,9 @@ import { auditData } from "@/lib/audit-log"
 export class ModerationError extends Error {
   constructor(message: string, public status = 400) { super(message) }
 }
-export const staffRank = (role: string) => ({ OWNER: 5, HEAD_ADMIN: 4, ADMIN: 3, MOD: 2 }[role] || 0)
+export const staffRank = (role: string) => roleRank(role)
 export function mayModerate(actor: { id: string; role: string }, target: { id: string; role: string }) {
-  return actor.id !== target.id && staffRank(actor.role) > staffRank(target.role)
+  return actor.id !== target.id && canModerateTarget(actor.role, target.role)
 }
 export async function moderateAccount(actorId: string, body: { userId?: unknown; type?: unknown; reason?: unknown; durationMin?: unknown; commandNonce?: string }) {
   const me = await db.user.findUnique({ where: { id: actorId } })

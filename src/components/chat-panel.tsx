@@ -1395,9 +1395,9 @@ export function ChatPanel() {
 
   if (!user) return null
   return (
-    <div className="flex h-full min-h-0 overflow-hidden">
+    <div className="synnical-chat flex h-full min-h-0 overflow-hidden">
       {/* Channel list */}
-      <aside className="flex min-h-0 w-52 shrink-0 flex-col border-r border-[var(--synnical-border)] bg-black">
+      <aside className="flex min-h-0 w-52 shrink-0 flex-col border-r border-[var(--synnical-border)] bg-[var(--synnical-sidebar)]">
         <div className="h-11 px-3 flex items-center justify-between border-b border-[var(--synnical-border)]">
           <span className="text-xs font-semibold uppercase tracking-wide text-[var(--synnical-muted)]">Channels</span>
           {canManageChannels(user.role) && (
@@ -1422,7 +1422,7 @@ export function ChatPanel() {
                   "rounded-md border p-2 text-left transition-colors",
                   newChannelAudience === "MEMBERS"
                     ? "border-white bg-white text-black"
-                    : "border-[#2a2a2a] bg-[#080808] text-[#b8b8b8] hover:border-[#555] hover:text-white",
+                    : "border-[#2a2a2a] bg-[var(--synnical-input-surface)] text-[#b8b8b8] hover:border-[#555] hover:text-white",
                 )}
               >
                 <span className="flex items-center gap-1.5 text-[10px] font-semibold"><Users className="h-3.5 w-3.5" />Members</span>
@@ -1436,7 +1436,7 @@ export function ChatPanel() {
                   "rounded-md border p-2 text-left transition-colors",
                   newChannelAudience === "STAFF"
                     ? "border-white bg-white text-black"
-                    : "border-[#2a2a2a] bg-[#080808] text-[#b8b8b8] hover:border-[#555] hover:text-white",
+                    : "border-[#2a2a2a] bg-[var(--synnical-input-surface)] text-[#b8b8b8] hover:border-[#555] hover:text-white",
                 )}
               >
                 <span className="flex items-center gap-1.5 text-[10px] font-semibold"><Shield className="h-3.5 w-3.5" />Staff</span>
@@ -1516,7 +1516,7 @@ export function ChatPanel() {
 
         <div className="shrink-0 p-3 border-t border-[var(--synnical-border)] relative">
           {replyingTo && (
-            <div className="mb-2 flex items-center gap-3 rounded-md border-l-2 border-[var(--synnical-accent)] bg-[#080808] px-3 py-2">
+            <div className="mb-2 flex items-center gap-3 rounded-md border-l-2 border-[var(--synnical-accent)] bg-[var(--synnical-input-surface)] px-3 py-2">
               <Reply className="h-4 w-4 shrink-0 text-[var(--synnical-accent)]" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-[var(--synnical-text)]">Replying to {replyingTo.displayName || replyingTo.username}</p>
@@ -1574,7 +1574,7 @@ export function ChatPanel() {
           )}
 
           {gifPickerOpen && (
-            <div className="absolute bottom-full left-3 right-3 z-30 mb-2 overflow-hidden rounded-md border border-[var(--synnical-border)] bg-black/90 shadow-xl">
+            <div className="absolute bottom-full left-3 right-3 z-30 mb-2 overflow-hidden rounded-md border border-[var(--synnical-border)] bg-[var(--synnical-glass-strong)] shadow-xl">
               <div className="flex items-center gap-2 border-b border-white/10 p-2">
                 <Search className="ml-1 h-4 w-4 text-white/35" />
                 <input value={gifQuery} onChange={(event) => setGifQuery(event.target.value)} placeholder="Search GIPHY" className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" autoFocus />
@@ -1647,7 +1647,7 @@ export function ChatPanel() {
 
       {/* Online users (respects chat.showOnlineStatus setting) */}
       {readSetting("chat.showOnlineStatus", true) && (
-      <aside className="hidden min-h-0 w-48 shrink-0 flex-col overflow-hidden border-l border-[var(--synnical-border)] bg-black lg:flex">
+      <aside className="hidden min-h-0 w-48 shrink-0 flex-col overflow-hidden border-l border-[var(--synnical-border)] bg-[var(--synnical-sidebar)] lg:flex">
         <div className="h-11 px-3 flex items-center border-b border-[var(--synnical-border)]">
           <span className="text-xs font-semibold uppercase tracking-wide text-[var(--synnical-muted)]">People</span>
         </div>
@@ -1725,17 +1725,17 @@ export function ChatPanel() {
 
       {reportingMessage && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !reportBusy) setReportingMessage(null) }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="report-message-title" className="w-full max-w-lg rounded-xl border border-[var(--synnical-border)] bg-[#07101f] p-5 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="report-message-title" className="w-full max-w-lg rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-glass-strong)] p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div><h2 id="report-message-title" className="text-lg font-semibold">Report message</h2><p className="mt-1 text-xs text-[var(--synnical-muted)]">What&apos;s wrong? The reported message and nearby conversation are copied into the report now, so later deletion cannot erase the evidence.</p></div>
               <button type="button" disabled={reportBusy} onClick={() => setReportingMessage(null)} className="rounded p-1 text-[var(--synnical-muted)] hover:bg-white/5 hover:text-white" aria-label="Close report dialog"><X className="h-4 w-4" /></button>
             </div>
-            <div className="mt-4 rounded-lg border border-[var(--synnical-border)] bg-[#080808] p-3">
+            <div className="mt-4 rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-input-surface)] p-3">
               <p className="text-xs font-semibold">{reportingMessage.displayName || reportingMessage.username}</p>
               <p className="mt-1 line-clamp-4 text-sm text-[var(--synnical-muted)]">{reportingMessage.content || (reportingMessage.imageUrl ? "Image message" : reportingMessage.gifUrl ? "GIF message" : "Message")}</p>
             </div>
             <label className="mt-4 block text-xs font-semibold" htmlFor="report-category">Reason category</label>
-            <select id="report-category" value={reportCategory} onChange={(event) => setReportCategory(event.target.value)} className="mt-2 h-10 w-full rounded-md border border-[var(--synnical-border)] bg-[#080808] px-3 text-sm outline-none focus:border-white">
+            <select id="report-category" value={reportCategory} onChange={(event) => setReportCategory(event.target.value)} className="mt-2 h-10 w-full rounded-md border border-[var(--synnical-border)] bg-[var(--synnical-input-surface)] px-3 text-sm outline-none focus:border-white">
               <option value="CHILD_SAFETY">Child safety</option>
               <option value="THREATS">Threats or violence</option>
               <option value="SEXUAL_CONTENT">Sexual content</option>
@@ -1747,7 +1747,7 @@ export function ChatPanel() {
             </select>
             {reportCategory === "CHILD_SAFETY" && <p className="mt-2 rounded-md border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">Child-safety reports are placed at the top of the moderator queue.</p>}
             <label className="mt-4 block text-xs font-semibold" htmlFor="report-reason">What happened?</label>
-            <textarea id="report-reason" value={reportReason} onChange={(event) => setReportReason(event.target.value)} maxLength={500} rows={5} placeholder="Give moderators enough context to understand the problem." className="mt-2 w-full resize-none rounded-md border border-[var(--synnical-border)] bg-[#080808] px-3 py-2 text-sm outline-none focus:border-white" />
+            <textarea id="report-reason" value={reportReason} onChange={(event) => setReportReason(event.target.value)} maxLength={500} rows={5} placeholder="Give moderators enough context to understand the problem." className="mt-2 w-full resize-none rounded-md border border-[var(--synnical-border)] bg-[var(--synnical-input-surface)] px-3 py-2 text-sm outline-none focus:border-white" />
             <div className="mt-1 text-right text-[10px] text-[var(--synnical-muted)]">{reportReason.length}/500</div>
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" onClick={() => setReportingMessage(null)} disabled={reportBusy}>Cancel</Button>
@@ -1776,7 +1776,7 @@ function EmojiReactionPicker({ onSelect }: { onSelect: (emoji: string) => void }
     <span className="relative">
       <button type="button" onClick={() => setOpen((value) => !value)} className="p-1 text-[var(--synnical-muted)] hover:text-[var(--synnical-accent)]" aria-label="Add emoji reaction" title="Add reaction"><SmilePlus className="h-3 w-3" /></button>
       {open && (
-        <span className="absolute right-0 top-full z-40 mt-1 block w-72 overflow-hidden rounded-md border border-[var(--synnical-border)] bg-[#07101f] text-left shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <span className="absolute right-0 top-full z-40 mt-1 block w-72 overflow-hidden rounded-md border border-[var(--synnical-border)] bg-[var(--synnical-glass-strong)] text-left shadow-2xl" onClick={(event) => event.stopPropagation()}>
           <span className="flex items-center gap-1 border-b border-[var(--synnical-border)] p-2">
             <Search className="h-3.5 w-3.5 shrink-0 text-[var(--synnical-muted)]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search emoji categories" className="min-w-0 flex-1 bg-transparent text-xs outline-none" autoFocus />
@@ -1920,7 +1920,7 @@ function ChatToolsPanel({ open, onClose, activeChannel, activeName, draft, setDr
   }
 
   return <div className="fixed inset-0 z-[115] flex items-center justify-center bg-black/75 p-3" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-    <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[#292929] bg-[#080808] shadow-2xl">
+    <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[#292929] bg-[var(--synnical-input-surface)] shadow-2xl">
       <div className="flex items-center gap-2 border-b border-[#222] p-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">Chat tools · {activeName}</p><p className="text-[11px] text-[#666]">Account-backed tools for this conversation.</p></div><button onClick={onClose} className="rounded p-1 text-[#777] hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button></div>
       <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-[#222] p-2">{(["channel","search","saved","scheduled","polls","events",...(selectedMessage ? ["message"] : [])] as const).map((value) => <button key={value} onClick={() => setTab(value as any)} className={cn("rounded-md px-2.5 py-1.5 text-xs capitalize", tab === value ? "bg-white text-black" : "text-[#888] hover:bg-[#151515] hover:text-white")}>{value}</button>)}</div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 custom-scroll">
@@ -2257,7 +2257,7 @@ const MessageRow = React.memo(function MessageRow({
                 src={m.imageUrl}
                 data-image-viewer={m.imageUrl} role="button" tabIndex={0} aria-label="Open image"
                 alt="Image message"
-                className="mt-1 block min-h-24 max-h-80 max-w-full rounded-sm border border-[var(--synnical-border)] bg-[#080808] object-contain"
+                className="mt-1 block min-h-24 max-h-80 max-w-full rounded-sm border border-[var(--synnical-border)] bg-[var(--synnical-input-surface)] object-contain"
                 loading="lazy"
                 decoding="async"
               />
@@ -2268,7 +2268,7 @@ const MessageRow = React.memo(function MessageRow({
                 src={m.gifUrl}
                 data-image-viewer={m.gifUrl} role="button" tabIndex={0} aria-label="Open GIF"
                 alt="GIF message"
-                className="mt-1 block min-h-24 max-h-64 max-w-full rounded-sm border border-[var(--synnical-border)] bg-[#080808] object-contain"
+                className="mt-1 block min-h-24 max-h-64 max-w-full rounded-sm border border-[var(--synnical-border)] bg-[var(--synnical-input-surface)] object-contain"
                 loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"

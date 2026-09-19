@@ -1,4 +1,5 @@
 import type { Role } from "@/lib/constants"
+import { canonicalRole } from "@/lib/roles"
 
 export type SafeUser = {
   id: string
@@ -21,6 +22,7 @@ export type SafeUser = {
   muted: boolean
   mutedUntil: string | null
   banned?: boolean
+  warnCount?: number
   coins?: number
   securitySetupRequired: boolean
 }
@@ -45,6 +47,7 @@ export function toSafeUser(u: {
   tags?: string
   muted: boolean
   mutedUntil: Date | null
+  warnCount?: number
   coins?: number
   securitySetupCompletedAt?: Date | null
 }): SafeUser {
@@ -64,10 +67,11 @@ export function toSafeUser(u: {
     profileThemePrimary: u.profileThemePrimary || "#111111",
     profileThemeAccent: u.profileThemeAccent || "#2b2b2b",
     profileThemeStyle: u.profileThemeStyle === "gradient" ? "gradient" : "solid",
-    role: u.role as Role,
+    role: canonicalRole(u.role) as Role,
     tags: (() => { try { return JSON.parse(u.tags || '[]') } catch { return [] } })(),
     muted: u.muted,
     mutedUntil: u.mutedUntil ? u.mutedUntil.toISOString() : null,
+    warnCount: u.warnCount ?? 0,
     coins: u.coins ?? 0,
     securitySetupRequired: false,
   }
@@ -75,11 +79,11 @@ export function toSafeUser(u: {
 
 // ---------- permission helpers ----------
 export function isOwner(role: string) { return role === "OWNER" }
-export function isOwnerLevel(role: string) { return role === "OWNER" || role === "HEAD_ADMIN" }
-export function isAdmin(role: string) { return isOwnerLevel(role) || role === "ADMIN" }
+export function isOwnerLevel(role: string) { return role === "OWNER" }
+export function isAdmin(role: string) { return role === "OWNER" || role === "ADMIN" || role === "HEAD_ADMIN" }
 export function isMod(role: string) { return isAdmin(role) || role === "MOD" }
 export function canModerate(role: string) { return isMod(role) }
-export function canDeleteAnyMessage(role: string) { return isOwnerLevel(role) }
+export function canDeleteAnyMessage(role: string) { return isMod(role) }
 export function canUseGifAndDeco(role: string) { return isMod(role) }
 export function canManageRoles(role: string) { return isAdmin(role) }
 export function canManageTags(role: string) { return isMod(role) }

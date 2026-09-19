@@ -41,7 +41,7 @@ import { toast } from "sonner"
 import { AuthScreen } from "@/components/auth-screen"
 import { SYNNICAL_BUILD, SYNNICAL_BUILD_DATE, SYNNICAL_VERSION } from "@/lib/build-info"
 import { R7DevicesControls, R7PrivacyControls, R7SecurityControls } from "@/components/r7-settings"
-import { BIG_SITE_OWNER_TAG, DEV_TAG, NOTABLE_PERSON_TAG } from "@/lib/recognition-tags"
+import { BETA_TESTER_TAG, DEV_TAG, GOAT_TAG, NOTABLE_PERSON_TAG } from "@/lib/recognition-tags"
 
 /* ------------------------------------------------------------------ */
 /* localStorage settings helper                                       */
@@ -185,7 +185,7 @@ export function SettingsPanel() {
     window.addEventListener("synnical-settings-open", handler)
     return () => window.removeEventListener("synnical-settings-open", handler)
   }, [])
-  const isOwner = user?.role === "OWNER" || user?.role === "HEAD_ADMIN"
+  const isOwner = user?.role === "OWNER"
 
   const navGroups: { heading?: string; items: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }>; danger?: boolean; modOnly?: boolean }[] }[] = [
     {
@@ -424,10 +424,10 @@ function AccountSection() {
           <Input autoComplete="off" name="preferences-settings-panel-1" id="displayName" value={displayName}
             onChange={(e) => setDisplayName(e.target.value)} maxLength={32} />
         </FieldGroup>
-        <FieldGroup label="Username" htmlFor="username" hint={`${user.role === "OWNER" || user.role === "HEAD_ADMIN" || user.role === "ADMIN" ? "1" : "2"}-20 characters, letters, numbers and underscores.`}>
+        <FieldGroup label="Username" htmlFor="username" hint={`${user.role === "OWNER" || user.role === "ADMIN" ? "1" : "2"}-20 characters, letters, numbers and underscores.`}>
           <Input autoComplete="off" name="preferences-settings-panel-2" id="username" value={username}
             onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-            maxLength={20} minLength={user.role === "OWNER" || user.role === "HEAD_ADMIN" || user.role === "ADMIN" ? 1 : 2} placeholder="username" />
+            maxLength={20} minLength={user.role === "OWNER" || user.role === "ADMIN" ? 1 : 2} placeholder="username" />
         </FieldGroup>
         <FieldGroup label="Status" htmlFor="status">
           <StatusInput />
@@ -756,7 +756,7 @@ function ConnectionsSection() {
         )}
 
         {showForm ? (
-          <div className="rounded-lg border border-[#2a2a2a] bg-[#070707] p-4 space-y-3">
+          <div className="rounded-lg border border-[#2a2a2a] bg-[var(--synnical-surface-2)] p-4 space-y-3">
             <h3 className="text-sm font-semibold text-[var(--synnical-text)]">{editId ? "Edit connection" : "Add a connection"}</h3>
             <div className="space-y-2">
               <Label htmlFor="conn-platform">Platform</Label>
@@ -1230,9 +1230,9 @@ function LegalSection() {
       <section className="rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)] p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--synnical-muted)]">Build information</p>
         <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
-          <div className="rounded-lg border border-[var(--synnical-border)] bg-[#070707] p-3"><p className="text-xs text-[var(--synnical-muted)]">Version</p><p className="mt-1 font-medium">{SYNNICAL_VERSION}</p></div>
-          <div className="rounded-lg border border-[var(--synnical-border)] bg-[#070707] p-3"><p className="text-xs text-[var(--synnical-muted)]">Build</p><p className="mt-1 break-all font-medium">{SYNNICAL_BUILD}</p></div>
-          <div className="rounded-lg border border-[var(--synnical-border)] bg-[#070707] p-3"><p className="text-xs text-[var(--synnical-muted)]">Build date</p><p className="mt-1 font-medium">{SYNNICAL_BUILD_DATE}</p></div>
+          <div className="rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] p-3"><p className="text-xs text-[var(--synnical-muted)]">Version</p><p className="mt-1 font-medium">{SYNNICAL_VERSION}</p></div>
+          <div className="rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] p-3"><p className="text-xs text-[var(--synnical-muted)]">Build</p><p className="mt-1 break-all font-medium">{SYNNICAL_BUILD}</p></div>
+          <div className="rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] p-3"><p className="text-xs text-[var(--synnical-muted)]">Build date</p><p className="mt-1 font-medium">{SYNNICAL_BUILD_DATE}</p></div>
         </div>
       </section>
 
@@ -1243,6 +1243,12 @@ function LegalSection() {
         <p className="text-sm leading-6 text-[var(--synnical-muted)]">Synnical may send limited content to configured service providers when a feature requires it, such as moderation, AI, GIF search, or other integrations. Those providers process data under their own terms and privacy practices. Do not put secrets or information you do not want processed into features that use third-party services.</p>
         <p className="text-sm leading-6 text-[var(--synnical-muted)]">Staff can access moderation information when needed to investigate safety, abuse, account, and service issues. Data may also be retained when reasonably necessary for security, dispute handling, or legal obligations.</p>
         <p className="text-xs leading-5 text-[var(--synnical-muted)]">This in-app policy describes the product behaviour in this build. It is not a substitute for jurisdiction-specific legal advice.</p>
+      </section>
+
+      <section className="mt-5 space-y-3 rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)] p-5">
+        <h2 className="text-lg font-semibold">Credits &amp; required notices</h2>
+        <p className="text-sm leading-6 text-[var(--synnical-muted)]">This website uses Stratus API to provide some of its services</p>
+        <p className="text-xs leading-5 text-[var(--synnical-muted)]">Stratus API code is used by Synnical&apos;s cloud-gaming integration under the Stratus Public License. This notice is displayed here to satisfy the project&apos;s public-facing attribution requirement.</p>
       </section>
 
       <section className="mt-5 space-y-3 rounded-xl border border-[var(--synnical-border)] bg-[var(--synnical-surface)] p-5">
@@ -1332,7 +1338,7 @@ function UserManagementSection() {
   }, [query])
 
   const loadUsers = useCallback(async () => {
-    if (!user || (user.role !== "OWNER" && user.role !== "HEAD_ADMIN")) return
+    if (!user || user.role !== "OWNER") return
     setLoading(true)
     try {
       const result = await api.listUsers({ q: search, role: roleFilter, status: statusFilter, page, pageSize: 25, excludeSelf: true })
@@ -1423,7 +1429,7 @@ function UserManagementSection() {
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All roles</SelectItem>
-            <SelectItem value="MEMBER">Member</SelectItem><SelectItem value="MOD">Mod</SelectItem><SelectItem value="ADMIN">Admin</SelectItem><SelectItem value="HEAD_ADMIN">Head Admin</SelectItem><SelectItem value="OWNER">Owner</SelectItem>
+            <SelectItem value="MEMBER">Member</SelectItem><SelectItem value="MOD">Mod</SelectItem><SelectItem value="ADMIN">Admin</SelectItem><SelectItem value="OWNER">Owner</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(1) }}>
@@ -1456,9 +1462,9 @@ function UserManagementSection() {
                   <Select value={u.role} onValueChange={(v) => assignRole(u, v as Role)}>
                     <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {ROLES.filter((r) => r !== "OWNER" && (user.role === "OWNER" || r !== "HEAD_ADMIN")).map((r) => (
+                      {ROLES.filter((r) => r !== "OWNER" && r !== "HEAD_ADMIN").map((r) => (
                         <SelectItem key={r} value={r} className="text-xs">
-                          {r === "HEAD_ADMIN" ? "Head Admin" : r.charAt(0) + r.slice(1).toLowerCase()}
+                          {r.charAt(0) + r.slice(1).toLowerCase()}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1503,8 +1509,8 @@ function UserManagementSection() {
                       )
                     })}
                   </div>
-                  {(user.role === "OWNER" || user.role === "HEAD_ADMIN") ? <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[NOTABLE_PERSON_TAG, BIG_SITE_OWNER_TAG, DEV_TAG].map((specialTag) => {
+                  {(user.role === "OWNER" || user.role === "ADMIN") ? <div className="mt-2 flex flex-wrap gap-1.5">
+                    {[DEV_TAG, NOTABLE_PERSON_TAG, BETA_TESTER_TAG, GOAT_TAG].map((specialTag) => {
                       const active = (u.tags || []).includes(specialTag)
                       const busy = workingTag === u.id || workingTag === `${u.id}:${specialTag}`
                       return <Button key={specialTag} size="sm" variant={active ? "default" : "outline"} className="h-7 px-2 text-[10px]" disabled={busy} onClick={() => void (active ? removeTag(u, specialTag) : addTag(u, specialTag))}>{active ? `Remove ${specialTag}` : `Add ${specialTag}`}</Button>
@@ -1585,7 +1591,7 @@ function BillingSection() {
     <div>
       <SectionTitle title="Billing" desc="Your subscription and plan details." />
       <div className="space-y-4">
-        <div className="rounded-xl border border-[#2a2a2a] bg-[#070707] p-4">
+        <div className="rounded-xl border border-[#2a2a2a] bg-[var(--synnical-surface-2)] p-4">
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sm font-semibold text-[var(--synnical-text)]">Free Plan</p>

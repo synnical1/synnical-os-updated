@@ -13,6 +13,8 @@ const OWNER_RECORD = "__synn_bot_owner__"
 const APP_CONTROL_KIND = "synn-bot-app-control"
 const TAG_KIND = "synn-bot-managed-tag"
 const OPERATION_KIND = "synn-bot-owner-operation"
+const CONFIRMATION_KIND = "synn-bot-owner-confirmation"
+const CONFIRMATION_TTL_MS = 2 * 60_000
 
 type Actor = { id: string; username: string; role: string }
 export type OwnerBotContext = Actor & { channelId: string; sourceMessageId?: string; replyToUserId?: string | null }
@@ -27,6 +29,15 @@ type OwnerOperation = {
   after: unknown
   undo: Record<string, unknown>
   createdAt: string
+}
+
+type OwnerConfirmation = {
+  id: string
+  action: "purge" | "app-disable"
+  title: string
+  payload: Record<string, unknown>
+  createdAt: string
+  expiresAt: string
 }
 
 const safeJson = <T,>(value: string, fallback: T): T => {
@@ -82,6 +93,36 @@ async function saveOperation(actor: Actor, channelId: string, op: OwnerOperation
 
 async function writeAudit(actor: Actor, action: string, reason: string, before: unknown, after: unknown, metadata: unknown) {
   await db.auditLog.create({ data: auditData({ category: "SYNN_BOT_OWNER", action, actor, reason, before, after, metadata }) })
+}
+
+function confirmationRecordId(actorId: string, channelId: string) {
+  return `owner-confirm-${createHash("sha256").update(`${actorId}:${channelId}`).digest("hex")}`
+}
+
+async function clearPendingConfirmation(actor: Actor, channelId: string) {
+  await db.featureRecord.deleteMany({ where: { id: confirmationRecordId(actor.id, channelId), userId: actor.id, kind: CONFIRMATION_KIND } })
+}
+
+async function getPendingConfirmation(actor: Actor, channelId: string): Promise<OwnerConfirmation | null> {
+  const id = confirmationRecordId(actor.id, channelId)
+  const row = await db.featureRecord.findUnique({ where: { id } })
+  if (!row || row.userId !== actor.id || row.kind !== CONFIRMATION_KIND || row.scopeKey !== channelId) return null
+  const pending = safeJson<OwnerConfirmation>(row.dataJson, null as never)
+  const expiresAt = pending?.expiresAt ? new Date(pending.expiresAt).getTime() : 0
+  if (!pending?.action || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    await db.featureRecord.deleteMany({ where: { id } })
+    return null
+  }
+  return pending
+}
+
+async function savePendingConfirmation(actor: Actor, channelId: string, pending: OwnerConfirmation) {
+  const id = confirmationRecordId(actor.id, channelId)
+  await db.featureRecord.upsert({
+    where: { id },
+    update: { kind: CONFIRMATION_KIND, scopeKey: channelId, title: pending.title, dataJson: JSON.stringify(pending), visibility: "private" },
+    create: { id, userId: actor.id, kind: CONFIRMATION_KIND, scopeKey: channelId, title: pending.title, dataJson: JSON.stringify(pending), visibility: "private" },
+  })
 }
 
 export async function getGlobalAppControls(): Promise<AppControl[]> {
@@ -158,7 +199,7 @@ export async function undoOwnerOperation(actor: Actor, channelId: string): Promi
   } else if (op.action === "purge") {
     const messageIds = Array.isArray(op.undo.messageIds) ? op.undo.messageIds.filter((id): id is string => typeof id === "string") : []
     if (!messageIds.length) return { reply: "There were no deleted messages in that restore point." }
-    await db.message.updateMany({ where: { id: { in: messageIds }, channelId }, data: { deleted: false } })
+    await db.message.updateMany({ where: { id: { in: messageIds }, channelId, deleted: true }, data: { deleted: false } })
   } else if (op.action === "channel-create") {
     const id = String(op.undo.channelId || "")
     if (!id) return { reply: "That channel restore point is invalid, so I left it unchanged." }
@@ -168,6 +209,40 @@ export async function undoOwnerOperation(actor: Actor, channelId: string): Promi
   await db.featureRecord.update({ where: { id: row.id }, data: { kind: "synn-bot-owner-operation-undone", title: `Undone: ${op.title}` } })
   await writeAudit(actor, "OWNER_OPERATION_UNDONE", `Undo: ${op.title}`, op.after, op.before, { operationId: row.id, sourceChannelId: channelId })
   return { reply: `Restored the last Owner change: ${op.title}.` }
+}
+
+async function confirmPendingOwnerAction(actor: Actor, channelId: string): Promise<OwnerBotResult> {
+  const pending = await getPendingConfirmation(actor, channelId)
+  if (!pending) return { reply: "There isn’t a pending destructive action to confirm, or it expired." }
+  await clearPendingConfirmation(actor, channelId)
+
+  if (pending.action === "purge") {
+    const messageIds = Array.isArray(pending.payload.messageIds) ? pending.payload.messageIds.filter((id): id is string => typeof id === "string") : []
+    if (!messageIds.length) return { reply: "That delete request no longer has valid messages, so nothing was changed." }
+    const live = await db.message.findMany({ where: { id: { in: messageIds }, channelId, deleted: false }, select: { id: true } })
+    const ids = live.map((message) => message.id)
+    if (!ids.length) return { reply: "Those messages are already gone, so nothing else was deleted." }
+    await db.message.updateMany({ where: { id: { in: ids }, channelId, deleted: false }, data: { deleted: true } })
+    const op: OwnerOperation = { id: pending.id, action: "purge", title: `Purged ${ids.length} message${ids.length === 1 ? "" : "s"} from this channel`, before: { deleted: false }, after: { deleted: true, ids }, undo: { messageIds: ids }, createdAt: new Date().toISOString() }
+    await saveOperation(actor, channelId, op)
+    await writeAudit(actor, "OWNER_CHANNEL_PURGE", op.title, op.before, op.after, { via: "synn-bot", channelId, confirmed: true })
+    return { reply: `Confirmed — deleted ${ids.length} message${ids.length === 1 ? "" : "s"} for everyone. Say “restore chat” or “undo that” to bring them back.`, deletedMessageIds: ids }
+  }
+
+  if (pending.action === "app-disable") {
+    const appId = String(pending.payload.appId || "")
+    const before = pending.payload.before as AppControl | undefined
+    const after = pending.payload.after as AppControl | undefined
+    const app = SYNNICAL_APPS.find((row) => row.id === appId)
+    if (!app || !before || !after || before.appId !== appId || after.appId !== appId || after.enabled !== false) return { reply: "That app-change confirmation is invalid, so nothing was changed." }
+    await setAppControl(appId, after)
+    const op: OwnerOperation = { id: pending.id, action: "app-control", title: `Disabled ${app.label}`, before, after, undo: { control: before }, createdAt: new Date().toISOString() }
+    await saveOperation(actor, channelId, op)
+    await writeAudit(actor, "OWNER_APP_CONTROL", op.title, before, after, { via: "synn-bot", appId, confirmed: true })
+    return { reply: `Confirmed — ${app.label} is disabled for everyone and hidden from the launcher. Say “undo that” or “bring ${app.label} back” to restore it.` }
+  }
+
+  return { reply: "That confirmation type is not supported, so nothing was changed." }
 }
 
 export function providerIdentityReply() {
@@ -194,7 +269,16 @@ export async function runOwnerJarvisRequest(input: string, ctx: OwnerBotContext)
   const actor = await verifiedOwner(ctx)
   if (!actor) return null
 
-  if (/^(?:\/)?(?:undo(?: that| it)?|restore(?: it| that)?|bring it back)$/i.test(lower)) return undoOwnerOperation(actor, ctx.channelId)
+  if (/^(?:\/)?(?:confirm|yes,? confirm|confirm it|do it)$/i.test(lower)) return confirmPendingOwnerAction(actor, ctx.channelId)
+  if (/^(?:\/)?(?:cancel|never mind|nevermind|don't do it|do not do it)$/i.test(lower)) {
+    const pending = await getPendingConfirmation(actor, ctx.channelId)
+    await clearPendingConfirmation(actor, ctx.channelId)
+    return { reply: pending ? `Cancelled: ${pending.title}. Nothing was changed.` : "There wasn’t a pending destructive action to cancel." }
+  }
+  if (/^(?:\/)?(?:undo(?: that| it| delete for everyone)?|restore(?: it| that| chat| messages?| deleted messages?)|bring (?:it|the messages?|chat) back)$/i.test(lower)) {
+    await clearPendingConfirmation(actor, ctx.channelId)
+    return undoOwnerOperation(actor, ctx.channelId)
+  }
 
   const tagMatch = text.match(/\b(?:make|create)\s+(?:a\s+)?tag\s+(?:called|named)\s+([a-z0-9][a-z0-9 _-]{1,23})/i)
   if (tagMatch) {
@@ -257,11 +341,25 @@ export async function runOwnerJarvisRequest(input: string, ctx: OwnerBotContext)
     const restricted = /\b(?:beta testers?|admins?|mods?|owners?)\b/i.test(lower)
     const roles = restricted ? Array.from(lower.matchAll(/\b(owner|head admin|admin|mod|beta tester)\b/g)).map((match) => roleName(match[1])) : []
     const after: AppControl = restoring ? { appId: app.id, enabled: true, maintenance: false, allowedRoles: [] } : { appId: app.id, enabled: restricted || !/\b(?:delete|disable|hide|remove)\b/i.test(lower), maintenance, allowedRoles: roles }
+
+    if (!after.enabled) {
+      const now = new Date()
+      const pending: OwnerConfirmation = {
+        id: ctx.sourceMessageId || randomUUID(),
+        action: "app-disable",
+        title: `Disable ${app.label} for everyone`,
+        payload: { appId: app.id, before, after },
+        createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + CONFIRMATION_TTL_MS).toISOString(),
+      }
+      await savePendingConfirmation(actor, ctx.channelId, pending)
+      return { reply: `This will disable ${app.label} for everyone and hide it from the launcher. Reply “confirm” within 2 minutes to continue, or “cancel”. Nothing has changed yet.` }
+    }
+
     await setAppControl(app.id, after)
     const op: OwnerOperation = { id: ctx.sourceMessageId || randomUUID(), action: "app-control", title: `${after.enabled ? "Updated" : "Disabled"} ${app.label}`, before, after, undo: { control: before }, createdAt: new Date().toISOString() }
     await saveOperation(actor, ctx.channelId, op)
     await writeAudit(actor, "OWNER_APP_CONTROL", op.title, before, after, { via: "synn-bot", appId: app.id })
-    if (!after.enabled) return { reply: `${app.label} is now disabled for everyone and hidden from the launcher. I saved a restore point; say “undo that” or “bring ${app.label} back” to restore it.` }
     if (after.maintenance) return { reply: `${app.label} is now in an Owner-managed under-construction state. The previous app configuration is saved for undo.` }
     return { reply: `${app.label} is enabled again with its standard visibility restored.` }
   }
@@ -279,17 +377,23 @@ export async function runOwnerJarvisRequest(input: string, ctx: OwnerBotContext)
     return { reply: `Done — created #${name}${allowedRoles.includes("MEMBER") ? "" : " for admins only"}.` }
   }
 
-  if (/\bpurge\b|\bdelete\s+(?:the\s+)?last\s+\d+\s+messages?\b/i.test(lower)) {
+  if (/\bpurge\b|\bdelete\s+(?:the\s+)?last\s+\d+\s+messages?\b|\bdelete\s+(?:these\s+)?messages?\s+for\s+everyone\b/i.test(lower)) {
     const requested = Number(text.match(/\b(?:last\s+)?(\d{1,3})\s+messages?\b/i)?.[1] || 100)
     const take = Math.max(1, Math.min(100, requested))
     const messages = await db.message.findMany({ where: { channelId: ctx.channelId, deleted: false, userId: { not: null } }, orderBy: { createdAt: "desc" }, take, select: { id: true } })
-    if (!messages.length) return { reply: "There are no live messages here to purge." }
+    if (!messages.length) return { reply: "There are no live messages here to delete." }
     const ids = messages.map((message) => message.id)
-    await db.message.updateMany({ where: { id: { in: ids } }, data: { deleted: true } })
-    const op: OwnerOperation = { id: ctx.sourceMessageId || randomUUID(), action: "purge", title: `Purged ${ids.length} message${ids.length === 1 ? "" : "s"} from this channel`, before: { deleted: false }, after: { deleted: true, ids }, undo: { messageIds: ids }, createdAt: new Date().toISOString() }
-    await saveOperation(actor, ctx.channelId, op)
-    await writeAudit(actor, "OWNER_CHANNEL_PURGE", op.title, op.before, op.after, { via: "synn-bot", channelId: ctx.channelId })
-    return { reply: `Purged ${ids.length} message${ids.length === 1 ? "" : "s"} from this channel. I saved a restore point.`, deletedMessageIds: ids }
+    const now = new Date()
+    const pending: OwnerConfirmation = {
+      id: ctx.sourceMessageId || randomUUID(),
+      action: "purge",
+      title: `Delete ${ids.length} message${ids.length === 1 ? "" : "s"} for everyone`,
+      payload: { messageIds: ids },
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + CONFIRMATION_TTL_MS).toISOString(),
+    }
+    await savePendingConfirmation(actor, ctx.channelId, pending)
+    return { reply: `This will delete ${ids.length} message${ids.length === 1 ? "" : "s"} for everyone in this channel. Reply “confirm” within 2 minutes to continue, or “cancel”. Nothing has been deleted yet.` }
   }
 
   return null

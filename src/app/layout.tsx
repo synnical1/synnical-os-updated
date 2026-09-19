@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import "./globals.css"
+import "./boot.css"
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import { AuthProvider } from "@/hooks/use-auth"
@@ -35,10 +36,12 @@ export const metadata: Metadata = {
     title: "Synnical",
     description: "Your social desktop on the web.",
   },
+  // Keep the browser-tab cloak stable. The in-app product identity remains
+  // Synnical, but the favicon intentionally uses the Google Classroom asset.
   icons: {
-    icon: "/brand/rose.png",
-    shortcut: "/brand/rose.png",
-    apple: "/brand/rose.png",
+    icon: "/brand/google-classroom.png",
+    shortcut: "/brand/google-classroom.png",
+    apple: "/brand/google-classroom.png",
   },
 }
 
@@ -47,7 +50,7 @@ export const metadata: Metadata = {
 const PreloadLinks = () => (
   <>
     {/* Preload critical images */}
-    <link rel="preload" href="/brand/rose.png" as="image" type="image/png" />
+    <link rel="preload" href="/brand/google-classroom.png" as="image" type="image/png" />
     <link rel="preload" href="/brand/wallpapers/thorfinn.webp" as="image" type="image/webp" />
     {/* Browser is part of the initial shell, so fetch its local proxy runtime
         immediately. This removes asset-download latency from the first search;
@@ -65,8 +68,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <PreloadLinks />
         <script
-          // The app stores settings as JSON. Apply the persisted appearance
-          // before React runs so neither preference gets a flash of the other.
+          // Resolve Light/Dark before hydration. This touches only the
+          // appearance marker; applyTheme commits the final palette atomically.
           dangerouslySetInnerHTML={{ __html: `try { const raw = localStorage.getItem('synnical:settings:appearance.mode'); const mode = raw ? JSON.parse(raw) : 'light'; const safe = mode === 'dark' ? 'dark' : 'light'; document.documentElement.dataset.appearance = safe; document.documentElement.style.colorScheme = safe; document.documentElement.classList.toggle('dark', safe === 'dark'); } catch (_) { document.documentElement.dataset.appearance = 'light'; document.documentElement.style.colorScheme = 'light'; }` }}
         />
       </head>
