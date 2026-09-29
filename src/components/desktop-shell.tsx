@@ -495,6 +495,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
   const [clipboardTick, setClipboardTick] = useState(0)
   const [wallpaperSlideIndex, setWallpaperSlideIndex] = useState(0)
   const [weather, setWeather] = useState<WeatherState | null>(null)
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false)
   const dragRef = useRef<DragState | null>(null)
   const desktopVideoRef = useRef<HTMLVideoElement | null>(null)
   const captureRecorderRef = useRef<MediaRecorder | null>(null)
@@ -1633,11 +1634,40 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
           {Object.values(mediaUsage).some((row)=>row.microphone)?<Mic className="h-3.5 w-3.5 text-emerald-300" aria-label="Synnical microphone in use"/>:null}{Object.values(mediaUsage).some((row)=>row.camera)?<Camera className="h-3.5 w-3.5 text-emerald-300" aria-label="Synnical camera in use"/>:null}{Object.values(mediaUsage).some((row)=>row.screen)?<Monitor className="h-3.5 w-3.5 text-emerald-300" aria-label="Synnical screen capture in use"/>:null}<button onClick={() => { const next=!quickOpen; closeFlyouts(); setQuickOpen(next) }} className={cn("flex h-9 items-center gap-1 rounded-lg px-2 hover:bg-white/10", quickOpen && "bg-white/10")} title="Quick Settings">{system.online ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}{os.uiSoundVolume ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}{system.batterySupported ? system.charging ? <BatteryCharging className="h-3.5 w-3.5" /> : <Battery className="h-3.5 w-3.5" /> : <Battery className="h-3.5 w-3.5 opacity-35" />}</button>
           <button onClick={() => { const next=!keyboardOpen; closeFlyouts(); setKeyboardOpen(next) }} className="hidden h-8 w-8 place-items-center rounded hover:bg-white/10 md:grid" title="Touch keyboard"><Keyboard className="h-3.5 w-3.5" /></button>
           <span className="hidden px-1 text-[9px] text-white/45 lg:block">{(system.language || "EN").split("-")[0].toUpperCase()}</span>
-          <button onClick={() => { const next=!noticeOpen; closeFlyouts(); setNoticeOpen(next) }} className={cn("relative min-w-[72px] rounded-lg px-2 py-1 text-right text-[10px] leading-3 hover:bg-white/10", noticeOpen && "bg-white/10")}><div>{now.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit", ...(os.clockSeconds ? {second:"2-digit" as const}:{})})}</div><div>{now.toLocaleDateString([], {month:"2-digit",day:"2-digit",year:"numeric"})}</div>{notices.length ? <span className="absolute left-0.5 top-1 h-1.5 w-1.5 rounded-full bg-sky-400" /> : null}</button>
+          <button onClick={() => { const next=!notificationCenterOpen; closeFlyouts(); setNotificationCenterOpen(next) }} className={cn("relative min-w-[72px] rounded-lg px-2 py-1 text-right text-[10px] leading-3 hover:bg-white/10", notificationCenterOpen && "bg-white/10")}><div>{now.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit", ...(os.clockSeconds ? {second:"2-digit" as const}:{})})}</div><div>{now.toLocaleDateString([], {month:"2-digit",day:"2-digit",year:"numeric"})}</div>{notices.length ? <span className="absolute left-0.5 top-1 h-1.5 w-1.5 rounded-full bg-sky-400" /> : null}</button>
           <button onClick={showDesktop} className="h-full w-2 border-l border-white/15 hover:bg-white/10" aria-label="Show desktop" title="Show desktop" />
         </div>
         {trayOverflow ? <div className="absolute right-24 grid grid-cols-4 gap-1 rounded-xl border border-white/15 bg-[#202024] p-2 shadow-xl" style={{ bottom: taskbarMetric.height + 4 }}><button onClick={() => setClipboardOpen(true)} className="grid h-9 w-9 place-items-center rounded hover:bg-white/10" title="Clipboard"><Clipboard className="h-4 w-4" /></button><button onClick={() => setEmojiOpen(true)} className="grid h-9 w-9 place-items-center rounded hover:bg-white/10" title="Emoji"><Smile className="h-4 w-4" /></button><button onClick={() => openPanel("settings")} className="grid h-9 w-9 place-items-center rounded hover:bg-white/10" title="Settings"><Settings className="h-4 w-4" /></button><button onClick={() => { setLocked(true);setLockStage("lock") }} className="grid h-9 w-9 place-items-center rounded hover:bg-white/10" title="Lock"><LockKeyhole className="h-4 w-4" /></button></div> : null}
       </div>
     </footer>
+
+    {notificationCenterOpen && (
+      <div className="fixed right-0 top-0 bottom-0 w-[400px] bg-white/10 backdrop-blur-xl border-l border-white/20 z-[60000]">
+        <div className="flex flex-col h-full p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Notifications</h2>
+            <button onClick={() => { setNotices([]); setNotificationCenterOpen(false); }} className="text-sm text-white/60 hover:text-white/80">Clear all</button>
+          </div>
+          {notices.length === 0 ? (
+            <p className="text-white/60 text-center flex-1">No notifications</p>
+          ) : (
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {notices.map((notice) => (
+                <div key={notice.id} className="flex items-start gap-3 p-3 rounded-lg bg-white/5">
+                  <div className="flex-shrink-0 h-8 w-8 rounded bg-white/20 flex items-center justify-center">
+                    {notice.priority === "urgent" ? <Zap className="h-4 w-4 text-red-400" /> : notice.priority === "priority" ? <Bell className="h-4 w-4 text-sky-400" /> : <Bell className="h-4 w-4 text-white/60" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-white">{notice.title}</p>
+                    <p className="mt-1 text-sm text-white/60 line-clamp-2">{notice.body}</p>
+                    <p className="mt-2 text-xs text-white/40">{new Date(notice.createdAt).toLocaleString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
   </div>
 }
