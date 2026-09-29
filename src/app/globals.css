@@ -130,9 +130,9 @@
   --synnical-accent: #ffffff;
   --synnical-accent-hover: #e8e8e8;
   --synnical-accent-soft: #1b2432;
-  --synnical-bg: #090d16;
-  --synnical-surface: #111827;
-  --synnical-surface-2: #1b2638;
+  --synnical-bg: #000000;
+  --synnical-surface: #000000;
+  --synnical-surface-2: #000000;
   --synnical-border: #334155;
   --synnical-text: #f4f7fb;
   --synnical-muted: #aab6c7;
@@ -161,7 +161,7 @@
   --sidebar-accent-foreground: var(--synnical-text);
   --sidebar-border: var(--synnical-border);
   --sidebar-ring: var(--synnical-accent);
-  --synnical-page: #090d16;
+  --synnical-page: #000000;
   --synnical-desktop-foreground: #f8fbff;
   --synnical-surface-elevated: rgba(16, 23, 36, .86);
   --synnical-glass: rgba(11, 17, 28, .70);
