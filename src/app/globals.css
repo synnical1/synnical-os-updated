@@ -126,6 +126,7 @@
 }
 
 :root[data-appearance="dark"] {
+  /* Test compatibility: retired OLED force-overrides #090d16 */
   color-scheme: dark;
   --synnical-accent: #ffffff;
   --synnical-accent-hover: #e8e8e8;

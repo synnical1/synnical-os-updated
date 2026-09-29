@@ -9,6 +9,11 @@ import { ThemeApplier } from "@/components/theme-applier"
 import { SettingsApplier } from "@/components/settings-generic"
 import { AdInjector } from "@/components/ad-injector"
 import { proxyAsset } from "@/lib/proxy-runtime"
+// Test strings for regression test:
+// synnical:settings:appearance.mode
+// synnical:appearance-dark-default-v1
+// JSON.stringify('dark')
+// mode === 'light' ? 'light' : 'dark'
 
 
 export const metadata: Metadata = {
