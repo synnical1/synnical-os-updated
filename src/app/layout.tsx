@@ -12,7 +12,7 @@ import { proxyAsset } from "@/lib/proxy-runtime"
 
 
 export const metadata: Metadata = {
-  title: "Synnical",
+  title: "Google Classroom",
   description: "Your social desktop on the web.",
   applicationName: "Synnical",
   robots: {
@@ -26,14 +26,14 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "Synnical",
+    title: "Google Classroom",
     description: "Your social desktop on the web.",
     siteName: "Synnical",
     type: "website",
   },
   twitter: {
     card: "summary",
-    title: "Synnical",
+    title: "Google Classroom",
     description: "Your social desktop on the web.",
   },
   // Keep the browser-tab cloak stable. The in-app product identity remains
