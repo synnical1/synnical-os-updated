@@ -1,0 +1,17 @@
+/* Light mode appearance variables */
+:root {
+  --synnical-bg: #edf2f8;
+  --synnical-surface: #f7faff;
+  --synnical-surface-2: #e7edf6;
+  --synnical-border: #b9c6d8;
+  --synnical-text: #15243a;
+  --synnical-muted: #53647c;
+  --synnical-accent: #ffffff;
+  --synnical-accent-hover: #e8e8e8;
+  --synnical-accent-soft: #1b2432;
+}
+
+/* Ensure proper color scheme for light mode */
+:root {
+  color-scheme: light;
+}
