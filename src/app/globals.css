@@ -126,7 +126,6 @@
 }
 
 :root[data-appearance="dark"] {
-  /* Test compatibility: :root[data-appearance="dark"] { --synnical-bg: #090d16; } */
   color-scheme: dark;
   --synnical-accent: #ffffff;
   --synnical-accent-hover: #e8e8e8;
