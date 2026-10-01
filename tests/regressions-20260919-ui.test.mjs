@@ -68,7 +68,7 @@ test("theme styles no longer contain the retired OLED force-overrides", () => {
   assert.doesNotMatch(css, /Primary app surfaces never use glass blur/)
   assert.match(css, /--synnical-page: #edf2f8/)
   assert.match(css, /:root\[data-appearance="dark"\]/)
-  assert.match(css, /:root\[data-appearance="dark"\][\s\S]*--synnical-bg: #090d16/)
+  assert.match(css, /:root\[data-appearance="dark"\][\s\S]*--synnical-bg: #000000/)
 })
 
 
