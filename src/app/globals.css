@@ -957,7 +957,7 @@ video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--s
 :root[data-appearance="light"] [data-radix-popper-content-wrapper] > * { background: var(--synnical-glass-strong) !important; color: var(--synnical-text) !important; border-color: var(--synnical-glass-border) !important; }
 .synnical-dialog-overlay { background: var(--synnical-modal-backdrop) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .synnical-dialog-content { background: var(--synnical-glass-strong) !important; color: var(--synnical-text) !important; border-color: var(--synnical-glass-border) !important; box-shadow: var(--synnical-shadow) !important; }
-.synnical-profile-modal { overflow: visible; }
+.synnical-profile-modal { overflow: visible; width: fit-content !important; }
 .synnical-profile-card { box-shadow: var(--synnical-shadow) !important; }
 .synnical-under-construction { background: var(--synnical-page); color: var(--synnical-text); }
 .synnical-under-construction > div { background: var(--synnical-glass-strong); border-color: var(--synnical-glass-border); color: var(--synnical-text); }

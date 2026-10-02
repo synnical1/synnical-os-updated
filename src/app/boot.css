@@ -12,9 +12,9 @@
   --synnical-boot-progress: #334155;
 }
 :root[data-appearance="dark"] {
-  --synnical-boot-bg: #090d16;
-  --synnical-boot-panel: rgba(16, 23, 36, .72);
-  --synnical-boot-panel-border: rgba(210, 225, 255, .15);
+  --synnical-boot-bg: #000000;
+  --synnical-boot-panel: rgba(0, 0, 0, .72);
+  --synnical-boot-panel-border: rgba(255, 255, 255, .15);
   --synnical-boot-fg: #f4f7fb;
   --synnical-boot-muted: #aab6c7;
   --synnical-boot-aura-color: rgba(255, 255, 255, .12);
@@ -42,7 +42,7 @@
   background-image:
     linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
-  background-size: 32px 32px;
+  background-size: 128px 128px;
   mask-image: radial-gradient(circle at center, #000 0 45%, transparent 82%);
 }
 .synnical-boot {

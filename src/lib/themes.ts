@@ -70,6 +70,10 @@ export function applyTheme(id: string, mode: "light" | "dark" = "dark") {
     v["--synnical-accent"] = "#334155"
     v["--synnical-accent-hover"] = "#1e293b"
   }
+  // Ensure true OLED black for Synnical theme in dark mode
+  if (mode === "dark" && theme.id === "synnical") {
+    Object.assign(v, { "--synnical-bg": "#000000", "--synnical-surface": "#000000", "--synnical-surface-2": "#000000" })
+  }
   root.dataset.synnicalTheme = theme.id
   root.dataset.appearance = mode
   root.style.colorScheme = mode

@@ -17,7 +17,7 @@ function page(token: string | null) {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Synnical session</title>
   <style>
-    html,body{height:100%;margin:0;background:#090d16;color:#f6f7fb;font:14px system-ui,sans-serif}
+    html,body{height:100%;margin:0;background:#000000;color:#f6f7fb;font:14px system-ui,sans-serif}
     body{display:grid;place-items:center}
     main{max-width:360px;padding:24px;text-align:center}
     p{color:#a9b1c3;line-height:1.5}

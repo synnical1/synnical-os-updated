@@ -18,6 +18,7 @@ export function ProfileCardFrame({
   children,
   className,
   scale = "profile",
+  useOledBackground = false,
 }: {
   user: SafeUser
   profileEffect?: string | null
@@ -27,6 +28,7 @@ export function ProfileCardFrame({
   children: ReactNode
   className?: string
   scale?: ProfileCardScale
+  useOledBackground?: boolean
 }) {
   const textColor = profileThemeTextColor(themePrimary, themeAccent)
   const geometry = useProfileEffectGeometry(profileEffect)
@@ -44,7 +46,7 @@ export function ProfileCardFrame({
       style={{
         width: `${renderedWidth}px`,
         aspectRatio: `${geometry.width} / ${geometry.height}`,
-        background: profileThemeBackground(themePrimary, themeAccent, themeStyle),
+        background: useOledBackground ? "#000000" : profileThemeBackground(themePrimary, themeAccent, themeStyle),
         color: textColor,
       }}
     >

@@ -212,7 +212,13 @@ export function UserProfileModal({ userId, onClose }: { userId: string | null; o
         {loading && <div className="flex h-56 items-center justify-center rounded-[22px] border border-[var(--synnical-glass-border)] bg-[var(--synnical-glass-strong)] shadow-[var(--synnical-shadow)] backdrop-blur-xl"><Loader2 className="h-5 w-5 animate-spin text-[var(--synnical-muted)]" /></div>}
         {error && !loading && <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-[22px] border border-[var(--synnical-glass-border)] bg-[var(--synnical-glass-strong)] px-6 text-center shadow-[var(--synnical-shadow)] backdrop-blur-xl"><AlertCircle className="h-5 w-5 text-red-400" /><p className="text-sm text-[var(--synnical-muted)]">{error}</p></div>}
         {user && !loading && (
-          <ProfileCardFrame user={user} className="synnical-profile-card">
+          <ProfileCardFrame
+            user={user}
+            className="synnical-profile-card"
+            useOledBackground={typeof document !== 'undefined' &&
+              document.documentElement.dataset.synnicalTheme === 'synnical' &&
+              document.documentElement.dataset.appearance === 'dark'}
+          >
             <DialogClose aria-label="Close profile" className="absolute right-3 top-3 z-30 grid h-8 w-8 place-items-center rounded-full border text-sm shadow-sm transition-colors" style={{ background: themeSurface, borderColor: themeBorder, color: themeText }}>×</DialogClose>
             <div className="relative h-[27%] min-h-[92px] max-h-[170px] overflow-hidden bg-black/20">
               {user.bannerUrl && <img data-image-viewer={user.bannerUrl} role="button" tabIndex={0} aria-label="Open uploaded image" src={user.bannerUrl} alt="" className="h-full w-full object-cover" style={{ objectPosition: `${featureProfile?.profile?.bannerPositionX ?? 50}% ${featureProfile?.profile?.bannerPositionY ?? 50}%` }} loading={user.bannerIsGif ? "eager" : "lazy"} decoding={user.bannerIsGif ? "sync" : "async"} />}
