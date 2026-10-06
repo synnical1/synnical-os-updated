@@ -106,6 +106,16 @@ try {
   const tooEarlyDaily = (await request("/api/shop/daily", { cookie: a.cookie, data: {} })).json
   const claimTime = (await db.user.findUnique({ where: { id: a.id } })).lastDailyClaim
   assert.equal(tooEarlyDaily.nextClaim, new Date(claimTime.getTime() + 20 * 3600000).toISOString())
+  // Exercise the non-null eligibility predicate and streak receipt under the
+  // same contention; a first-ever claim alone misses date-binding regressions.
+  await db.user.update({ where: { id: b.id }, data: { lastDailyClaim: new Date(Date.now() - 24 * 3600000) } })
+  const streakBefore = (await db.user.findUnique({ where: { id: b.id } })).coins
+  const streakClaims = await Promise.all(Array.from({ length: 6 }, () => request("/api/shop/daily", { cookie: b.cookie, data: {} })))
+  assert.equal(streakClaims.filter(row => row.json.success).length, 1)
+  const streakReceipts = await db.currencyTransaction.findMany({ where: { userId: b.id, type: "daily" } })
+  assert.equal(streakReceipts.length, 1)
+  assert.equal(streakReceipts[0].amount, 110)
+  assert.equal((await db.user.findUnique({ where: { id: b.id } })).coins, streakBefore + 110)
 
   await db.user.update({ where: { id: a.id }, data: { role: "HEAD_ADMIN" } })
   await db.user.update({ where: { id: b.id }, data: { role: "ADMIN" } })

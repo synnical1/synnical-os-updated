@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { AVATAR_DECORATIONS } from "@/lib/avatar-decoration-catalog"
 import { PROFILE_EFFECTS } from "@/lib/profile-effect-catalog"
+import { randomUUID } from "node:crypto"
 
 if (typeof window !== "undefined") {
   throw new Error("shop economy must only run on the server")
@@ -104,17 +105,21 @@ export async function claimDaily(userId: string) {
   let streakBonus = 0
   if (lastClaim && (now.getTime() - lastClaim.getTime()) / 3_600_000 < 48) streakBonus = DAILY_STREAK_BONUS
   const reward = DAILY_REWARD + streakBonus
-  const claimed = await db.$transaction(async (tx) => {
-    // Compare-and-set eligibility in the UPDATE, not just the earlier read.
-    // Two parallel requests cannot both award a daily reward.
-    const updated = await tx.user.updateMany({
+  // Submit the entire write batch to SQLite together. Interactive transactions
+  // yielded between the balance update and receipt insert, letting competing
+  // writers occupy the query engine while the lock holder awaited its insert.
+  // The conditional receipt obtains the writer lock; both statements use the
+  // same eligibility predicate and commit/roll back together.
+  const [, updatedClaim] = await db.$transaction([
+    db.$executeRaw`INSERT INTO "CurrencyTransaction" ("id", "userId", "amount", "type", "description", "createdAt")
+      SELECT ${randomUUID()}, "id", ${reward}, ${"daily"}, ${`Daily reward${streakBonus ? " (streak bonus)" : ""}`}, ${now}
+      FROM "User" WHERE "id" = ${userId} AND "lastDailyClaim" IS ${lastClaim}`,
+    db.user.updateMany({
       where: { id: userId, lastDailyClaim: lastClaim },
       data: { coins: { increment: reward }, lastDailyClaim: now },
-    })
-    if (!updated.count) return false
-    await tx.currencyTransaction.create({ data: { userId, amount: reward, type: "daily", description: `Daily reward${streakBonus ? " (streak bonus)" : ""}` } })
-    return true
-  })
+    }),
+  ])
+  const claimed = updatedClaim.count === 1
   if (!claimed) return { success: false, message: "This daily reward was already claimed", coins: (await db.user.findUnique({ where: { id: userId }, select: { coins: true } }))?.coins || 0 }
 
   const updated = await db.user.findUnique({ where: { id: userId }, select: { coins: true } })
