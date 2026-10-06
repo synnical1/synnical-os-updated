@@ -51,6 +51,13 @@ jobs:
           DATABASE_URL: file:./prisma/ci.db
         run: npm run test:smoke
 
+      - name: Run single-core production smoke regression
+        env:
+          DATABASE_URL: file:./prisma/ci.db
+        run: |
+          smoke_cpu="$(awk '/^Cpus_allowed_list:/ { split($2, cpus, /[-,]/); print cpus[1] }' /proc/self/status)"
+          taskset --cpu-list "$smoke_cpu" npm run test:smoke
+
   deploy:
     name: Deploy to Oracle ARM64
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -109,8 +116,26 @@ jobs:
           npm run build
           npm run test:smoke
 
+          reload_started_ms="$(node -p 'Date.now()')"
           pm2 reload synnical --update-env
           pm2 save
+
+          # Inspect only release metadata; never print PM2's environment/secrets.
+          pm2 jlist | node -e '
+            const fs = require("node:fs");
+            const { execFileSync } = require("node:child_process");
+            let input = "";
+            process.stdin.on("data", chunk => { input += chunk });
+            process.stdin.on("end", () => {
+              const app = JSON.parse(input).find(row => row.name === "synnical");
+              if (!app || app.pm2_env.status !== "online" || !app.pid) throw new Error("Synnical is not online under PM2");
+              if (fs.realpathSync(app.pm2_env.pm_cwd) !== fs.realpathSync(process.cwd())) throw new Error("PM2 uses a different application checkout");
+              if (!(app.pm2_env.pm_uptime >= Number(process.argv[2]))) throw new Error("PM2 did not restart for this deployment");
+              const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: app.pm2_env.pm_cwd, encoding: "utf8" }).trim();
+              if (commit !== process.argv[1]) throw new Error("PM2 checkout does not match deployment SHA");
+              console.log(JSON.stringify({ app: app.name, status: app.pm2_env.status, pid: app.pid, commit }));
+            });
+          ' "$deploy_sha" "$reload_started_ms"
 
           for attempt in $(seq 1 15); do
             if curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3000/api >/dev/null; then
