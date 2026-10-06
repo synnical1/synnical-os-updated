@@ -18,7 +18,7 @@ import { validateEnv } from "./src/lib/env"
 import { existsSync } from "fs"
 import { resolve } from "path"
 import { createBlockedUdpSocketClass, createSocks5TcpSocketClass, parseSocks5Url } from "./src/lib/wisp-socks"
-import { authenticatedProxyRequest, allowedSocketOrigin, stripProxyTicketFromRequest } from "./src/lib/server-request-auth"
+import { authenticatedProxyRequest, authenticatedServerSession, allowedSocketOrigin, stripProxyTicketFromRequest } from "./src/lib/server-request-auth"
 
 // Stratus + wisp ship as CommonJS. Load via createRequire so we keep
 // server.ts as ESM.
@@ -92,12 +92,16 @@ try {
       basePath: string
       sitesPath: string
       publicDir: string
+      apiKey: string
+      requireUserIdentity: boolean
     }) => StratusHandle
   }
   stratus = createStratusApp({
     basePath: STRATUS_BASE_PATH,
     sitesPath: STRATUS_SITES_PATH,
     publicDir: STRATUS_PUBLIC_DIR,
+    apiKey: process.env.STRATUS_API_KEY?.trim() || "",
+    requireUserIdentity: true,
   })
   if (!stratus?.app) throw new Error("Bundled Stratus did not return an Express app.")
 } catch (e) {
@@ -169,7 +173,7 @@ async function main() {
     stratusDispatcher = (req, res) => wrapper(req as any, res as any)
   }
 
-  const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
+  const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const requestOrigin = typeof req.headers.origin === "string" ? req.headers.origin : ""
     const requestUrl = req.url || "/"
     const svgApiRequest =
@@ -192,6 +196,31 @@ async function main() {
     }
     const url = req.url || "/"
     if (stratusDispatcher && url.startsWith(`${STRATUS_BASE_PATH}/cloud/`)) {
+      const pathname = new URL(url, "http://localhost").pathname
+      const publicCatalogue = req.method === "GET" && [`${STRATUS_BASE_PATH}/cloud/v1/health`, `${STRATUS_BASE_PATH}/cloud/v1/games`].includes(pathname)
+      if (!publicCatalogue) {
+        try {
+          const session = await authenticatedServerSession(req)
+          if (!session) {
+            res.writeHead(401, { "Content-Type": "application/json" })
+            res.end(JSON.stringify({ error: "Unauthorized" }))
+            return
+          }
+          const key = process.env.STRATUS_API_KEY?.trim()
+          if (!key) {
+            res.writeHead(503, { "Content-Type": "application/json" })
+            res.end(JSON.stringify({ error: "Cloud gaming is not configured" }))
+            return
+          }
+          // Client-supplied site keys/account identities never reach Stratus.
+          req.headers["x-api-key"] = key
+          req.headers["x-synnical-user-id"] = session.userId
+        } catch {
+          res.writeHead(503, { "Content-Type": "application/json" })
+          res.end(JSON.stringify({ error: "Cloud authentication is temporarily unavailable" }))
+          return
+        }
+      }
       stratusDispatcher(req, res)
       return
     }
@@ -219,7 +248,15 @@ async function main() {
 
     // 1. Stratus signaling WS
     if (stratus && url.startsWith(`${STRATUS_BASE_PATH}/cloud/v1/signal/`)) {
-      if (stratus.handleUpgrade(req, socket, head)) return
+      try {
+        const session = await authenticatedServerSession(req)
+        if (!session) { socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n"); return }
+        req.headers["x-synnical-user-id"] = session.userId
+        if (stratus.handleUpgrade(req, socket, head)) return
+      } catch {
+        socket.end("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n")
+        return
+      }
     }
 
     // 2a. Optional Netherlands-routed Wisp proxy. This path exists only when

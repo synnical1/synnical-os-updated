@@ -33,6 +33,11 @@ export type SynnFlixSeasonSummary = {
 }
 
 export type SynnFlixDetails = SynnFlixMediaItem & {
+  cast: { id: number; name: string; character: string; profilePath: string | null }[]
+  recommendations: SynnFlixMediaItem[]
+  similar: SynnFlixMediaItem[]
+  studios: string[]
+  alternativeTitles: string[]
   tagline: string
   genres: string[]
   status: string | null

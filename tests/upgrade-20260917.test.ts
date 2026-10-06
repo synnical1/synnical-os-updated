@@ -53,18 +53,16 @@ test("bot reply detection remains server-backed; SynnVM has no live virtualizati
   assert.match(source("src/components/linux-vm-panel.tsx"), /Coming Soon/)
   assert.doesNotMatch(source("src/app/linux-vm/page.tsx"), /NEXT_PUBLIC_SYNN_VM_URL|iframe/)
 })
-test("provider viewers stay allowlisted and reject off-domain ad redirects", () => {
-  assert.equal(providerUrl("anikura", "/browse?status=releasing"), "https://anikura.club/browse?status=releasing")
-  assert.equal(providerUrl("cineb"), "https://cineblog01film.com/cineb/")
-  assert.equal(providerUrl("cineb", "/movies/example"), "https://cineblog01film.com/movies/example")
-  assert.equal(providerUrl("cineb", "https://totalav.com/started"), null)
-  assert.deepEqual(mediaProviderStatus("cineb", { status: 302, location: "https://totalav.com/started" }), {
-    id: "cineb", label: "CineB", available: false, embeddable: false, reason: "redirected",
-  })
-  assert.equal(mediaProviderStatus("cineb", { status: 302 }).reason, "redirected")
-  assert.equal(mediaProviderStatus("anikura", { status: 200, xFrameOptions: "SAMEORIGIN" }).reason, "frame-blocked")
-  assert.equal(mediaProviderStatus("anikura", { status: 200 }).embeddable, true)
+test("retired website provider compatibility fails closed without network targets", () => {
+  for (const id of ["anikura", "cineb", "unrecognized"]) {
+    assert.equal(providerUrl(id), null)
+    assert.equal(providerUrl(id, "https://example.com/redirect"), null)
+    assert.deepEqual(mediaProviderStatus(id, { status: 200 }), { id, label: "Retired provider", available: false, embeddable: false, reason: "retired" })
+  }
+  assert.doesNotMatch(source("src/app/api/media/providers/[id]/route.ts"), /fetch\(/)
+  assert.match(source("src/app/api/media/providers/[id]/route.ts"), /status: 410/)
 })
+
 test("feature seeds and chat rewards are coordinated without delaying message delivery", () => {
   const features = source("src/lib/feature-platform.ts")
   const chat = source("src/lib/chat-server.ts")

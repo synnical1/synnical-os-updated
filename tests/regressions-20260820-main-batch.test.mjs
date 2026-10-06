@@ -24,13 +24,11 @@ test("main batch: Continue Watching is account-backed, episode-aware and resumes
   assert.match(flix, /function progressKey\(/)
   assert.match(flix, /writeProgress\(eventPlayer, activeProfile\.id, currentTime\)/)
   assert.match(flix, /mediaAction\("progress"/)
-  assert.match(flix, /data\.mediaType \?\? data\.type/)
-  assert.match(flix, /legacyTimestampSeconds/)
-  assert.match(flix, /return "event" in candidate/)
+  assert.match(flix, /data\.mediaType !== player\.media\.mediaType/); assert.doesNotMatch(flix, /legacyTimestampSeconds|postMessage/)
   assert.match(flix, /previous && typeof previous === "object" \? previous : \{ progress: \[\] \}/)
   assert.match(media, /Math\.max\(existing\?\.currentTime \|\| 0, currentTime\)/)
-  assert.match(flix, /const playerUrl = useMemo\(/)
-  assert.match(flix, /key=\{`\$\{playerRevision\}:\$\{playerUrl\}`\}/)
+  assert.match(flix, /const playbackIdentity = useMemo\(/)
+  assert.match(flix, /key=\{`\$\{playerRevision\}:\$\{playbackIdentity\}`\}/)
 })
 
 test("main batch: boot animation runs only on real page entry for 1.5 seconds", () => {

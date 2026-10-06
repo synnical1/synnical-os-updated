@@ -1,3 +1,4 @@
+import { canonicalRole } from "./roles"
 export const PUBLIC_CHANNEL_ROLES = ["OWNER", "HEAD_ADMIN", "ADMIN", "MOD", "MEMBER"] as const
 export const STAFF_CHANNEL_ROLES = ["OWNER", "HEAD_ADMIN", "ADMIN", "MOD"] as const
 
@@ -53,6 +54,6 @@ export function channelAudienceFromStoredRoles(value: string | null | undefined)
 export function canAccessPublicChannel(allowedRoles: string | null | undefined, role: string): boolean {
   // Owner-level staff always retain access so a restricted channel cannot
   // become unmanageable if old data contains a narrower role set.
-  if (role === "OWNER" || role === "HEAD_ADMIN") return true
-  return parseChannelRoles(allowedRoles).includes(role as PublicChannelRole)
+  if (canonicalRole(role) === "OWNER") return true
+  return parseChannelRoles(allowedRoles).some(allowed => canonicalRole(allowed) === canonicalRole(role))
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { consumeRequestLimit } from "@/lib/request-rate-limit"
-import { searchSynnFlix, SynnFlixUpstreamError } from "@/lib/synnflix-tmdb"
+import { tmdbMetadataProvider, SynnFlixUpstreamError } from "@/lib/synnflix-tmdb"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -19,14 +19,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Search must be between 1 and 100 characters" }, { status: 400 })
   }
 
+  const page = Number(request.nextUrl.searchParams.get("page") || "1")
+  if (!Number.isSafeInteger(page) || page < 1 || page > 500) return NextResponse.json({ error: "Invalid catalogue page" }, { status: 400 })
   try {
     const animeOnly = request.nextUrl.searchParams.get("mode") === "anime"
       || request.nextUrl.searchParams.get("anime") === "1"
-    return NextResponse.json({ results: await searchSynnFlix(query, { animeOnly }) }, {
+    return NextResponse.json(await tmdbMetadataProvider.search(query, { animeOnly, page }), {
       headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=120" },
     })
   } catch (error) {
-    if (error instanceof SynnFlixUpstreamError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof SynnFlixUpstreamError) return NextResponse.json({ error: error.message }, { status: error.status, headers: error.retryAfterSeconds ? { "Retry-After": String(error.retryAfterSeconds) } : {} })
     console.error("[synnflix/search] failed", error)
     return NextResponse.json({ error: "SynnFlix search failed" }, { status: 500 })
   }

@@ -50,15 +50,15 @@ test("OpenRouter is first, a 429 fails over to Groq, and OpenAI can never enter 
   }
 })
 
-test("SynnFlix uses Vidking directly without Synnical iframe sandboxing or wrapper headers", async () => {
-  const [panel, config] = await Promise.all([read("src/components/synnflix-panel.tsx"), read("next.config.js")])
-  assert.match(panel, /iframe\.src = providerUrl\.toString\(\)/)
-  assert.match(panel, /VIDKING_ORIGIN/)
-  assert.doesNotMatch(panel, /iframe\.sandbox/)
-  assert.doesNotMatch(panel, /\/api\/synnflix\/player/)
-  assert.doesNotMatch(config, /Cross-Origin-Embedder-Policy/)
-  assert.doesNotMatch(config, /Cross-Origin-Opener-Policy/)
-  await assert.rejects(access("src/app/api/synnflix/player/route.ts", constants.F_OK))
+test("SynnFlix separates native metadata and authenticated authorized playback", async () => {
+  const [panel, player, route] = await Promise.all([read("src/components/synnflix-panel.tsx"), read("src/components/media-player.tsx"), read("src/app/api/media/playback/route.ts")])
+  assert.match(panel, /<MediaPlayer/)
+  assert.doesNotMatch(panel, /VIDKING|vidking|PLAYER_EVENT|postMessage/)
+  assert.match(player, /sandbox="allow-scripts allow-same-origin"/)
+  assert.doesNotMatch(player, /allow-popups|allow-top-navigation/)
+  assert.match(route, /getCurrentUser/)
+  assert.match(route, /mediaPlaybackProvider/)
+  assert.match(route, /private, no-store/)
 })
 
 test("Browser waits for an actually controlling Scramjet worker and adds no outer iframe sandbox", async () => {

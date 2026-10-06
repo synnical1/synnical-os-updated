@@ -107,7 +107,7 @@ test('4623 remains a live free-session state through provider wait and machine a
   }))
 
   const { createStratusApp } = require('../stratus/api.js')
-  const stratus = createStratusApp({ sitesPath, publicDir: path.resolve(__dirname, '../stratus/public'), basePath: '/api/games' })
+  const stratus = createStratusApp({ sitesPath, requireUserIdentity: true, publicDir: path.resolve(__dirname, '../stratus/public'), basePath: '/api/games' })
   const server = http.createServer(stratus.app)
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
 
@@ -116,7 +116,7 @@ test('4623 remains a live free-session state through provider wait and machine a
     const base = `http://127.0.0.1:${port}`
     const created = await realFetch(`${base}/cloud/v1/createSession`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': 'test-key' },
+      headers: { 'content-type': 'application/json', 'x-api-key': 'test-key', 'x-synnical-user-id': 'fixture-account-a' },
       body: JSON.stringify({ game_key: 'bs0049' }),
     })
     const createBody = await created.text()
@@ -130,7 +130,11 @@ test('4623 remains a live free-session state through provider wait and machine a
     assert.ok(first.uuid)
     assert.doesNotMatch(createBody, /GAME_FREE_SESSION_UNAVAILABLE/)
 
-    const headers = { 'x-api-key': 'test-key' }
+    const headers = { 'x-api-key': 'test-key', 'x-synnical-user-id': 'fixture-account-a' }
+    const foreignHeaders = { 'x-api-key': 'test-key', 'x-synnical-user-id': 'fixture-account-b' }
+    assert.equal((await realFetch(`${base}/cloud/v1/getQueue?uuid=${first.uuid}`, { headers: foreignHeaders })).status, 403)
+    assert.equal((await realFetch(`${base}/cloud/v1/quitSession`, { method: 'POST', headers: { ...foreignHeaders, 'content-type': 'application/json' }, body: JSON.stringify({ uuid: first.uuid }) })).status, 403)
+    assert.equal((await realFetch(`${base}/cloud/v1/embed-data?id=${first.uuid}`, { headers: foreignHeaders })).status, 404)
     const q1 = await (await realFetch(`${base}/cloud/v1/getQueue?uuid=${first.uuid}`, { headers })).json()
     assert.equal(q1.status, 'queue')
     assert.equal(q1.queue_pos, 1)

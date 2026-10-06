@@ -39,8 +39,8 @@ export function stripProxyTicketFromRequest(req: IncomingMessage) {
   } catch {}
 }
 
-export async function authenticatedProxyRequest(req: IncomingMessage): Promise<boolean> {
-  if (!allowedSocketOrigin(req)) return false
+export async function authenticatedServerSession(req: IncomingMessage) {
+  if (!allowedSocketOrigin(req)) return null
 
   const ticket = proxyTicketFromRequest(req)
   const bearer = /^Bearer\s+([a-f0-9]{64})$/i.exec(req.headers.authorization || "")?.[1]
@@ -54,7 +54,7 @@ export async function authenticatedProxyRequest(req: IncomingMessage): Promise<b
       ?.slice(SESSION_COOKIE.length + 1)
     if (cookie) cookie = decodeURIComponent(cookie)
   } catch {
-    return false
+    return null
   }
 
   const token = bearer || cookie
@@ -64,11 +64,11 @@ export async function authenticatedProxyRequest(req: IncomingMessage): Promise<b
       ? await db.session.findUnique({ where: { token }, include: { user: { select: { role: true } } } })
       : null
 
-  if (!session || session.expiresAt.getTime() <= Date.now()) return false
-  if (await isDeviceBanned(req.headers.cookie, session.deviceHash)) return false
-  if (["OWNER", "HEAD_ADMIN"].includes(session.user.role)) return true
+  if (!session || session.expiresAt.getTime() <= Date.now()) return null
+  if (await isDeviceBanned(req.headers.cookie, session.deviceHash)) return null
+  if (session.user.role === "OWNER") return session
 
-  return !await db.infraction.findFirst({
+  const ban = await db.infraction.findFirst({
     where: {
       userId: session.userId,
       type: { in: ["BAN", "AUTO_BAN"] },
@@ -76,4 +76,9 @@ export async function authenticatedProxyRequest(req: IncomingMessage): Promise<b
     },
     select: { id: true },
   })
+  return ban ? null : session
+}
+
+export async function authenticatedProxyRequest(req: IncomingMessage): Promise<boolean> {
+  return Boolean(await authenticatedServerSession(req))
 }

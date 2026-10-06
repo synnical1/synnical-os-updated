@@ -97,17 +97,26 @@ export async function claimDaily(userId: string) {
   if (lastClaim) {
     const hoursSince = (now.getTime() - lastClaim.getTime()) / 3_600_000
     if (hoursSince < 20) {
-      const nextClaim = new Date(lastClaim.getTime() + 24 * 60 * 60 * 1000)
+      const nextClaim = new Date(lastClaim.getTime() + 20 * 60 * 60 * 1000)
       return { success: false, message: `You can claim again in ${Math.max(1, Math.ceil((nextClaim.getTime() - now.getTime()) / 3_600_000))} hours`, nextClaim: nextClaim.toISOString(), coins: user.coins }
     }
   }
   let streakBonus = 0
   if (lastClaim && (now.getTime() - lastClaim.getTime()) / 3_600_000 < 48) streakBonus = DAILY_STREAK_BONUS
   const reward = DAILY_REWARD + streakBonus
-  await db.$transaction([
-    db.user.update({ where: { id: userId }, data: { coins: { increment: reward }, lastDailyClaim: now } }),
-    db.currencyTransaction.create({ data: { userId, amount: reward, type: "daily", description: `Daily reward${streakBonus ? " (streak bonus)" : ""}` } }),
-  ])
+  const claimed = await db.$transaction(async (tx) => {
+    // Compare-and-set eligibility in the UPDATE, not just the earlier read.
+    // Two parallel requests cannot both award a daily reward.
+    const updated = await tx.user.updateMany({
+      where: { id: userId, lastDailyClaim: lastClaim },
+      data: { coins: { increment: reward }, lastDailyClaim: now },
+    })
+    if (!updated.count) return false
+    await tx.currencyTransaction.create({ data: { userId, amount: reward, type: "daily", description: `Daily reward${streakBonus ? " (streak bonus)" : ""}` } })
+    return true
+  })
+  if (!claimed) return { success: false, message: "This daily reward was already claimed", coins: (await db.user.findUnique({ where: { id: userId }, select: { coins: true } }))?.coins || 0 }
+
   const updated = await db.user.findUnique({ where: { id: userId }, select: { coins: true } })
   return { success: true, message: `You claimed ${reward} coins!${streakBonus ? " (streak bonus)" : ""}`, coins: updated?.coins || 0 }
 }

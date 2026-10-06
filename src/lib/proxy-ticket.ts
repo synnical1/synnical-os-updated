@@ -1,6 +1,7 @@
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { createHmac, timingSafeEqual, randomBytes } from "node:crypto"
 
 const TICKET_TTL_MS = 90_000
+const runtime = globalThis as typeof globalThis & { __synnicalDevelopmentTicketSecret?: string }
 
 type ProxyTicketPayload = {
   sid: string
@@ -11,7 +12,7 @@ function signingSecret() {
   const secret = process.env.IDENTITY_HASH_SECRET?.trim()
   if (secret) return secret
   if (process.env.NODE_ENV === "production") throw new Error("IDENTITY_HASH_SECRET is required for proxy tickets")
-  return "synnical-development-proxy-ticket-secret"
+  return runtime.__synnicalDevelopmentTicketSecret ||= randomBytes(32).toString("hex")
 }
 
 function sign(payload: string) {

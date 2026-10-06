@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { toSafeUser } from "@/lib/auth"
+import { isStaffRole, canModerateTarget } from "@/lib/roles"
 import { auditData } from "@/lib/audit-log"
 
-const rank: Record<string, number> = { MEMBER: 0, MOD: 1, ADMIN: 2, HEAD_ADMIN: 3, OWNER: 4 }
 const MAX_ADJUSTMENT = 1_000_000
 const MAX_BALANCE = 2_000_000_000
 
 export async function POST(req: NextRequest) {
   const actor = await getCurrentUser()
-  if (!actor || (rank[actor.role] ?? -1) < rank.MOD) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || !isStaffRole(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const body = await req.json().catch(() => ({})) as { userId?: unknown; delta?: unknown; reason?: unknown }
   const userId = typeof body.userId === "string" ? body.userId : ""
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     const updated = await db.$transaction(async (tx) => {
       const target = await tx.user.findUnique({ where: { id: userId } })
       if (!target) throw new Error("ACCOUNT_NOT_FOUND")
-      if ((rank[actor.role] ?? -1) <= (rank[target.role] ?? 0)) throw new Error("ROLE_FORBIDDEN")
+      if (!canModerateTarget(actor.role, target.role)) throw new Error("ROLE_FORBIDDEN")
 
       const before = target.coins
       const after = before + delta

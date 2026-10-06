@@ -28,7 +28,7 @@ const AIPanel = lazy(() => import("@/components/ai-panel").then(m => ({ default:
 const ShopPanel = lazy(() => import("@/components/shop-panel").then(m => ({ default: m.ShopPanel })))
 const GamesPanel = lazy(() => import("@/components/games-panel").then(m => ({ default: m.GamesPanel })))
 const StaffAccountsPanel = lazy(() => import("@/components/staff-accounts-panel").then(m => ({ default: m.StaffAccountsPanel })))
-const SynnFlixPanel = lazy(() => import("@/components/synnflix-unavailable-panel").then(m => ({ default: m.SynnFlixUnavailablePanel })))
+const SynnFlixPanel = lazy(() => import("@/components/synnflix-panel").then(m => ({ default: m.SynnFlixPanel })))
 const SynnimePanel = lazy(() => import("@/components/synnime-panel").then(m => ({ default: m.SynnimePanel })))
 const SynnDrivePanel = lazy(() => import("@/components/synn-drive-panel").then(m => ({ default: m.SynnDrivePanel })))
 const SynnicalLabPanel = lazy(() => import("@/components/synnical-lab-panel").then(m => ({ default: m.SynnicalLabPanel })))

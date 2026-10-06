@@ -2,9 +2,9 @@ import assert from "node:assert/strict"
 import { randomBytes } from "node:crypto"
 import { io } from "socket.io-client"
 
-export async function smokeUpgrade({ request, db, a, b, channel, socket, event, pass, base, sockets }) {
+export async function smokeUpgrade({ testPassword, request, db, a, b, channel, socket, event, pass, base, sockets }) {
   const cookieOf = response => response.headers.getSetCookie().map(value => value.split(";")[0]).join("; ")
-  const password = "Disposable-Test-Password-92"
+  const password = testPassword
   const signIn = async account => account.cookie.split("; ").filter(v => v.startsWith("synnical_device=")).join("; ") + "; " + cookieOf((await request("/api/auth/login", { cookie: account.cookie.split("; ").filter(v => v.startsWith("synnical_device=")).join("; "), data: { username: account.username, password } })).response)
   b.cookie = await signIn(b)
   await request("/api/moderation/unmute", { cookie: a.cookie, data: { userId: b.id, reason: "Clear test mute" } })
