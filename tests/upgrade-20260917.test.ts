@@ -32,7 +32,7 @@ test("mentions match full tokens, never email/substring; notifications require r
   assert.deepEqual(parseMentionIds('{"bad":true}'),[])
 })
 test("new/default wallpaper migrates retired assets and preserves custom choices", () => {
-  assert.equal(DEFAULT_OS_WALLPAPER, "/brand/wallpapers/thorfinn.webp")
+  assert.equal(DEFAULT_OS_WALLPAPER, "/brand/wallpapers/synnical-default-wallpaper.webm")
   assert.equal(sanitizeOsSettings({}).desktopWallpaper, DEFAULT_OS_WALLPAPER)
   assert.equal(sanitizeOsSettings({desktopWallpaper:"/brand/wallpapers/synnical-static-ink-wallpaper.png"}).desktopWallpaper,DEFAULT_OS_WALLPAPER)
   assert.equal(sanitizeOsSettings({desktopWallpaper:"/api/uploads/custom.webp"}).desktopWallpaper,"/api/uploads/custom.webp")

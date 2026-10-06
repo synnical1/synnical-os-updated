@@ -31,8 +31,8 @@ test('r11.6: SynnFlix progress is monotonic and completed replay can reset exact
 })
 
 test('r11.6: cloud-game verification uses cooldown and no resend loop', () => {
-  const source = read('stratus/api.js')
-  assert.match(source, /providerVerificationCooldownUntil/)
+  const source = read('stratus/core.cjs')
+  assert.match(source, /providerCooldownUntil/)
   assert.match(source, /65_000|65000/)
   assert.doesNotMatch(source, /Resending verification code/)
 })

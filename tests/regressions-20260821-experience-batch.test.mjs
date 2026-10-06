@@ -20,16 +20,17 @@ test("experience batch: game planner is removed without removing game history", 
 })
 
 test("experience batch: verification polling handles transient mailbox responses and spaced codes", () => {
-  const stratus = read("stratus/api.js")
-  assert.match(stratus, /GAME_MAIL_API_BASE/)
-  assert.match(stratus, /https:\/\/api\.mail\.gw/)
-  assert.match(stratus, /mailTmRequest\("\/messages\?page=1"/)
-  assert.match(stratus, /encodeURIComponent\(message\.id\)/)
+  const stratus = read("stratus/core.cjs")
+  assert.match(stratus, /127\.0\.0\.1:4400/)
+  assert.match(stratus, /mailFetch\(/)
+  assert.match(stratus, /encodeURIComponent\(mailToken\)/)
   assert.match(stratus, /compactBody/)
   assert.match(stratus, /\(\\d\)\\s\+\(\?=\\d\)/)
   assert.match(stratus, /GAME_MAIL_VERIFICATION_TIMEOUT/)
-  assert.match(stratus, /createSession .* failed/)
+  assert.match(read("stratus/api.js"), /createSession .* failed/)
+  assert.match(stratus, /MAX_MAIL_ATTEMPTS = 1/)
   assert.doesNotMatch(stratus, /Resending verification code|POOL_TARGET\s*=\s*[1-9]/)
+
 })
 
 test("experience batch: game errors keep a safe user message and diagnostic code", () => {

@@ -22,7 +22,7 @@ await new Promise((resolve) => reservation.close(resolve))
 const base = `http://127.0.0.1:${port}`
 const env = { ...process.env, NODE_ENV: "production", DATABASE_URL: databaseUrl, HOSTNAME: "127.0.0.1", PORT: String(port),
   OWNER_PASSWORD: randomBytes(32).toString("hex"), IDENTITY_HASH_SECRET: randomBytes(32).toString("hex"),
-  UPLOAD_DIR: path.join(root, "uploads"), MEDIA_APPROVALS_DIR: path.join(root, "approvals"), STRATUS_DISABLE_ACCOUNT_POOL: "true",
+  UPLOAD_DIR: path.join(root, "uploads"), MEDIA_APPROVALS_DIR: path.join(root, "approvals"), STRATUS_DISABLE_ACCOUNT_POOL: "true", STRATUS_MALQ_URL: "https://unconfigured.invalid",
   STRATUS_API_KEY: randomBytes(32).toString("hex"), WISP_ENABLED: "true", WISP_PATH: "/wisp", WISP_NL_PATH: "/wisp-nl", NEXT_PUBLIC_SOCKET_URL: "/socket.io",
   SYNNICAL_NL_SOCKS5_URL: "", TEXT_MODERATION_MODE: "local", TMDB_API_KEY: "", TMDB_API_READ_TOKEN: "", TMDB_READ_TOKEN: "", MEDIA_PLAYBACK_MANIFEST: path.join(root, "playback-fixture.json"), MEDIA_PLAYBACK_ALLOWED_ORIGINS: "https://licensed-media.example",
   OPENAI_API_KEY: "", OPENROUTER_API_KEY: "", GROQ_API_KEY: "", GEMINI_API_KEY: "", PIPED_API_BASE: "", INVIDIOUS_API_BASE: "", COBALT_API_BASE: "" }
@@ -98,6 +98,24 @@ try {
   const login = await request("/api/auth/login", { data: { username: a.username, password: testPassword } })
   noSecrets(login.json); assert.equal(login.json.user.id, a.id)
   pass("registration and login with sanitized account responses")
+  const defaultWallpaper = "/brand/wallpapers/synnical-default-wallpaper.webm"
+  const freshOs = (await request("/api/features/os", { cookie: a.cookie })).json
+  assert.equal(freshOs.settings.desktopWallpaper, defaultWallpaper)
+  assert.equal(freshOs.settings.wallpaperDefaultVersion, 1)
+  const legacyOs = { desktopWallpaper: "/brand/wallpapers/thorfinn.webp", lockWallpaper: "https://example.com/lock.webp", workspaces: [{ id: 1, name: "Custom", wallpaper: "/api/uploads/custom.webp" }, { id: 2, name: "Inherited", wallpaper: "" }] }
+  await db.userPreference.upsert({ where: { userId_key: { userId: a.id, key: "os.settings" } }, create: { userId: a.id, key: "os.settings", value: JSON.stringify(legacyOs) }, update: { value: JSON.stringify(legacyOs) } })
+  const migratedOs = (await request("/api/features/os", { cookie: a.cookie })).json
+  assert.equal(migratedOs.needsWallpaperMigration, true)
+  assert.equal(migratedOs.settings.desktopWallpaper, defaultWallpaper)
+  assert.equal(migratedOs.settings.lockWallpaper, legacyOs.lockWallpaper)
+  assert.equal(migratedOs.settings.workspaces[0].wallpaper, legacyOs.workspaces[0].wallpaper)
+  assert.equal(migratedOs.settings.workspaces[1].wallpaper, "")
+  await request("/api/features/os", { cookie: b.cookie, data: { accountId: a.id, settings: { desktopWallpaper: "https://example.com/foreign.webp" } }, status: 409 })
+  await request("/api/features/os", { cookie: a.cookie, data: { accountId: a.id, settings: migratedOs.settings } })
+  assert.equal((await request("/api/features/os", { cookie: a.cookie })).json.needsWallpaperMigration, false)
+  assert.equal((await request("/api/features/os", { cookie: b.cookie })).json.hasSaved, false)
+  for (const asset of [defaultWallpaper, "/brand/wallpapers/synnical-default-wallpaper-poster.webp", "/brand/synnical/synnical-mark-base.webp"]) assert.ok((await fetch(base + asset)).ok)
+  pass("versioned wallpaper migration persists once, preserves custom/workspace choices and rejects foreign writes")
   const dailyBefore = (await db.user.findUnique({ where: { id: a.id } })).coins
   const daily = await Promise.all(Array.from({ length: 6 }, () => request("/api/shop/daily", { cookie: a.cookie, data: {} })))
   assert.equal(daily.filter(row => row.json.success).length, 1)
@@ -134,6 +152,15 @@ try {
   await request("/api/games/cloud/v1/createSession", { cookie: a.cookie, data: {}, status: 400 })
   await request("/api/games/cloud/v1/getQueue?uuid=fixture", { cookie: a.cookie, status: 404 })
   pass("cloud session routes require Synnical authentication and use a server-only integration key")
+  await request("/api/games/cloud/v1/getQueue?uuid=fixture", { headers: { "x-synnical-user-id": a.id }, status: 401 })
+  const mailFailure = await request("/api/games/cloud/v1/createSession", { cookie: a.cookie, data: { game_key: stratusGames.json[0].game_key } })
+  assert.match(mailFailure.text, /GAME_MAIL_CONFIG_INVALID/)
+  assert.doesNotMatch(mailFailure.text, /user_token|userToken|password|authorization/i)
+  const closedHealth = (await request("/api/games/cloud/v1/health")).json
+  assert.equal(closedHealth.provider.ready, false)
+  assert.equal(closedHealth.provider.mail, "invalid")
+  pass("unconfigured malq fails closed and client identity headers cannot authorize cloud sessions")
+
 
   await writeFile(env.MEDIA_PLAYBACK_MANIFEST, JSON.stringify({ "movie:999": { providerId: "disposable-fixture", kind: "file", url: "https://licensed-media.example/sample.mp4" }, "movie:998": { providerId: "disposable-fixture", kind: "embed", url: "https://unapproved.example/player" } }), { mode: 0o600 })
   const approvedPlayback = (await request("/api/media/playback?type=movie&id=999&url=https://unapproved.example", { cookie: a.cookie })).json
