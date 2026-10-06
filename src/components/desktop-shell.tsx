@@ -13,6 +13,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { readSetting, writeSetting } from "@/lib/settings-runtime"
+import { SynnicalLogo } from "@/components/synnical-logo"
+import { WallpaperVideo } from "@/components/wallpaper-video"
 import { BUILTIN_OS_WALLPAPERS, hydrateOsSettings, persistOsSettings, readOsSettings, wallpaperCss, type OsSettings } from "@/lib/os-settings"
 import { useAuth } from "@/hooks/use-auth"
 import { useSystemStatus } from "@/hooks/use-system-status"
@@ -497,7 +499,6 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
   const [weather, setWeather] = useState<WeatherState | null>(null)
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false)
   const dragRef = useRef<DragState | null>(null)
-  const desktopVideoRef = useRef<HTMLVideoElement | null>(null)
   const captureRecorderRef = useRef<MediaRecorder | null>(null)
   const captureStreamRef = useRef<MediaStream | null>(null)
   const captureChunksRef = useRef<Blob[]>([])
@@ -543,38 +544,6 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
     : ""
   const desktopWallpaperUrl = activeWorkspace?.wallpaper || slideshowWallpaper || os.desktopWallpaper
   const desktopWallpaperIsVideo = WALLPAPER_VIDEO_RE.test(desktopWallpaperUrl)
-  useEffect(() => {
-    const video = desktopVideoRef.current
-    if (!video) return
-    video.muted = true
-    video.loop = true
-    video.playsInline = true
-    const keepPlaying = () => {
-      const root = document.documentElement
-      const shouldPause = os.batterySaver || root.classList.contains("synnical-perf-mode") || root.classList.contains("synnical-battery-perf")
-      if (shouldPause) {
-        if (!video.paused) video.pause()
-        return
-      }
-      if (document.visibilityState === "visible" && video.paused) void video.play().catch(() => {})
-    }
-    keepPlaying()
-    const timer = window.setInterval(keepPlaying, 2_000)
-    const observer = new MutationObserver(keepPlaying)
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
-    video.addEventListener("pause", keepPlaying)
-    video.addEventListener("stalled", keepPlaying)
-    video.addEventListener("suspend", keepPlaying)
-    document.addEventListener("visibilitychange", keepPlaying)
-    return () => {
-      window.clearInterval(timer)
-      observer.disconnect()
-      video.removeEventListener("pause", keepPlaying)
-      video.removeEventListener("stalled", keepPlaying)
-      video.removeEventListener("suspend", keepPlaying)
-      document.removeEventListener("visibilitychange", keepPlaying)
-    }
-  }, [desktopWallpaperUrl, desktopWallpaperIsVideo, os.batterySaver])
   const desktopWallpaperStyle = wallpaperCss(desktopWallpaperUrl, os.desktopWallpaperFit)
   const lockWallpaperValue = os.lockWallpaperSlideshow && BUILTIN_OS_WALLPAPERS.length > 0 && !os.lockUseDesktopWallpaper ? BUILTIN_OS_WALLPAPERS[wallpaperSlideIndex % BUILTIN_OS_WALLPAPERS.length] : (os.lockUseDesktopWallpaper ? os.desktopWallpaper : os.lockWallpaper)
   const lockWallpaperIsVideo = WALLPAPER_VIDEO_RE.test(lockWallpaperValue)
@@ -1467,9 +1436,9 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
     setStartOpen(false); setQuickOpen(false); setNoticeOpen(false); setWidgetsOpen(false); setTaskViewOpen(false); setClipboardOpen(false); setEmojiOpen(false); setContextMenu(null); setPowerMenu(false); setTrayOverflow(false); setDesktopFolderOpen(null); setRunOpen(false)
   }
 
-  if (poweredOff) return <div className="synnical-os-root grid h-[100dvh] w-full place-items-center bg-black text-white"><button onClick={() => setPoweredOff(false)} className="flex flex-col items-center gap-4 rounded-2xl p-8 hover:bg-white/[0.04]"><img src="/logo.svg" alt="Synnical" className="h-14 w-14" /><span className="text-sm text-white/60">Start Synnical</span></button></div>
+  if (poweredOff) return <div className="synnical-os-root grid h-[100dvh] w-full place-items-center bg-black text-white"><button onClick={() => setPoweredOff(false)} className="flex flex-col items-center gap-4 rounded-2xl p-8 hover:bg-white/[0.04]"><SynnicalLogo className="h-14 w-14" /><span className="text-sm text-white/60">Start Synnical</span></button></div>
   if (locked) return <div className="synnical-os-lock relative h-[100dvh] overflow-hidden bg-black text-white" style={lockWallpaperIsVideo ? undefined : lockWallpaperStyle} onClick={() => lockStage === "lock" && setLockStage("signin")}>
-    {lockWallpaperIsVideo ? <video className="pointer-events-none absolute inset-[-2%] h-[104%] w-[104%] object-cover" src={lockWallpaperValue} autoPlay muted loop playsInline preload="auto" /> : null}
+    {lockWallpaperIsVideo ? <WallpaperVideo className="pointer-events-none absolute inset-[-2%] h-[104%] w-[104%] object-cover" src={lockWallpaperValue} paused={os.batterySaver} fit={os.lockUseDesktopWallpaper ? os.desktopWallpaperFit : os.lockWallpaperFit} /> : null}
     <div className="absolute inset-0 bg-black/25 backdrop-blur-[1px]" />
     {lockStage === "lock" ? <div className="absolute inset-0 flex flex-col items-center justify-start pt-[18vh] text-center">{os.lockShowClock ? <><div className="text-7xl font-light tracking-tight drop-shadow-xl">{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div><div className="mt-3 text-xl drop-shadow">{now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div></> : null}{os.lockShowNotifications && notices.length ? <div className="mt-8 w-[min(420px,90vw)] space-y-2 text-left">{notices.slice(0,3).map((notice)=><div key={notice.id} className="rounded-xl border border-white/15 bg-black/35 p-3 shadow-lg backdrop-blur"><p className="text-xs font-semibold">{notice.title}</p><p className="mt-1 line-clamp-2 text-[11px] text-white/70">{os.lockHideSensitiveNotificationText ? "Content hidden until you sign in" : notice.body}</p></div>)}</div> : null}{os.lockShowMedia ? Object.entries(mediaState).filter(([,state])=>Boolean(state)).slice(0,1).map(([panel,state])=><div key={panel} className="mt-5 flex w-[min(420px,90vw)] items-center gap-3 rounded-2xl border border-white/15 bg-black/35 p-3 text-left shadow-xl backdrop-blur-xl">{state!.artwork?<img src={state!.artwork} alt="" className="h-14 w-14 rounded-lg object-cover"/>:<Play className="h-6 w-6 text-white/70"/>}<div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{state!.title}</p><p className="truncate text-[10px] text-white/55">{state!.subtitle||allowed.get(panel as Panel)?.label||"Now Playing"}</p></div><button onClick={(e)=>{e.stopPropagation();sendMediaCommand(panel as Panel,"toggle")}} className="rounded-lg bg-white/10 px-3 py-2 text-[10px] hover:bg-white/20">{state!.playing?"Pause":"Play"}</button></div>) : null}{os.lockShowStatus?<div className="mt-3 flex items-center gap-3 rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-[9px] text-white/55 backdrop-blur"><span>{system.online?"Synnical online":"Offline"}</span><span>•</span><span>{system.rtt!=null?`${system.rtt} ms`:"RTT unavailable"}</span>{system.batterySupported?<><span>•</span><span>{system.batteryLevel}%{system.charging?" charging":""}</span></>:null}</div>:null}<div className="mt-auto mb-14 text-xs text-white/65">Click or press a key to sign in</div></div> : <div className="absolute inset-0 grid place-items-center"><div className="w-[min(360px,90vw)] text-center"><div className="mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-full bg-white/15 shadow-2xl">{user?.pfpUrl ? <img src={user.pfpUrl} alt="" className="h-full w-full object-cover" /> : <CircleUserRound className="h-12 w-12" />}</div><h1 className="mt-5 text-2xl font-semibold">{user?.displayName || user?.username || "Synnical"}</h1>{user && lockRequiresPassword ? <>{pinConfigured ? <div className="mt-5 flex justify-center gap-1 rounded-lg bg-black/25 p-1"><button onClick={() => { setUnlockMode("password"); setUnlockError("") }} className={cn("rounded-md px-3 py-1.5 text-xs", unlockMode === "password" ? "bg-white text-black" : "text-white/70 hover:bg-white/10")}>Password</button><button onClick={() => { setUnlockMode("pin"); setUnlockError("") }} className={cn("rounded-md px-3 py-1.5 text-xs", unlockMode === "pin" ? "bg-white text-black" : "text-white/70 hover:bg-white/10")}>PIN</button></div> : null}{unlockMode === "pin" && pinConfigured ? <input autoFocus inputMode="numeric" pattern="[0-9]*" maxLength={8} value={unlockPin} onChange={(e) => setUnlockPin(e.target.value.replace(/\D/g, "").slice(0,8))} onKeyDown={(e) => e.key === "Enter" && unlockWithPin()} placeholder="PIN" className="mt-3 h-10 w-full rounded-md border border-white/25 bg-black/30 px-3 text-center text-lg tracking-[0.35em] outline-none backdrop-blur focus:border-white/60" /> : <input autoFocus type="password" value={unlockPassword} onChange={(e) => setUnlockPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && unlock()} placeholder="Password" className={cn("h-10 w-full rounded-md border border-white/25 bg-black/30 px-3 text-sm outline-none backdrop-blur focus:border-white/60", pinConfigured ? "mt-3" : "mt-5")} />}{unlockError ? <p className="mt-2 text-xs text-red-300">{unlockError}</p> : null}<div className="mt-3 flex items-center justify-center gap-3"><button onClick={unlockMode === "pin" && pinConfigured ? unlockWithPin : unlock} disabled={unlocking} className="rounded-md bg-white px-5 py-2 text-sm font-medium text-black disabled:opacity-50">{unlocking ? "Checking…" : "Unlock"}</button>{unlockMode === "password" ? <button onClick={openForgot} className="rounded-md px-3 py-2 text-xs text-white/75 hover:bg-white/10">Forgot my password</button> : null}</div></> : <button onClick={() => { setLocked(false); setLockStage("lock") }} className="mt-5 rounded-md bg-white px-5 py-2 text-sm font-medium text-black">Continue</button>}</div></div>}
     {forgotOpen ? <div className="absolute inset-0 z-20 grid place-items-center bg-black/60 p-4 backdrop-blur-md" onClick={(e)=>e.stopPropagation()}><div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#17171b] p-5 shadow-2xl"><div className="flex items-center justify-between"><div><h2 className="text-lg font-semibold">Reset password</h2><p className="mt-1 text-xs text-white/40">@{user?.username}</p></div><button onClick={()=>setForgotOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-white/10"><X className="h-4 w-4" /></button></div>{forgotQuestion ? <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm">{forgotQuestion}</p> : <p className="mt-4 text-xs text-white/45">Loading your recovery question…</p>}<div className="mt-3 space-y-2"><input type="password" value={forgotAnswer} onChange={(e)=>setForgotAnswer(e.target.value)} placeholder="Security answer" className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none" /><input value={forgotCode} onChange={(e)=>setForgotCode(e.target.value.toUpperCase())} placeholder="One-time recovery code" className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none" /><input type="password" value={forgotPassword} onChange={(e)=>setForgotPassword(e.target.value)} placeholder="New password" className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none" /><input type="password" value={forgotConfirm} onChange={(e)=>setForgotConfirm(e.target.value)} placeholder="Confirm new password" className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none" /></div>{forgotError ? <p className="mt-3 text-xs text-red-300">{forgotError}</p> : null}<button onClick={resetForgotPassword} disabled={forgotBusy || !forgotQuestion} className="mt-4 w-full rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">{forgotBusy ? "Resetting…" : "Reset password"}</button><p className="mt-3 text-[10px] leading-4 text-white/30">Your recovery answer alone is not enough. A valid one-time recovery code is also required.</p></div></div> : null}
@@ -1496,7 +1465,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
   }
 
   return <div className={cn("synnical-os-root relative h-[100dvh] w-full overflow-hidden bg-[#111214] text-white", !os.animations && "synnical-os-no-animations", os.taskbarAutoHide && "synnical-taskbar-autohide", !os.transparency && "synnical-os-opaque", os.cursorTheme !== "system" && "synnical-os-custom-cursor")} style={{ filter: `brightness(${os.osBrightness / 100})`, "--synnical-glass-alpha": Math.max(.2, Math.min(1, os.glassStrength / 100)), "--synnical-taskbar-height": `${taskbarMetric.height}px`, "--synnical-os-animation-scale": os.animationSpeed / 100, "--synnical-cursor-size": os.cursorSize, "--synnical-cursor-theme": os.cursorTheme, cursor: osCursor(os.cursorTheme, os.cursorSize) } as CSSProperties} onMouseDown={() => { closeFlyouts() }} onContextMenu={(e) => { if ((e.target as HTMLElement).closest(".synnical-os-window,.synnical-taskbar")) return; e.preventDefault(); closeFlyouts(); setContextMenu({ kind: "desktop", x: e.clientX, y: e.clientY }) }}>
-    {desktopWallpaperIsVideo ? <video ref={desktopVideoRef} key={desktopWallpaperUrl} className="synnical-live-wallpaper pointer-events-none absolute inset-[-2%] h-[104%] w-[104%] object-cover" src={desktopWallpaperUrl} autoPlay muted loop playsInline preload="auto" style={{ filter: `brightness(${(100 - os.wallpaperDim) / 100}) blur(${os.wallpaperBlur}px) saturate(${os.wallpaperSaturation}%)` }} /> : <div className="pointer-events-none absolute inset-[-2%]" style={{ ...desktopWallpaperStyle, filter: `brightness(${(100 - os.wallpaperDim) / 100}) blur(${os.wallpaperBlur}px) saturate(${os.wallpaperSaturation}%)` }} />}
+    {desktopWallpaperIsVideo ? <WallpaperVideo key={desktopWallpaperUrl} className="synnical-live-wallpaper pointer-events-none absolute inset-[-2%] h-[104%] w-[104%] object-cover" src={desktopWallpaperUrl} paused={os.batterySaver} fit={os.desktopWallpaperFit} style={{ filter: `brightness(${(100 - os.wallpaperDim) / 100}) blur(${os.wallpaperBlur}px) saturate(${os.wallpaperSaturation}%)` }} /> : <div className="pointer-events-none absolute inset-[-2%]" style={{ ...desktopWallpaperStyle, filter: `brightness(${(100 - os.wallpaperDim) / 100}) blur(${os.wallpaperBlur}px) saturate(${os.wallpaperSaturation}%)` }} />}
     <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/20" />
     {os.nightLight ? <div className="pointer-events-none absolute inset-0 z-[50000] bg-orange-400 mix-blend-multiply" style={{ opacity: os.nightLightStrength / 250 }} /> : null}
 
@@ -1608,7 +1577,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
       <div className="relative flex h-full items-center px-2">
         {os.showWidgets ? <button onClick={() => { const next=!widgetsOpen; closeFlyouts(); setWidgetsOpen(next) }} className={cn("absolute left-2 grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10", widgetsOpen && "bg-white/10")} title="Widgets"><PanelTop className="h-4.5 w-4.5 text-sky-300" /></button> : null}
         <div className={cn("flex items-center gap-1", taskbarCenter ? "absolute left-1/2 -translate-x-1/2" : "ml-10")}>
-          <button onClick={() => { const next=!startOpen; closeFlyouts(); setStartOpen(next); setStartView("pinned"); setStartQuery("") }} className={cn("grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10", startOpen && "bg-white/10")} aria-label="Start"><img src="/logo.svg" alt="" className="h-5 w-5" /></button>
+          <button onClick={() => { const next=!startOpen; closeFlyouts(); setStartOpen(next); setStartView("pinned"); setStartQuery("") }} className={cn("grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10", startOpen && "bg-white/10")} aria-label="Start"><SynnicalLogo small decorative className="h-5 w-5" /></button>
           {os.showSearch ? <button onClick={() => { closeFlyouts(); setStartOpen(true); setStartQuery("") }} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10" title="Search"><Search className="h-4.5 w-4.5" /></button> : null}
           {os.showTaskView ? <button onClick={() => { const next=!taskViewOpen; closeFlyouts(); setTaskViewOpen(next) }} className={cn("grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10", taskViewOpen && "bg-white/10")} title="Task View"><SquareStack className="h-4.5 w-4.5" /></button> : null}
           {[...snapTaskbarGroups.entries()].map(([group, rows]) => {

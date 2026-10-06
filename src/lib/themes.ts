@@ -24,9 +24,10 @@ function darkTheme(id: ThemeId, name: string, accent: string, hover: string, sof
       "--synnical-accent": accent,
       "--synnical-accent-hover": hover,
       "--synnical-accent-soft": soft,
-      "--synnical-bg": "#090d16",
-      "--synnical-surface": "#111827",
-      "--synnical-surface-2": "#1b2638",
+      "--synnical-bg": "#000000",
+      "--synnical-surface": "#000000",
+      "--synnical-surface-2": "#000000",
+      "--synnical-page": "#000000",
       "--synnical-border": "#334155",
       "--synnical-text": "#f4f7fb",
       "--synnical-muted": "#aab6c7",
@@ -65,14 +66,10 @@ export function applyTheme(id: string, mode: "light" | "dark" = "dark") {
 
   // Resolve the final palette before mutating the DOM. Light mode must never
   // briefly receive the old OLED/dark variables during a theme application.
-  if (mode === "light") Object.assign(v, { "--synnical-bg": "#edf2f8", "--synnical-surface": "#f7faff", "--synnical-surface-2": "#e7edf6", "--synnical-border": "#b9c6d8", "--synnical-text": "#15243a", "--synnical-muted": "#53647c", "--synnical-accent-soft": "#e1e9f5" })
+  if (mode === "light") Object.assign(v, { "--synnical-bg": "#edf2f8", "--synnical-page": "#edf2f8", "--synnical-surface": "#f7faff", "--synnical-surface-2": "#e7edf6", "--synnical-border": "#b9c6d8", "--synnical-text": "#15243a", "--synnical-muted": "#53647c", "--synnical-accent-soft": "#e1e9f5" })
   if (mode === "light" && ["synnical", "monochrome"].includes(theme.id)) {
     v["--synnical-accent"] = "#334155"
     v["--synnical-accent-hover"] = "#1e293b"
-  }
-  // Ensure true OLED black for Synnical theme in dark mode
-  if (mode === "dark" && theme.id === "synnical") {
-    Object.assign(v, { "--synnical-bg": "#000000", "--synnical-surface": "#000000", "--synnical-surface-2": "#000000" })
   }
   root.dataset.synnicalTheme = theme.id
   root.dataset.appearance = mode

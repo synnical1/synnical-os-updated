@@ -1,18 +1,6 @@
-"use client"
+import { SynnicalLogo } from "@/components/synnical-logo"
 
-import { useState } from "react"
-import { cn } from "@/lib/utils"
-
-/** Uses the supplied photographic OLED rose with the legacy mark as fallback. */
+/** Compatibility name for the auth screen; artwork has one implementation. */
 export function AnimatedBrandMark({ className }: { className?: string }) {
-  const [fallback, setFallback] = useState(false)
-  return (
-
-    <img
-      src={fallback ? "/logo.svg" : "/brand/rose.png"}
-      alt="Synnical"
-      className={cn("object-cover", className)}
-      onError={() => setFallback(true)}
-    />
-  )
+  return <SynnicalLogo className={className} />
 }

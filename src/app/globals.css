@@ -163,12 +163,12 @@
   --sidebar-ring: var(--synnical-accent);
   --synnical-page: #000000;
   --synnical-desktop-foreground: #f8fbff;
-  --synnical-surface-elevated: rgba(16, 23, 36, .86);
-  --synnical-glass: rgba(11, 17, 28, .70);
-  --synnical-glass-strong: rgba(11, 17, 28, .88);
-  --synnical-toolbar: rgba(14, 21, 34, .82);
-  --synnical-titlebar: rgba(22, 30, 45, .78);
-  --synnical-input-surface: rgba(8, 13, 23, .82);
+  --synnical-surface-elevated: rgba(0, 0, 0, .86);
+  --synnical-glass: rgba(0, 0, 0, .70);
+  --synnical-glass-strong: rgba(0, 0, 0, .88);
+  --synnical-toolbar: rgba(0, 0, 0, .82);
+  --synnical-titlebar: rgba(0, 0, 0, .78);
+  --synnical-input-surface: rgba(0, 0, 0, .82);
   --synnical-selected: color-mix(in srgb, var(--synnical-accent) 24%, transparent);
   --synnical-hover: rgba(255, 255, 255, .08);
   --synnical-pressed: rgba(255, 255, 255, .14);
@@ -964,3 +964,43 @@ video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--s
 .synnical-under-construction span { background: var(--synnical-selected); color: var(--synnical-accent); }
 .synnical-under-construction p { color: var(--synnical-muted); }
 .synnical-under-construction > div > div { border-color: var(--synnical-glass-border); background: var(--synnical-hover); color: var(--synnical-text); }
+
+/* Transparent layers are derived from the official supplied logo. Mask alpha
+   retains the artwork's intensity/glow; the neutral layer never gets recolored. */
+.synnical-logo { position:relative; display:inline-block; flex-shrink:0; vertical-align:middle; }
+.synnical-logo-full { aspect-ratio:715 / 670; }
+.synnical-logo-mark { aspect-ratio:535 / 500; }
+.synnical-logo > img { position:relative; display:block; width:100%; height:100%; object-fit:contain; }
+.synnical-logo-accent { position:absolute; inset:0; background:var(--synnical-accent); mask-image:var(--synnical-logo-mask); -webkit-mask-image:var(--synnical-logo-mask); mask-size:100% 100%; -webkit-mask-size:100% 100%; mask-repeat:no-repeat; -webkit-mask-repeat:no-repeat; }
+
+/* Legacy opaque app/card backgrounds inherit the all-theme OLED base.
+   Exact class matching intentionally excludes translucent /NN surfaces. */
+:root[data-appearance="dark"] [class~="bg-[#070707]"],
+:root[data-appearance="dark"] [class~="bg-[#0d0d0d]"],
+:root[data-appearance="dark"] [class~="bg-[#111]"],
+:root[data-appearance="dark"] [class~="bg-[#080808]"],
+:root[data-appearance="dark"] [class~="bg-[#101010]"],
+:root[data-appearance="dark"] [class~="bg-[#0b0b0b]"],
+:root[data-appearance="dark"] [class~="bg-[#151515]"],
+:root[data-appearance="dark"] [class~="bg-[#050505]"],
+:root[data-appearance="dark"] [class~="bg-[#090909]"],
+:root[data-appearance="dark"] [class~="bg-[#121212]"],
+:root[data-appearance="dark"] [class~="bg-[#0a0a0a]"],
+:root[data-appearance="dark"] [class~="bg-[#111111]"],
+:root[data-appearance="dark"] [class~="bg-[#1a1a1a]"],
+:root[data-appearance="dark"] [class~="bg-[#202024]"],
+:root[data-appearance="dark"] [class~="bg-[#030303]"],
+:root[data-appearance="dark"] [class~="bg-[#090a0d]"],
+:root[data-appearance="dark"] [class~="bg-[#101217]"],
+:root[data-appearance="dark"] [class~="bg-[#0c0c0d]"],
+:root[data-appearance="dark"] [class~="bg-[#1b1b1b]"],
+:root[data-appearance="dark"] [class~="bg-[#242424]"],
+:root[data-appearance="dark"] [class~="bg-[#17171b]"],
+:root[data-appearance="dark"] [class~="bg-[#111214]"],
+:root[data-appearance="dark"] [class~="bg-[#0d0d0f]"],
+:root[data-appearance="dark"] [class~="bg-[#0c0c0e]"],
+:root[data-appearance="dark"] [class~="bg-slate-900"],
+:root[data-appearance="dark"] [class~="bg-slate-950"] { background-color:var(--synnical-surface) !important; }
+
+/* The neutral default profile card is a base surface, not custom artwork. */
+:root[data-appearance="dark"] [data-profile-base="true"] { background:#000000 !important; }

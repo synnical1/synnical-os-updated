@@ -8,6 +8,8 @@ import { UserProfileProvider } from "@/components/user-profile-modal"
 import { ThemeApplier } from "@/components/theme-applier"
 import { SettingsApplier } from "@/components/settings-generic"
 import { AdInjector } from "@/components/ad-injector"
+import { DEFAULT_OS_WALLPAPER_POSTER } from "@/lib/os-settings"
+import { THEMES } from "@/lib/themes"
 import { proxyAsset } from "@/lib/proxy-runtime"
 // Test strings for regression test:
 // synnical:settings:appearance.mode
@@ -56,7 +58,7 @@ const PreloadLinks = () => (
   <>
     {/* Preload critical images */}
     <link rel="preload" href="/brand/google-classroom.png" as="image" type="image/png" />
-    <link rel="preload" href="/brand/wallpapers/thorfinn.webp" as="image" type="image/webp" />
+    <link rel="preload" href={DEFAULT_OS_WALLPAPER_POSTER} as="image" type="image/webp" />
     {/* Browser is part of the initial shell, so fetch its local proxy runtime
         immediately. This removes asset-download latency from the first search;
         repeat navigations reuse the already-warm singleton. */}
@@ -74,7 +76,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <PreloadLinks />
         <script
           // Force dark mode before hydration.
-          dangerouslySetInnerHTML={{ __html: `try { document.documentElement.dataset.appearance = 'dark'; document.documentElement.style.colorScheme = 'dark'; document.documentElement.classList.add('dark'); } catch (_) {}` }}
+          dangerouslySetInnerHTML={{ __html: `try { const saved = JSON.parse(localStorage.getItem('stratus-browser') || '{}'); const themes = ${JSON.stringify(Object.fromEntries(THEMES.map(theme => [theme.id, theme.vars['--synnical-accent']])))}; const theme = Object.hasOwn(themes, saved?.state?.theme) ? saved.state.theme : 'blood'; document.documentElement.dataset.synnicalTheme = theme; document.documentElement.style.setProperty('--synnical-accent', themes[theme]); document.documentElement.dataset.appearance = 'dark'; document.documentElement.style.colorScheme = 'dark'; document.documentElement.classList.add('dark'); } catch (_) {}` }}
         />
       </head>
       <body
