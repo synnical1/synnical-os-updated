@@ -10,7 +10,7 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#000000",
     theme_color: "#111318",
     icons: [
-      { src: "/logo.svg", sizes: "any", type: "image/svg+xml" },
+      { src: "/brand/synnical/synnical-mark.png", sizes: "192x192", type: "image/png" },
     ],
   }
 }

@@ -47,12 +47,9 @@ test('4623 remains a live free-session state through provider wait and machine a
 
   global.fetch = async (url, opts = {}) => {
     const value = String(url)
-    if (value.startsWith('http://127.0.0.1:')) return realFetch(url, opts)
-    if (value === 'https://api.mail.gw/domains') return json({ 'hydra:member': [{ domain: 'mail.test', isActive: true }] })
-    if (value === 'https://api.mail.gw/accounts') return json({}, 201)
-    if (value === 'https://api.mail.gw/token') return json({ token: 'mail-jwt' })
-    if (value === 'https://api.mail.gw/messages?page=1') return json({ 'hydra:member': [{ id: 'm1' }] })
-    if (value === 'https://api.mail.gw/messages/m1') return json({ subject: 'Verification 123456', text: 'Your code is 123456' })
+    if (value.startsWith('http://127.0.0.1:') && !value.startsWith('http://127.0.0.1:4400/')) return realFetch(url, opts)
+    if (value === 'http://127.0.0.1:4400/api/v1/session') return json({ address: 'fixture@mail.test', token: 'mail-fixture' })
+    if (value === 'http://127.0.0.1:4400/api/v1/inbox/mail-fixture') return json({ mail: [{ subject: 'Verification 123456', body: 'Your code is 123456' }] })
     if (value.endsWith('/users/sendEmail')) return json({ status: 200, msg: 'success' })
     if (value.endsWith('/users/emailRegister')) return json({ status: 200, msg: 'success' })
     if (value.endsWith('/users/emailLogin')) return json({ status: 200, msg: 'success', data: { user_token: 'free-token' } })
@@ -177,12 +174,9 @@ test('provider wait is bounded when the upstream never exposes a free slot', { t
 
   global.fetch = async (url, opts = {}) => {
     const value = String(url)
-    if (value.startsWith('http://127.0.0.1:')) return realFetch(url, opts)
-    if (value === 'https://api.mail.gw/domains') return json({ 'hydra:member': [{ domain: 'mail.test', isActive: true }] })
-    if (value === 'https://api.mail.gw/accounts') return json({}, 201)
-    if (value === 'https://api.mail.gw/token') return json({ token: 'mail-jwt' })
-    if (value === 'https://api.mail.gw/messages?page=1') return json({ 'hydra:member': [{ id: 'm1' }] })
-    if (value === 'https://api.mail.gw/messages/m1') return json({ subject: 'Verification 123456', text: 'Your code is 123456' })
+    if (value.startsWith('http://127.0.0.1:') && !value.startsWith('http://127.0.0.1:4400/')) return realFetch(url, opts)
+    if (value === 'http://127.0.0.1:4400/api/v1/session') return json({ address: 'fixture@mail.test', token: 'mail-fixture' })
+    if (value === 'http://127.0.0.1:4400/api/v1/inbox/mail-fixture') return json({ mail: [{ subject: 'Verification 123456', body: 'Your code is 123456' }] })
     if (value.endsWith('/users/sendEmail')) return json({ status: 200, msg: 'success' })
     if (value.endsWith('/users/emailRegister')) return json({ status: 200, msg: 'success' })
     if (value.endsWith('/users/emailLogin')) return json({ status: 200, msg: 'success', data: { user_token: 'free-token' } })

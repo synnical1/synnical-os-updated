@@ -865,7 +865,7 @@ test("r11.3 wallpaper personalization is account-backed for desktop and lock scr
   const route = read("src/app/api/features/os/wallpaper/route.ts")
   const settings = read("src/components/synnical-settings-app.tsx")
   const desktop = read("src/components/desktop-shell.tsx")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/thorfinn\.webp"/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/synnical-default-wallpaper\.webm"/)
   assert.match(os, /desktopWallpaperFit/)
   assert.match(os, /lockUseDesktopWallpaper/)
   assert.match(os, /lockWallpaperFit/)
@@ -943,15 +943,15 @@ test("r11.3 YouTube and GeForce NOW are first-class branded OS apps", () => {
 })
 
 test("r11.6 cloud account verification polls one sent code and respects provider cooldown", () => {
-  const cloud = read("stratus/api.js")
-  assert.match(cloud, /async function sendProviderVerification/)
-  assert.match(cloud, /providerVerificationCooldownUntil/)
+  const cloud = read("stratus/core.cjs")
+  assert.match(cloud, /async function raccoonStep/)
+  assert.match(cloud, /providerCooldownUntil/)
   assert.match(cloud, /65_000/)
-  assert.match(cloud, /getVerificationCode\(mailJwt, 40\)/)
-  // Verify the actual one-send flow, rather than wording in a deleted comment.
-  assert.equal((cloud.match(/await sendProviderVerification\(email, h, base\)/g) || []).length, 1)
-  assert.ok(cloud.indexOf("await sendProviderVerification(email, h, base)") < cloud.indexOf("await getVerificationCode(mailJwt, 40)"))
+  assert.match(cloud, /getVerificationCode\(mailToken, attemptDeadline\)/)
+  assert.equal((cloud.match(/"\/users\/sendEmail"/g) || []).length, 1)
+  assert.match(cloud, /MAX_MAIL_ATTEMPTS = 1/)
   assert.doesNotMatch(cloud, /resending to the same mailbox once|retrying once with a fresh mailbox/)
+
 })
 
 test("r11.3 login goes directly to OS mode without a hidden five-W activation gate", () => {
@@ -1016,7 +1016,7 @@ test("r11.4 recognition badges are visible beside roles but never grant permissi
 // August 25 deliberately removed the Sakura gallery and introduced these assets.
 test("current wallpapers preserve the August 25 video and static fallback", () => {
   const os = read("src/lib/os-settings.ts")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/thorfinn\.webp"/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/synnical-default-wallpaper\.webm"/)
   assert.match(os, /BUILTIN_OS_WALLPAPERS = \[\] as const/)
   for (const asset of ["synnical-default-wallpaper.mp4", "synnical-static-ink-wallpaper.png"]) {
     assert.equal(existsSync(new URL(`../public/brand/wallpapers/${asset}`, import.meta.url)), true)

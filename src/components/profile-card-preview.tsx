@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import type { SafeUser } from "@/lib/api"
 import { AvatarWithDeco, DisplayName, RoleBadge, TagsDisplay } from "@/components/role-ui"
 import { ProfileEffectLayer, useProfileEffectGeometry } from "@/components/profile-effects"
-import { profileThemeBackground, profileThemeTextColor, type ProfileThemeStyle } from "@/lib/profile-theme"
+import { DEFAULT_PROFILE_THEME, profileThemeBackground, profileThemeTextColor, type ProfileThemeStyle } from "@/lib/profile-theme"
 import { cn } from "@/lib/utils"
 
 export type ProfileCardScale = "profile" | "showcase"
@@ -37,6 +37,7 @@ export function ProfileCardFrame({
 
   return (
     <div
+      data-profile-base={themeStyle !== "gradient" && themePrimary === DEFAULT_PROFILE_THEME.primary ? "true" : undefined}
       data-profile-effect-native={geometry.intrinsic ? `${geometry.width}x${geometry.height}` : "fallback"}
       className={cn(
         "relative isolate overflow-hidden rounded-[22px] border border-white/15 shadow-2xl",

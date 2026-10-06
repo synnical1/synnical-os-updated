@@ -1,19 +1,19 @@
 export type WallpaperFit = "fill" | "fit" | "stretch" | "center" | "tile"
 
 export const LEGACY_OS_WALLPAPER = "/brand/wallpapers/samurai-cherry-blossom.png"
-export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/thorfinn.webp"
+export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/synnical-default-wallpaper.webm"
+export const DEFAULT_OS_WALLPAPER_POSTER = "/brand/wallpapers/synnical-default-wallpaper-poster.webp"
+export const WALLPAPER_DEFAULT_VERSION = 1
 export const BUILTIN_OS_WALLPAPERS = [] as const
-const RETIRED_OS_WALLPAPERS = new Set([
+const PREVIOUS_DEFAULT_WALLPAPERS = new Set([
+  "/brand/wallpapers/thorfinn.webp",
   LEGACY_OS_WALLPAPER,
   "/brand/wallpapers/synnical-static-ink-wallpaper.png",
   "/brand/wallpapers/synnical-default-wallpaper.mp4",
-  "/brand/wallpapers/sakura-samurai-1.png",
-  "/brand/wallpapers/sakura-samurai-2.png",
-  "/brand/wallpapers/sakura-samurai-3.png",
-  "/brand/wallpapers/sakura-samurai-4.png",
 ])
 
 export const OS_DEFAULTS = {
+  wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION,
   taskbarAlignment: "center" as "center" | "left",
   taskbarAutoHide: false,
   taskbarSize: "medium" as "small" | "medium" | "large",
@@ -119,7 +119,6 @@ function wallpaperValue(value: unknown, fallback: string): string {
   if (typeof value !== "string") return fallback
   const trimmed = value.trim().slice(0, 2048)
   if (!trimmed) return ""
-  if (RETIRED_OS_WALLPAPERS.has(trimmed)) return DEFAULT_OS_WALLPAPER
   if (trimmed.startsWith("/api/uploads/") || trimmed.startsWith("/brand/") || /^https:\/\//i.test(trimmed)) return trimmed
   return fallback
 }
@@ -134,7 +133,12 @@ export function sanitizeOsSettings(input: unknown): OsSettings {
   const bool = (key: keyof OsSettings) => typeof value[key] === "boolean" ? value[key] as boolean : OS_DEFAULTS[key] as boolean
   const widgetDefaultsVersion = num(value.widgetDefaultsVersion, 0, 1, 0)
   const widgetBool = (key: keyof OsSettings) => widgetDefaultsVersion >= 1 ? bool(key) : false
+  const migrateDefault = (wallpaper: unknown, fallback: string) => {
+    const clean = wallpaperValue(wallpaper, fallback)
+    return Number(value.wallpaperDefaultVersion || 0) < WALLPAPER_DEFAULT_VERSION && PREVIOUS_DEFAULT_WALLPAPERS.has(clean) ? DEFAULT_OS_WALLPAPER : clean
+  }
   return {
+    wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION,
     taskbarAlignment: oneOf(value.taskbarAlignment, ["center", "left"] as const, OS_DEFAULTS.taskbarAlignment),
     taskbarAutoHide: bool("taskbarAutoHide"),
     taskbarSize: oneOf(value.taskbarSize, ["small", "medium", "large"] as const, OS_DEFAULTS.taskbarSize),
@@ -300,10 +304,10 @@ export function sanitizeOsSettings(input: unknown): OsSettings {
       }
       return result.length ? result : [{ id: 1, name: "Desktop 1", wallpaper: "" }]
     })(),
-    desktopWallpaper: wallpaperValue(value.desktopWallpaper, OS_DEFAULTS.desktopWallpaper),
+    desktopWallpaper: migrateDefault(value.desktopWallpaper, OS_DEFAULTS.desktopWallpaper),
     desktopWallpaperFit: oneOf(value.desktopWallpaperFit, ["fill", "fit", "stretch", "center", "tile"] as const, OS_DEFAULTS.desktopWallpaperFit),
     lockUseDesktopWallpaper: bool("lockUseDesktopWallpaper"),
-    lockWallpaper: wallpaperValue(value.lockWallpaper, OS_DEFAULTS.lockWallpaper),
+    lockWallpaper: migrateDefault(value.lockWallpaper, OS_DEFAULTS.lockWallpaper),
     lockWallpaperFit: oneOf(value.lockWallpaperFit, ["fill", "fit", "stretch", "center", "tile"] as const, OS_DEFAULTS.lockWallpaperFit),
     lockShowClock: bool("lockShowClock"),
     lockShowNotifications: bool("lockShowNotifications"),
@@ -346,6 +350,12 @@ export function readOsSettings(): OsSettings {
     } else if (parsed && typeof parsed === "object") {
       const raw = { ...(parsed as Record<string, unknown>) }
       let changed = Object.prototype.hasOwnProperty.call(raw, "desktopContinueWatchingWidget")
+      if (Number(raw.wallpaperDefaultVersion || 0) < WALLPAPER_DEFAULT_VERSION) {
+        raw.wallpaperDefaultVersion = WALLPAPER_DEFAULT_VERSION
+        raw.desktopWallpaper = settings.desktopWallpaper
+        raw.lockWallpaper = settings.lockWallpaper
+        changed = true
+      }
       delete raw.desktopContinueWatchingWidget
       if (raw.widgetLayouts && typeof raw.widgetLayouts === "object") {
         const layouts = { ...(raw.widgetLayouts as Record<string, unknown>) }
@@ -406,7 +416,9 @@ export async function hydrateOsSettings() {
       try { localStorage.setItem(OWNER_KEY, String(body.accountId || "signed-in")) } catch {}
       return saved
     }
-    const saved = sanitizeOsSettings(body.settings || OS_DEFAULTS)
+    const migrated = sanitizeOsSettings(body.settings || OS_DEFAULTS)
+    const saved = body.needsWallpaperMigration ? await persistOsSettings(migrated) : migrated
+    if (epoch !== osAccountEpoch) return local
     writeOsSettings(saved)
     try { localStorage.setItem(OWNER_KEY, String(body.accountId || "signed-in")) } catch {}
     return saved
