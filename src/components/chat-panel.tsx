@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
+import { chatHistoryCacheKey } from "@/lib/chat-cache-key"
 import { getChatSocket, setReadingChannel, useChatUnread } from "@/lib/chat-realtime"
 import { type Socket } from "socket.io-client"
 import { messageNotification } from "@/lib/chat-mentions"
@@ -484,15 +485,20 @@ export function ChatPanel() {
   }, [activeChannel, messages, setChannelPreference, chatVisible])
 
   const loadChannels = useCallback(async () => {
+    const accountId = userIdRef.current
     try {
       const { channels } = await api.listChannels()
+      if (userIdRef.current !== accountId) return
       setChannels(channels)
       setActiveChannel((current) => current && channels.some((channel) => channel.id === current) ? current : channels[0]?.id || null)
     } catch { toast.error("Failed to load channels") }
     finally { setLoadingChannels(false) }
   }, [])
 
-  useEffect(() => { loadChannels() }, [loadChannels])
+  useEffect(() => {
+    setMessages([]); setChannels([]); setActiveChannel(null)
+    void loadChannels()
+  }, [loadChannels, user?.id])
   useEffect(() => { void loadChannelPreferences() }, [loadChannelPreferences])
 
   useEffect(() => () => {
@@ -765,14 +771,14 @@ export function ChatPanel() {
   // Persist messages to localStorage so they survive page reloads.
   // We save the last 50 messages per channel.
   useEffect(() => {
-    if (messages.length === 0 || !activeChannel) return
+    if (messages.length === 0 || !activeChannel || !user?.id) return
     const snapshot = messages.filter((candidate) => !candidate.pendingLocal && !candidate.failedLocal).slice(-50)
     if (snapshot.length === 0) return
     const timer = window.setTimeout(() => {
-      try { localStorage.setItem(`synnical-chat-messages:${activeChannel}`, JSON.stringify(snapshot)) } catch { /* ignore quota errors */ }
+      try { localStorage.setItem(chatHistoryCacheKey(user.id, activeChannel), JSON.stringify(snapshot)) } catch { /* ignore quota errors */ }
     }, 1_800)
     return () => window.clearTimeout(timer)
-  }, [messages, activeChannel])
+  }, [messages, activeChannel, user?.id])
 
   useEffect(() => {
     if (!gifPickerOpen) return
@@ -849,20 +855,23 @@ export function ChatPanel() {
   // Restore messages from localStorage when joining a channel (before
   // the socket delivers the fresh history from the server).
   useEffect(() => {
-    if (!activeChannel) return
+    if (!activeChannel || !user?.id) return
+    if (!channels.some(channel => channel.id === activeChannel) && !dmChannels.some(channel => channel.id === activeChannel)) return
     try {
-      const key = `synnical-chat-messages:${activeChannel}`
+      // Discard old account-agnostic entries rather than migrating private history.
+      localStorage.removeItem(`synnical-chat-messages:${activeChannel}`)
+      const key = chatHistoryCacheKey(user.id, activeChannel)
       const stored = localStorage.getItem(key)
       if (stored) {
         const parsed = JSON.parse(stored) as ChatMessage[]
         const confirmed = Array.isArray(parsed) ? parsed.filter((candidate) => !candidate.pendingLocal && !candidate.failedLocal) : []
         if (confirmed.length > 0) {
           initialHistoryScrollRef.current = true
-          setMessages(confirmed)
+          setMessages(current => current.length ? current : confirmed)
         }
       }
     } catch { /* ignore */ }
-  }, [activeChannel])
+  }, [activeChannel, user?.id, channels, dmChannels])
 
   const loadOlderMessages = useCallback(() => {
     if (!socket || !connected || !activeChannel || !hasOlderMessages || loadingOlderMessages) return

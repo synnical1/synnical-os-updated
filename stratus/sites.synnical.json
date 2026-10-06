@@ -1,7 +1,7 @@
 {
   "sites": {
     "synnical": {
-      "api_key": "synnical-cloud-public-v1",
+      "api_key": "",
       "enabled": true,
       "max_concurrent_sessions": 8,
       "max_session_seconds": 1140,

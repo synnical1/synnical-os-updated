@@ -33,8 +33,7 @@ test("SynnFlix persists progress when its desktop window unmounts", () => {
   assert.match(panel, /flushPlaybackProgressRef\.current = flushPlaybackProgress/)
   assert.match(panel, /flushPlaybackProgressRef\.current\("close"\)/)
   assert.match(panel, /keepalive: true/)
-  assert.match(panel, /buildPlayerUrl\(player, activeProfile\.id, \{ progress: syncedProgress, autoplay: true \}\)/)
-  assert.match(panel, /params\.set\("progress", String\(progress\)\)/)
+  assert.match(panel, /startSeconds=\{syncedProgress/); assert.match(read("src/components/media-player.tsx"), /initialTimeRef.current/)
 })
 
 test("Scramjet proves its worker route before Ready and recovers lost controller ports", () => {

@@ -1,5 +1,6 @@
 import { readFile } from "fs/promises"
 import path from "path"
+import { roleRank } from "./roles"
 import { db } from "./db"
 import { parseDuration } from "./feature-platform"
 import { canAccessPublicChannel } from "./channel-permissions"
@@ -24,8 +25,7 @@ const SYNN_BOT_PROFILE_SCOPE = "global"
 
 function staff(role: string) { return ["OWNER", "HEAD_ADMIN", "ADMIN", "MOD"].includes(role) }
 function admin(role: string) { return ["OWNER", "HEAD_ADMIN", "ADMIN"].includes(role) }
-function ownerish(role: string) { return ["OWNER", "HEAD_ADMIN"].includes(role) }
-function roleRank(role: string) { return role === "OWNER" ? 5 : role === "HEAD_ADMIN" ? 4 : role === "ADMIN" ? 3 : role === "MOD" ? 2 : 1 }
+function ownerish(role: string) { return role === "OWNER" }
 function clean(value: string, max = 1000) { return value.trim().slice(0, max) }
 
 function readJsonObject(value: string | null | undefined): Record<string, any> {
@@ -210,7 +210,7 @@ async function runStaffCommand(args: string, ctx: BotFeatureContext): Promise<st
     return bans.length ? `Active permanent bans:\n${bans.map((ban) => `- @${ban.user.username} (${ban.user.role}): ${ban.reason}`).join("\n")}` : "No active permanent bans found."
   }
   if (/\bunban\b/.test(lower) && /\b(everyone|all users|all banned|any users)\b/.test(lower)) {
-    if (!ownerish(ctx.role)) return "Bulk unban is owner/head-admin only. Ask for a specific user or get owner approval."
+    if (!ownerish(ctx.role)) return "Bulk unban is owner only. Ask for a specific user or get owner approval."
     const actor = await actorUser(ctx)
     const bans = await db.infraction.findMany({ where: activeBanWhere(), orderBy: { createdAt: "desc" }, include: { user: true } })
     const targets = new Map(bans.filter((ban) => roleRank(ban.user.role) < roleRank(ctx.role) && ban.userId !== ctx.userId).map((ban) => [ban.userId, ban.user]))

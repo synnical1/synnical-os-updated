@@ -1,3 +1,4 @@
+import { messageEditDenied } from "./message-edit-policy"
 import { runModerationCommand } from "./bot-moderation"
 import { ModerationError } from "./moderation-service"
 import { mentionNames, parseMentionIds } from "./chat-mentions"
@@ -606,7 +607,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         await db.session.delete({ where: { id: session.id } }).catch(() => {})
         return next(new Error("Session expired"))
       }
-      const permanentBan = session.user.role === "OWNER" || session.user.role === "HEAD_ADMIN" ? null : await db.infraction.findFirst({
+      const permanentBan = session.user.role === "OWNER" ? null : await db.infraction.findFirst({
         where: { userId: session.user.id, type: { in: ["BAN", "AUTO_BAN"] }, duration: null },
         select: { id: true },
       })
@@ -1136,8 +1137,10 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         const existing = await db.message.findUnique({ where: { id: messageId } })
         if (!existing || existing.deleted || existing.channelId !== channelId) return
         // Authors edit their own messages; the owner may edit any.
-        if (existing.userId !== user.userId && user.role !== "OWNER" && user.role !== "HEAD_ADMIN") return
+        if (existing.userId !== user.userId && user.role !== "OWNER") return
 
+        const denied = await messageEditDenied({ id: user.userId, role: user.role, muted: user.muted, mutedUntil: user.mutedUntil }, channelId)
+        if (denied) { socket.emit("mute-error", { code: "MESSAGE_EDIT_FORBIDDEN", message: denied }); return }
         const channel = await accessibleChannel(channelId, user.userId, user.role)
         if (!channel) return
         if (channel.isAnnouncement && user.role !== "OWNER" && user.role !== "HEAD_ADMIN" && user.role !== "ADMIN") return
@@ -1164,11 +1167,13 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         }
 
         const editedAt = new Date()
-        await db.messageEditHistory.create({ data: { messageId, editorId: user.userId, oldContent: existing.content, newContent: text, editedAt } })
-        await db.message.update({
-          where: { id: messageId },
-          data: { content: text, edited: true, editedAt },
+        const updated = await db.$transaction(async tx => {
+          const current = await tx.message.findUnique({ where: { id: messageId } })
+          if (!current || current.deleted || current.channelId !== channelId || (current.userId !== user.userId && user.role !== "OWNER")) return null
+          await tx.messageEditHistory.create({ data: { messageId, editorId: user.userId, oldContent: current.content, newContent: text, editedAt } })
+          return tx.message.update({ where: { id: messageId }, data: { content: text, edited: true, editedAt } })
         })
+        if (!updated) return
         await emitAuthorizedChannel(channelId, "message-edited", {
           id: messageId, channelId, content: text, editedAt: editedAt.toISOString(),
         })

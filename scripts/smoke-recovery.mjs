@@ -23,8 +23,8 @@ const base = `http://127.0.0.1:${port}`
 const env = { ...process.env, NODE_ENV: "production", DATABASE_URL: databaseUrl, HOSTNAME: "127.0.0.1", PORT: String(port),
   OWNER_PASSWORD: randomBytes(32).toString("hex"), IDENTITY_HASH_SECRET: randomBytes(32).toString("hex"),
   UPLOAD_DIR: path.join(root, "uploads"), MEDIA_APPROVALS_DIR: path.join(root, "approvals"), STRATUS_DISABLE_ACCOUNT_POOL: "true",
-  WISP_ENABLED: "true", WISP_PATH: "/wisp", WISP_NL_PATH: "/wisp-nl", NEXT_PUBLIC_SOCKET_URL: "/socket.io",
-  SYNNICAL_NL_SOCKS5_URL: "", TEXT_MODERATION_MODE: "local", TMDB_API_KEY: "", TMDB_API_READ_TOKEN: "",
+  STRATUS_API_KEY: randomBytes(32).toString("hex"), WISP_ENABLED: "true", WISP_PATH: "/wisp", WISP_NL_PATH: "/wisp-nl", NEXT_PUBLIC_SOCKET_URL: "/socket.io",
+  SYNNICAL_NL_SOCKS5_URL: "", TEXT_MODERATION_MODE: "local", TMDB_API_KEY: "", TMDB_API_READ_TOKEN: "", TMDB_READ_TOKEN: "", MEDIA_PLAYBACK_MANIFEST: path.join(root, "playback-fixture.json"), MEDIA_PLAYBACK_ALLOWED_ORIGINS: "https://licensed-media.example",
   OPENAI_API_KEY: "", OPENROUTER_API_KEY: "", GROQ_API_KEY: "", GEMINI_API_KEY: "", PIPED_API_BASE: "", INVIDIOUS_API_BASE: "", COBALT_API_BASE: "" }
 const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
 let child
@@ -86,27 +86,73 @@ try {
   assert.equal((await request("/api/auth/me")).json.user, null)
   await request("/api/features/settings", { status: 401 })
   pass("production server, root shell, VM fallback and anonymous authentication")
+  const testPassword = randomBytes(24).toString("base64url")
   const accounts = []
   for (const username of ["recoveryalpha", "recoverybeta"]) {
-    const result = await request("/api/auth/register", { data: { username, password: "Disposable-Test-Password-92", securityQuestion: "What is the test phrase?", securityAnswer: "disposable sample" } })
+    const result = await request("/api/auth/register", { data: { username, password: testPassword, securityQuestion: "What is the test phrase?", securityAnswer: "disposable sample" } })
     noSecrets(result.json)
     const cookie = result.response.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ")
     accounts.push({ ...result.json.user, cookie })
   }
   const [a, b] = accounts
-  const login = await request("/api/auth/login", { data: { username: a.username, password: "Disposable-Test-Password-92" } })
+  const login = await request("/api/auth/login", { data: { username: a.username, password: testPassword } })
   noSecrets(login.json); assert.equal(login.json.user.id, a.id)
   pass("registration and login with sanitized account responses")
+  const dailyBefore = (await db.user.findUnique({ where: { id: a.id } })).coins
+  const daily = await Promise.all(Array.from({ length: 6 }, () => request("/api/shop/daily", { cookie: a.cookie, data: {} })))
+  assert.equal(daily.filter(row => row.json.success).length, 1)
+  assert.equal(await db.currencyTransaction.count({ where: { userId: a.id, type: "daily" } }), 1)
+  assert.equal((await db.user.findUnique({ where: { id: a.id } })).coins, dailyBefore + 100)
+  const tooEarlyDaily = (await request("/api/shop/daily", { cookie: a.cookie, data: {} })).json
+  const claimTime = (await db.user.findUnique({ where: { id: a.id } })).lastDailyClaim
+  assert.equal(tooEarlyDaily.nextClaim, new Date(claimTime.getTime() + 20 * 3600000).toISOString())
+  // Exercise the non-null eligibility predicate and streak receipt under the
+  // same contention; a first-ever claim alone misses date-binding regressions.
+  await db.user.update({ where: { id: b.id }, data: { lastDailyClaim: new Date(Date.now() - 24 * 3600000) } })
+  const streakBefore = (await db.user.findUnique({ where: { id: b.id } })).coins
+  const streakClaims = await Promise.all(Array.from({ length: 6 }, () => request("/api/shop/daily", { cookie: b.cookie, data: {} })))
+  assert.equal(streakClaims.filter(row => row.json.success).length, 1)
+  const streakReceipts = await db.currencyTransaction.findMany({ where: { userId: b.id, type: "daily" } })
+  assert.equal(streakReceipts.length, 1)
+  assert.equal(streakReceipts[0].amount, 110)
+  assert.equal((await db.user.findUnique({ where: { id: b.id } })).coins, streakBefore + 110)
+
+  await db.user.update({ where: { id: a.id }, data: { role: "HEAD_ADMIN" } })
+  await db.user.update({ where: { id: b.id }, data: { role: "ADMIN" } })
+  await request("/api/moderation/credits", { cookie: a.cookie, data: { userId: b.id, delta: 10 }, status: 403 })
+  await db.user.update({ where: { id: a.id }, data: { role: "MEMBER" } })
+  await db.user.update({ where: { id: b.id }, data: { role: "MEMBER" } })
+  pass("parallel daily claims award exactly once; canonical equal staff ranks cannot adjust credits")
+  await request("/api/media/playback?type=movie&id=123", { status: 401 })
+  const unavailable = (await request("/api/media/playback?type=movie&id=123", { cookie: a.cookie })).json
+  assert.equal(unavailable.available, false); assert.equal(unavailable.source, null)
+  await request("/api/media/playback?type=tv&id=123&season=1&episode=0", { cookie: a.cookie, status: 400 })
+  await request("/api/media/providers/cineb", { status: 410 })
+  pass("authorized playback requires session, validates identity and fails closed without a provider")
+  await request("/api/games/cloud/v1/createSession", { data: { game_key: "fixture" }, status: 401 })
+  await request("/api/games/cloud/v1/getQueue?uuid=fixture", { status: 401 })
+  await request("/api/games/cloud/v1/createSession", { cookie: a.cookie, data: {}, status: 400 })
+  await request("/api/games/cloud/v1/getQueue?uuid=fixture", { cookie: a.cookie, status: 404 })
+  pass("cloud session routes require Synnical authentication and use a server-only integration key")
+
+  await writeFile(env.MEDIA_PLAYBACK_MANIFEST, JSON.stringify({ "movie:999": { providerId: "disposable-fixture", kind: "file", url: "https://licensed-media.example/sample.mp4" }, "movie:998": { providerId: "disposable-fixture", kind: "embed", url: "https://unapproved.example/player" } }), { mode: 0o600 })
+  const approvedPlayback = (await request("/api/media/playback?type=movie&id=999&url=https://unapproved.example", { cookie: a.cookie })).json
+  assert.equal(approvedPlayback.source.url, "https://licensed-media.example/sample.mp4")
+  assert.equal((await request("/api/media/playback?type=movie&id=998", { cookie: a.cookie })).json.source, null)
+  await rm(env.MEDIA_PLAYBACK_MANIFEST)
+  pass("playback manifest allows only operator-approved sources and ignores client URL injection")
+
+
   assert.equal((await request("/api/features/security", { cookie: a.cookie })).json.pinConfigured, false)
   await request("/api/features/security", { cookie: a.cookie, data: { action: "set-lock-pin", pin: "4729", password: "wrong" }, status: 403 })
-  await request("/api/features/security", { cookie: a.cookie, data: { action: "set-lock-pin", pin: "4729", password: "Disposable-Test-Password-92" } })
+  await request("/api/features/security", { cookie: a.cookie, data: { action: "set-lock-pin", pin: "4729", password: testPassword } })
   assert.equal((await request("/api/features/security", { cookie: a.cookie })).json.pinConfigured, true)
   assert.notEqual((await db.user.findUnique({ where: { id: a.id } })).lockPinHash, "4729")
   await request("/api/features/security", { cookie: a.cookie, data: { action: "verify-pin", pin: "4729" } })
   await request("/api/features/security", { data: { action: "verify-pin", pin: "4729" }, status: 401 })
   for (let attempt = 0; attempt < 5; attempt++) await request("/api/features/security", { cookie: b.cookie, data: { action: "verify-pin", pin: "0000" }, headers: { "X-Real-IP": `192.0.2.${attempt}` }, status: 403 })
   await request("/api/features/security", { cookie: b.cookie, data: { action: "verify-pin", pin: "0000" }, headers: { "X-Real-IP": "192.0.2.99" }, status: 429 })
-  await request("/api/features/security", { cookie: b.cookie, data: { action: "verify-password", password: "Disposable-Test-Password-92" } })
+  await request("/api/features/security", { cookie: b.cookie, data: { action: "verify-password", password: testPassword } })
   await request("/api/features/security", { cookie: a.cookie, data: { action: "begin-security-setup", newPassword: "Attack-Password-92" }, status: 410 })
   await request("/api/auth/login", { data: { username: a.username, password: "4729" }, status: 401 })
   pass("PIN requires password setup and an existing session, hashes storage, rate-limits across IPs and never replaces sign-in")
@@ -130,6 +176,23 @@ try {
   await request(`/api/features/media?profileId=${profileId}`, { cookie: b.cookie, status: 404 })
   pass("SynnFlix default profile race, 12-profile limit and ownership")
   const media = { profileId, mediaType: "movie", mediaId: "123", title: "Disposable Test Film" }
+  for (const currentTime of [-1, null, "50", 864001]) await request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "progress", currentTime, duration: 100 }, status: 400 })
+  await request("/api/features/media", { cookie: b.cookie, data: { ...media, action: "progress", currentTime: 10, duration: 100 }, status: 404 })
+  const favorite = (await request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "toggle-item", kind: "favorite" } })).json
+  await request("/api/features/media", { cookie: b.cookie, data: { ...media, profileId: undefined, action: "toggle-item", listId: favorite.listId }, status: 404 })
+  await Promise.all(Array.from({ length: 4 }, () => request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "toggle-item", kind: "watchlist", mediaId: "456" } })))
+  const toggledList = await db.mediaList.findFirst({ where: { userId: a.id, profileId, kind: "watchlist" } })
+  assert.equal(await db.mediaListItem.count({ where: { listId: toggledList.id, mediaId: "456" } }), 0)
+  pass("media rejects corrupt progress, foreign profile/list mutations and duplicate nullable-key toggles")
+
+  await request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "progress", mediaType: "tv", mediaId: "789", ratingPrediction: 8 } })
+  await request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "progress", mediaType: "tv", mediaId: "789", currentTime: 10, duration: 100 }, status: 400 })
+  const prediction = await db.mediaProgress.findFirst({ where: { userId: a.id, profileId, mediaType: "tv", mediaId: "789" } })
+  assert.equal(prediction.ratingPrediction, 8); assert.equal(prediction.currentTime, 0); assert.equal(prediction.completed, false)
+  await db.mediaProgress.delete({ where: { id: prediction.id } })
+  pass("TV title rating predictions remain available without creating watched episode progress")
+
+
   for (const currentTime of [301, 210]) await request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "progress", currentTime, duration: 3600 } })
   await request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "progress", currentTime: 11, duration: 10 } })
   assert.equal((await request(`/api/features/media?profileId=${profileId}`, { cookie: a.cookie })).json.progress[0].completed, false)
@@ -199,6 +262,34 @@ try {
   const poll = await db.poll.create({ data: { channelId: channel.id, messageId: msg.id, createdById: a.id, question: "Sample?" } })
   assert.equal((await request(`/api/features/chat?action=poll-message&messageId=${msg.id}`, { cookie: b.cookie })).json.poll.id, poll.id)
   pass("HTTP channel authorization, sanitized search/thread/saved responses and inline polls")
+
+  const edit = { id: msg.id, content: "An authorized edited recovery message" }
+  await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit })
+  assert.equal(await db.messageEditHistory.count({ where: { messageId: msg.id } }), 1)
+  await request("/api/messages/edit", { cookie: b.cookie, method: "PATCH", data: edit, status: 403 })
+  await db.user.update({ where: { id: a.id }, data: { muted: true, mutedUntil: new Date(Date.now() + 60000) } })
+  await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit, status: 403 })
+  await db.user.update({ where: { id: a.id }, data: { muted: false, mutedUntil: null } })
+  await db.channel.update({ where: { id: channel.id }, data: { isAnnouncement: true } })
+  await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit, status: 403 })
+  await db.channel.update({ where: { id: channel.id }, data: { isAnnouncement: false } })
+  await db.message.update({ where: { id: msg.id }, data: { deleted: true } })
+  await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit, status: 404 })
+  await db.message.update({ where: { id: msg.id }, data: { deleted: false } })
+  pass("HTTP edits preserve history and reject foreign authors, active mutes, announcements and deleted messages")
+
+  await request("/api/features/security", { cookie: a.cookie, data: { action: "set-lockdown", enabled: true, password: testPassword } })
+  await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit, status: 403 })
+  await request("/api/features/security", { cookie: a.cookie, data: { action: "set-lockdown", enabled: false, password: testPassword } })
+  const blockedDm = await db.channel.create({ data: { name: "blocked-edit-fixture", isDM: true } })
+  await db.membership.createMany({ data: [{ channelId: blockedDm.id, userId: a.id }, { channelId: blockedDm.id, userId: b.id }] })
+  const blockedMessage = await db.message.create({ data: { channelId: blockedDm.id, userId: a.id, username: a.username, content: "Earlier DM" } })
+  await db.block.create({ data: { blockerId: b.id, blockedId: a.id } })
+  await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: { ...edit, id: blockedMessage.id }, status: 403 })
+  await db.block.deleteMany({ where: { blockerId: b.id, blockedId: a.id } })
+  pass("HTTP edits obey emergency lockdown and peer DM blocks")
+
+
   const socket = io(base, { autoConnect: false, transports: ["websocket"], extraHeaders: { Cookie: a.cookie }, reconnection: false })
   sockets.push(socket); const connected = event(socket, "connect"); socket.connect(); await connected
   const history = event(socket, "message-history"); socket.emit("join-channel", { channelId: channel.id, history: true }); await history
@@ -231,6 +322,15 @@ try {
   const refreshed = event(socket, "message-history"); socket.emit("join-channel", { channelId: channel.id, history: true })
   assert.ok((await refreshed).messages.some((message) => message.clientNonce === clientNonce))
   pass("Socket.IO websocket rapid send, duplicate nonce idempotency, background rewards and reconnect history identity")
+
+  await db.user.update({ where: { id: b.id }, data: { muted: true, mutedUntil: new Date(Date.now() + 60000) } })
+  const rejectedEdit = event(rapidSocket, "mute-error")
+  rapidSocket.emit("edit-message", { messageId: rapidMessages[0].id, channelId: channel.id, content: "Muted edit must be rejected" })
+  assert.equal((await rejectedEdit).code, "MESSAGE_EDIT_FORBIDDEN")
+  assert.equal((await db.message.findUnique({ where: { id: rapidMessages[0].id } })).content, rapidPayloads[0].content)
+  await db.user.update({ where: { id: b.id }, data: { muted: false, mutedUntil: null } })
+  pass("Socket.IO revalidates active mutes before editing an existing message")
+
   const polling = io(base, { autoConnect: false, transports: ["polling", "websocket"], extraHeaders: { Cookie: b.cookie }, reconnection: false })
   sockets.push(polling); const pollConnected = event(polling, "connect"); polling.connect(); await pollConnected
   pass("Socket.IO polling handshake with upgrade dispatch intact")
@@ -289,7 +389,7 @@ try {
   assert.equal((await request("/api/features/media/profiles", { cookie: a.cookie })).json.profiles.length, 1)
   pass("concurrent profile deletion always preserves one profile")
   const { smokeUpgrade } = await import("./smoke-upgrade.mjs")
-  await smokeUpgrade({ request, db, a, b, channel, socket, event, pass, base, sockets })
+  await smokeUpgrade({ testPassword, request, db, a, b, channel, socket, event, pass, base, sockets })
   const browserModule = process.argv.find((arg) => arg.startsWith("--browser-module="))?.slice("--browser-module=".length)
   if (browserModule) {
     await db.message.createMany({ data: Array.from({ length: 80 }, (_, i) => ({ channelId: channel.id, userId: a.id, username: a.username, content: `History fixture ${i}` })) })

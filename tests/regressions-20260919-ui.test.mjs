@@ -47,12 +47,15 @@ test("oversized GIFs are rejected consistently before upload", async () => {
   assert.match(read("src/app/api/profile/upload/route.ts"), /hasGifSignature/)
 })
 
-test("provider-dependent video surfaces remain unavailable until a provider is ready", () => {
-  assert.match(read("src/components/app-shell.tsx"), /synnflix-unavailable-panel/)
-  for (const path of ["src/components/synnflix-unavailable-panel.tsx", "src/components/synnime-panel.tsx", "src/components/cineb-panel.tsx"]) {
-    assert.match(read(path), /UnderConstructionPanel/)
-    assert.match(read(path), /reliab|dependable|authorised/i)
-  }
+test("native video catalogues preserve unavailable playback without loading website providers", () => {
+  const shell = read("src/components/app-shell.tsx")
+  const anime = read("src/components/synnime-panel.tsx")
+  const player = read("src/components/media-player.tsx")
+  assert.match(shell, /import\("@\/components\/synnflix-panel"\)/)
+  assert.match(anime, /catalogMode="anime"/)
+  assert.match(player, /Playback unavailable/)
+  assert.match(player, /Under Construction/)
+  assert.doesNotMatch(shell, /provider-web-view/)
 })
 
 test("browser tab keeps the requested Google Classroom favicon", () => {
@@ -181,13 +184,15 @@ test("Games is cloud-only and bundled Stratus cannot be disabled by stale legacy
   const sites = read("stratus/sites.synnical.json")
   assert.doesNotMatch(games, /LocalGameEntry|libraryMode|selectedLocal|\/api\/games\/local/)
   assert.doesNotMatch(games, />Local</)
-  assert.match(games, /const STRATUS_API_KEY = "synnical-cloud-public-v1"/)
+  assert.doesNotMatch(games, /STRATUS_API_KEY|x-api-key/)
+  assert.match(server, /authenticatedServerSession/)
+  assert.match(server, /process\.env\.STRATUS_API_KEY/)
   assert.match(server, /sites\.synnical\.json/)
   assert.doesNotMatch(server, /SYNNICAL_DISABLE_STRATUS/)
   assert.doesNotMatch(server, /configuredStratusSitesPath|STRATUS_SITES_PATH\?\.trim/)
   assert.match(server, /Bundled Stratus did not return an Express app/)
   assert.match(server, /throw e/)
-  assert.match(sites, /"api_key": "synnical-cloud-public-v1"/)
+  assert.equal(JSON.parse(sites).sites.synnical.api_key, "")
   assert.doesNotMatch(env, /GAMES_DIR=/)
   assert.doesNotMatch(env, /STRATUS_ENABLED=|SYNNICAL_DISABLE_STRATUS|STRATUS_SITES_PATH=|STRATUS_PUBLIC_DIR=/)
   assert.match(smoke, /\/api\/games\/cloud\/v1\/health/)

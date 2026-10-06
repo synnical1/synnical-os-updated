@@ -24,3 +24,13 @@ test("new role assignment never creates Owner or Head Admin", () => {
   assert.equal(canAssignRole("OWNER", "OWNER"), false)
   assert.equal(canAssignRole("OWNER", "HEAD_ADMIN"), false)
 })
+
+
+test("legacy Head Admin gets only Admin message/channel permissions", async () => {
+  const { canDeleteMessage } = await import("../src/lib/message-permissions")
+  const { canAccessPublicChannel } = await import("../src/lib/channel-permissions")
+  for (const role of ["OWNER", "ADMIN", "HEAD_ADMIN", "MOD", "MEMBER"] as const) assert.equal(canDeleteMessage("HEAD_ADMIN", "actor", role, "other"), canDeleteMessage("ADMIN", "actor", role, "other"))
+  assert.equal(canDeleteMessage("HEAD_ADMIN", "actor", "OWNER", "other"), false)
+  assert.equal(canAccessPublicChannel('["OWNER"]', "HEAD_ADMIN"), false)
+  assert.equal(canAccessPublicChannel('["ADMIN"]', "HEAD_ADMIN"), true)
+})

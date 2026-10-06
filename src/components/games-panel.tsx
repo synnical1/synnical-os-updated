@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { isSvgClientRuntime } from "@/lib/svg-client"
 import { cn } from "@/lib/utils"
 import { Search, X, ChevronLeft, Wifi, WifiOff, Gamepad2, Clock, Users, Zap, RotateCcw, Volume2, Gauge, FolderPlus, ImagePlus, RefreshCw, Save, Check, Trash2 } from "lucide-react"
 import { useSetting } from "@/lib/settings-runtime"
@@ -99,8 +100,21 @@ async function responseJson<T>(res: Response, stage: string): Promise<T> {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const STRATUS_API_KEY = "synnical-cloud-public-v1"
 const STRATUS_BASE = "/api/games/cloud/v1"
+
+async function cloudEmbedUrl(uuid: string): Promise<string> {
+  const url = new URL(`${STRATUS_BASE}/embed`, window.location.origin)
+  url.searchParams.set("id", uuid)
+  if (isSvgClientRuntime()) {
+    const response = await fetch("/api/proxy/ticket", { method: "POST", credentials: "same-origin", cache: "no-store" })
+    if (!response.ok) throw new GameRequestError("GAME_AUTH_REQUIRED", "Please sign in again to start the cloud player.")
+    const body = await response.json() as { ticket?: unknown }
+    if (typeof body.ticket !== "string") throw new GameRequestError("GAME_AUTH_REQUIRED", "Cloud player authorization could not load.")
+    url.searchParams.set("ticket", body.ticket)
+  }
+  return `${url.pathname}${url.search}`
+}
+
 
 const ALL_TAGS = [
   "Action", "Adventure", "Fighting", "RPG", "Shooting", "Racing",
@@ -284,7 +298,6 @@ async function stratusCreateSession(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": STRATUS_API_KEY,
       },
       body: JSON.stringify({ game_key }),
     })
@@ -354,7 +367,7 @@ async function stratusGetQueue(uuid: string): Promise<QueueResponse> {
   let res: Response
   try {
     res = await fetch(`${STRATUS_BASE}/getQueue?uuid=${uuid}`, {
-      headers: { "x-api-key": STRATUS_API_KEY },
+      credentials: "same-origin",
     })
   } catch (error) {
     throw new GameRequestError("GAME_QUEUE_NETWORK", error instanceof Error ? error.message : "Queue request failed")
@@ -394,7 +407,6 @@ async function stratusStartGame(uuid: string): Promise<void> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": STRATUS_API_KEY,
       },
       body: JSON.stringify({ uuid }),
     })
@@ -413,7 +425,6 @@ async function stratusPingSession(uuid: string): Promise<number> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": STRATUS_API_KEY,
     },
     body: JSON.stringify({ uuid }),
   }).catch(() => {})
@@ -425,7 +436,6 @@ async function stratusQuitSession(uuid: string): Promise<void> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": STRATUS_API_KEY,
     },
     body: JSON.stringify({ uuid }),
   }).catch(() => {})
@@ -887,7 +897,7 @@ export function GamesPanel() {
           pollRef.current = null
           setSessionState({ phase: "waiting_start", uuid })
           if (queue.status !== "active") await stratusStartGame(uuid)
-          setSessionState({ phase: "active", uuid, embedUrl: `${STRATUS_BASE}/embed?id=${uuid}` })
+          setSessionState({ phase: "active", uuid, embedUrl: await cloudEmbedUrl(uuid) })
           pingRef.current = setInterval(() => { void stratusPingSession(uuid).then((latencyMs) => { const id = trackedSessionIdRef.current; if (id) void featureApi.games.action("session-latency", { id, latencyMs }) }) }, 20_000)
           if (gameNotifs && typeof window !== "undefined") {
             window.dispatchEvent(new CustomEvent("synnical-os-notify", { detail: { title: `${selected?.name ?? "Game"} is live`, body: "Your cloud gaming session has started.", panel: "games", priority: "normal" } }))
@@ -963,7 +973,7 @@ export function GamesPanel() {
         setSessionState({
           phase: "active",
           uuid: result.uuid,
-          embedUrl: `${STRATUS_BASE}/embed?id=${result.uuid}`,
+          embedUrl: await cloudEmbedUrl(result.uuid),
         })
         pingRef.current = setInterval(() => { void stratusPingSession(result.uuid).then((latencyMs) => { const id = trackedSessionIdRef.current; if (id) void featureApi.games.action("session-latency", { id, latencyMs }) }) }, 20_000)
         // Show notification if enabled

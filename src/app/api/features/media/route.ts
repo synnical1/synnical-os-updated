@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { isStaffRole } from "@/lib/shop-economy"
+import { validProgress } from "@/lib/media-playback-policy"
+import { consumeRequestLimit } from "@/lib/request-rate-limit"
 import { resolveMediaProfile } from "@/lib/synnflix-profiles-server"
 
 export const dynamic = "force-dynamic"
@@ -71,6 +73,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return fail("Unauthorized", 401)
+  const rate = consumeRequestLimit(req, "media-write", 120, 60_000, me.id)
+  if (!rate.allowed) return NextResponse.json({ error: "Too many media updates" }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } })
   const body = await req.json().catch(() => ({}))
   const action = clean(body.action, 64)
   const profile = await resolveMediaProfile(me, body.profileId)
@@ -108,10 +112,15 @@ export async function POST(req: NextRequest) {
     if (!list) return fail("List not found", 404)
     const season = positive(body.season)
     const episode = positive(body.episode)
-    const existing = await db.mediaListItem.findFirst({ where: { listId: list.id, mediaType, mediaId, season, episode } })
-    if (existing) { await db.mediaListItem.delete({ where: { id: existing.id } }); return NextResponse.json({ active: false, listId: list.id }) }
-    const item = await db.mediaListItem.create({ data: { listId: list.id, mediaType, mediaId, title, poster: clean(body.poster, 500) || null, season, episode } })
-    return NextResponse.json({ active: true, item, listId: list.id })
+    return db.$transaction(async (tx) => {
+      // SQLite serializes writers; acquire the write lock before checking nullable unique keys.
+      await tx.mediaList.update({ where: { id: list!.id }, data: { updatedAt: new Date() } })
+      const where = { listId: list!.id, mediaType, mediaId, season, episode }
+      const existing = await tx.mediaListItem.findFirst({ where })
+      if (existing) { await tx.mediaListItem.deleteMany({ where }); return NextResponse.json({ active: false, listId: list!.id }) }
+      const item = await tx.mediaListItem.create({ data: { ...where, title, poster: clean(body.poster, 500) || null } })
+      return NextResponse.json({ active: true, item, listId: list!.id })
+    })
   }
   if (action === "rate") {
     const mediaType = body.mediaType; const mediaId = clean(body.mediaId, 40); const rating = Math.round(Number(body.rating))
@@ -131,10 +140,14 @@ export async function POST(req: NextRequest) {
     if (body.activePlayback !== undefined && typeof body.activePlayback !== "boolean") return fail("activePlayback must be a boolean")
     const mediaType = body.mediaType; const mediaId = clean(body.mediaId, 40); const title = clean(body.title, 240)
     if (!validType(mediaType) || !mediaId) return fail("Valid media progress required")
-    const season = positive(body.season) || 0; const episode = positive(body.episode) || 0
+    const season = body.season ?? 0; const episode = body.episode ?? 0
     const hasPlaybackUpdate = Object.prototype.hasOwnProperty.call(body, "currentTime") || Object.prototype.hasOwnProperty.call(body, "duration") || body.completed === true
-    const currentTime = Math.max(0, Math.min(86400 * 10, Number(body.currentTime) || 0))
-    const duration = Math.max(0, Math.min(86400 * 10, Number(body.duration) || 0))
+    // Existing title-level rating predictions are metadata, not watched episode progress.
+    const predictionOnly = !hasPlaybackUpdate && typeof body.ratingPrediction === "number" && Number.isInteger(body.ratingPrediction) && body.ratingPrediction >= 1 && body.ratingPrediction <= 10 && season === 0 && episode === 0
+    if (!Number.isSafeInteger(season) || !Number.isSafeInteger(episode) || season < 0 || season > 999 || episode < 0 || episode > 10000 || (mediaType === "movie" && (season !== 0 || episode !== 0)) || (mediaType === "tv" && episode < 1 && !predictionOnly)) return fail("Invalid episode identity")
+    const progress = validProgress(body.currentTime === undefined ? 0 : body.currentTime, body.duration === undefined ? 0 : body.duration)
+    if (!progress || (body.completed !== undefined && typeof body.completed !== "boolean")) return fail("Invalid playback progress")
+    const { currentTime, duration } = progress
     const poster = clean(body.poster, 500) || null
     const backdrop = clean(body.backdrop, 500) || null
     const episodeName = clean(body.episodeName, 240) || null
@@ -144,7 +157,7 @@ export async function POST(req: NextRequest) {
     const row = await db.$transaction(async (tx) => {
     const existing = await tx.mediaProgress.findUnique({ where: key })
     const credibleDuration = Math.max(existing?.duration || 0, duration)
-    const completed = body.completed === true || (credibleDuration > 0 && currentTime >= credibleDuration * 0.92)
+    const completed = credibleDuration > 0 && currentTime >= credibleDuration * 0.92
     const playbackUpdate = hasPlaybackUpdate ? {
       // Durable playback progress is monotonic. A delayed ad/player event is
       // not allowed to rewind the furthest credible point reached.

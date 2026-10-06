@@ -1,3 +1,4 @@
+import { canonicalRole, canModerateTarget } from "./roles"
 export type MessageRole = "OWNER" | "HEAD_ADMIN" | "ADMIN" | "MOD" | "MEMBER"
 
 /**
@@ -12,9 +13,7 @@ export function canDeleteMessage(
   targetUserId: string | null | undefined,
 ): boolean {
   if (targetUserId && actorId === targetUserId) return true
-  if (actorRole === "OWNER" || actorRole === "HEAD_ADMIN") return true
+  if (canonicalRole(actorRole) === "OWNER") return true
   if (!targetUserId || !targetRole) return false
-  if (actorRole === "ADMIN") return targetRole === "MOD" || targetRole === "MEMBER"
-  if (actorRole === "MOD") return targetRole === "MEMBER"
-  return false
+  return canModerateTarget(actorRole, targetRole)
 }

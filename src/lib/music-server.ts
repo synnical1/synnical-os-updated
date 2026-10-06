@@ -1,4 +1,5 @@
 import "server-only"
+import { allowedMusicStreamUrl } from "./music-stream-policy"
 
 import type { MusicProvider, MusicProviderStatus, MusicTrack } from "@/lib/music-types"
 
@@ -255,16 +256,25 @@ export async function bridgeAudioSource(provider: "piped" | "invidious", id: str
 }
 
 export async function proxyExternalAudio(url: string, range: string | null): Promise<Response> {
-  const parsed = new URL(url)
-  if (!(parsed.protocol === "https:" || (parsed.protocol === "http:" && ["127.0.0.1", "localhost", "::1", "[::1]"].includes(parsed.hostname)))) {
-    throw new MusicUpstreamError("Unsafe audio stream URL", 502)
-  }
+  const approved = allowedMusicStreamUrl(url)
+  if (!approved) throw new MusicUpstreamError("Audio source origin is not approved", 502)
+  let parsed: URL = approved
   const headers = new Headers({ Accept: "audio/*,*/*;q=0.8" })
   if (range) headers.set("Range", range.slice(0, 200))
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15_000)
   try {
-    const response = await fetch(parsed, { headers, redirect: "follow", signal: controller.signal, cache: "no-store" })
+    let response: Response | undefined
+    for (let redirects = 0; redirects <= 3; redirects++) {
+      response = await fetch(parsed, { headers, redirect: "manual", signal: controller.signal, cache: "no-store" })
+      if (![301, 302, 303, 307, 308].includes(response.status)) break
+      const location = response.headers.get("location")
+      await response.body?.cancel()
+      const next = location && allowedMusicStreamUrl(new URL(location, parsed).toString())
+      if (!next || redirects === 3) throw new MusicUpstreamError("Audio source redirect is not approved", 502)
+      parsed = next
+    }
+    if (!response) throw new MusicUpstreamError("Audio source is unavailable", 502)
     if (!response.ok && response.status !== 206) throw new MusicUpstreamError(`Audio source returned HTTP ${response.status}`, 502)
     return response
   } catch (error) {

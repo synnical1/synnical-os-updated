@@ -17,8 +17,8 @@ test("game focus cannot hide Synnical chrome outside Games", () => {
 
 test("SynnFlix player URL is stable while timeupdate progress is saved", () => {
   const source = read("src/components/synnflix-panel.tsx")
-  assert.match(source, /const playerUrl = useMemo\(/)
-  assert.match(source, /key=\{`\$\{playerRevision\}:\$\{playerUrl\}`\}/)
+  assert.match(source, /const playbackIdentity = useMemo\(/)
+  assert.match(source, /key=\{`\$\{playerRevision\}:\$\{playbackIdentity\}`\}/)
   assert.doesNotMatch(source, /if \(player\) \{\s*const playerUrl = buildPlayerUrl/)
   assert.match(source, /Copy invite/)
   assert.match(source, /Paste the watch party invite code/)
@@ -72,8 +72,8 @@ test("normal UI avoids raw proxy timeout codes and unexplained watch-party ids",
 
 test("staff credit adjustments exist, obey hierarchy, and are audited", () => {
   const route = read("src/app/api/moderation/credits/route.ts")
-  assert.match(route, /rank\[actor\.role\]/)
-  assert.match(route, /rank\[target\.role\]/)
+  assert.match(route, /isStaffRole\(actor\.role\)/)
+  assert.match(route, /canModerateTarget\(actor\.role, target\.role\)/)
   assert.match(route, /type: "STAFF_ADJUSTMENT"/)
   assert.match(route, /creditAudit\.create/)
   const panel = read("src/components/staff-accounts-panel.tsx")
@@ -84,7 +84,7 @@ test("staff credit adjustments exist, obey hierarchy, and are audited", () => {
 
 test("watch parties never steal the provider play button", () => {
   const source = read("src/components/synnflix-panel.tsx")
-  assert.match(source, /buildPlayerUrl\(player, activeProfile\.id, \{ progress: syncedProgress, autoplay: true \}\)/)
+  assert.match(source, /startSeconds=\{syncedProgress/); assert.match(source, /onPlaybackEvent=\{handlePlaybackEvent\}/)
   assert.doesNotMatch(source, /\[player, syncedProgress, partyHeld\]/)
   assert.doesNotMatch(source, /partyHeld \? <div className="grid h-\[600px\]/)
   assert.match(source, /Sync to host/)
@@ -1040,7 +1040,7 @@ test("r11.4 chat quote, inline polls and hot-row callbacks are wired for real ch
   assert.match(chat, /onFeatureTools=\{openMessageTools\}/)
   assert.match(chat, /onToggleSaved=\{toggleSavedMessage\}/)
   assert.match(chat, /contentVisibility: "auto"/)
-  assert.match(chat, /window\.setTimeout\(\(\) => \{[\s\S]*localStorage\.setItem\(`synnical-chat-messages:\$\{activeChannel\}`, JSON\.stringify\(snapshot\)\)[\s\S]*\}, 1_800\)/)
+  assert.match(chat, /window\.setTimeout\(\(\) => \{[\s\S]*localStorage\.setItem\(chatHistoryCacheKey\(user.id, activeChannel\), JSON\.stringify\(snapshot\)\)[\s\S]*\}, 1_800\)/)
   assert.match(chat, /const renderedMessageRows = useMemo/)
 })
 

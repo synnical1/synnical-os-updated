@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { consumeRequestLimit } from "@/lib/request-rate-limit"
-import { getSynnFlixSeason, SynnFlixUpstreamError } from "@/lib/synnflix-tmdb"
+import { tmdbMetadataProvider, SynnFlixUpstreamError } from "@/lib/synnflix-tmdb"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -21,11 +21,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    return NextResponse.json({ season: await getSynnFlixSeason(id, season) }, {
+    return NextResponse.json({ season: await tmdbMetadataProvider.season(id, season) }, {
       headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=900" },
     })
   } catch (error) {
-    if (error instanceof SynnFlixUpstreamError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof SynnFlixUpstreamError) return NextResponse.json({ error: error.message }, { status: error.status, headers: error.retryAfterSeconds ? { "Retry-After": String(error.retryAfterSeconds) } : {} })
     console.error("[synnflix/season] failed", error)
     return NextResponse.json({ error: "SynnFlix could not load that season" }, { status: 500 })
   }

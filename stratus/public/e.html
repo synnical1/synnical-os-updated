@@ -547,7 +547,7 @@
         (async () => {
             const params = new URLSearchParams(location.search);
             const id     = params.get('id') || document.documentElement.dataset.synnicalSessionId;
-            const host   = params.get('host');
+            const ticket = params.get('ticket');
             if (!id) {
                 endedOverlay.querySelector("span").textContent = "[GAME_EMBED_MISSING_ID] Session id was not provided";
                 endedOverlay.classList.add("visible");
@@ -555,11 +555,11 @@
                 return;
             }
             try {
-                const res  = await fetch(`/api/games/cloud/v1/embed-data?id=${encodeURIComponent(id)}`);
+                const query = new URLSearchParams({ id });
+                if (ticket) query.set("ticket", ticket);
+                const res = await fetch(`/api/games/cloud/v1/embed-data?${query}`, { credentials: "same-origin", cache: "no-store" });
                 const data = await res.json().catch(() => ({}));
-                if (host && data.signaling_ws) {
-                    data.signaling_ws = data.signaling_ws.replace(/wss?:\/\/[^/]+/, `wss://${host}`);
-                }
+
                 if (!res.ok) {
                     const code = data.code || `GAME_EMBED_HTTP_${res.status}`;
                     endedOverlay.querySelector("span").textContent = `[${code}] ${data.error || "Session unavailable"}`;
@@ -567,7 +567,10 @@
                     hideConnecting();
                     return;
                 }
-                await setupWebRTC(data.ice_servers, data.signaling_ws);
+                const signalUrl = new URL(`/api/games/cloud/v1/signal/${encodeURIComponent(id)}`, location.origin);
+                signalUrl.protocol = location.protocol === "https:" ? "wss:" : "ws:";
+                if (ticket) signalUrl.searchParams.set("ticket", ticket);
+                await setupWebRTC(data.ice_servers, signalUrl.toString());
             } catch (e) {
                 const detail = e && e.message ? e.message : String(e || "Unknown error");
                 endedOverlay.querySelector("span").textContent = `[GAME_EMBED_CONNECTION_FAILED] ${detail}`;

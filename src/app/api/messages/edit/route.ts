@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { messageEditDenied } from "@/lib/message-edit-policy"
+import { consumeRequestLimit } from "@/lib/request-rate-limit"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { moderateTextContent } from "@/lib/content-moderation"
@@ -9,7 +11,9 @@ import { enforceRejectedModeration, moderationHttpStatus, moderationPublicError 
 export async function PATCH(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const { id, content } = await req.json()
+  const rate = consumeRequestLimit(req, "message-edit", 30, 60_000, me.id)
+  if (!rate.allowed) return NextResponse.json({ error: "Too many edits" }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } })
+  const { id, content } = await req.json().catch(() => ({}))
   if (typeof id !== "string" || typeof content !== "string") {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 })
   }
@@ -19,10 +23,13 @@ export async function PATCH(req: NextRequest) {
   }
 
   const msg = await db.message.findUnique({ where: { id } })
-  if (!msg) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (!msg || msg.deleted) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (msg.userId !== me.id) {
     return NextResponse.json({ error: "Can only edit your own messages" }, { status: 403 })
   }
+
+  const denied = await messageEditDenied(me, msg.channelId)
+  if (denied) return NextResponse.json({ error: denied }, { status: 403 })
 
   const recent = await db.message.findMany({
     where: { channelId: msg.channelId, deleted: false },
@@ -37,10 +44,12 @@ export async function PATCH(req: NextRequest) {
   }
 
   const editedAt = new Date()
-  await db.messageEditHistory.create({ data: { messageId: id, editorId: me.id, oldContent: msg.content, newContent: text, editedAt } })
-  const updated = await db.message.update({
-    where: { id },
-    data: { content: text, edited: true, editedAt },
+  const updated = await db.$transaction(async (tx) => {
+    const current = await tx.message.findUnique({ where: { id } })
+    if (!current || current.deleted || current.userId !== me.id) return null
+    await tx.messageEditHistory.create({ data: { messageId: id, editorId: me.id, oldContent: current.content, newContent: text, editedAt } })
+    return tx.message.update({ where: { id }, data: { content: text, edited: true, editedAt } })
   })
+  if (!updated) return NextResponse.json({ error: "Message no longer available" }, { status: 409 })
   return NextResponse.json({ ok: true, message: updated })
 }

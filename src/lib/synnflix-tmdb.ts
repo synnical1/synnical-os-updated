@@ -1,4 +1,6 @@
 import "server-only"
+import { createHash } from "node:crypto"
+import type { MediaMetadataProvider, MediaSearchPage } from "./media-provider-types"
 
 import type {
   SynnFlixDetails,
@@ -15,7 +17,7 @@ const TMDB_API_KEY_PATTERN = /^[a-f0-9]{32}$/i
 const TMDB_TOKEN_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 
 export class SynnFlixUpstreamError extends Error {
-  constructor(message: string, readonly status = 502) {
+  constructor(message: string, readonly status = 502, readonly retryAfterSeconds?: number) {
     super(message)
     this.name = "SynnFlixUpstreamError"
   }
@@ -56,7 +58,7 @@ function safeArray(value: unknown): unknown[] {
 }
 
 function tmdbAuth(): { token: string | null; apiKey: string | null } {
-  const token = process.env.TMDB_API_READ_TOKEN?.trim() || ""
+  const token = process.env.TMDB_READ_TOKEN?.trim() || process.env.TMDB_API_READ_TOKEN?.trim() || ""
   const apiKey = process.env.TMDB_API_KEY?.trim() || ""
 
   if (token && TMDB_TOKEN_PATTERN.test(token)) return { token, apiKey: null }
@@ -65,46 +67,59 @@ function tmdbAuth(): { token: string | null; apiKey: string | null } {
   throw new SynnFlixUpstreamError("SynnFlix is not configured with valid TMDB credentials", 503)
 }
 
+const cache = new Map<string, { expiresAt: number; payload: JsonObject }>()
+const inFlight = new Map<string, Promise<JsonObject>>()
+let retryAt = 0
+
 async function tmdbFetch(pathname: string, params: Record<string, string | number | boolean | undefined> = {}): Promise<JsonObject> {
   const auth = tmdbAuth()
   const url = new URL(`${TMDB_BASE_URL}${pathname}`)
-
-  for (const [key, raw] of Object.entries(params)) {
-    if (raw === undefined) continue
-    url.searchParams.set(key, String(raw))
-  }
+  for (const [key, raw] of Object.entries(params)) if (raw !== undefined) url.searchParams.set(key, String(raw))
+  const credentialScope = createHash("sha256").update(auth.token || auth.apiKey || "").digest("hex")
+  const key = `${credentialScope}:${url.pathname}:${url.search}`
+  const hit = cache.get(key)
+  if (hit && hit.expiresAt > Date.now()) return hit.payload
+  if (Date.now() < retryAt) throw new SynnFlixUpstreamError("TMDB is rate-limiting requests. Try again shortly.", 503, Math.ceil((retryAt - Date.now()) / 1000))
+  const pending = inFlight.get(key)
+  if (pending) return pending
+  if (inFlight.size >= 32) throw new SynnFlixUpstreamError("The catalogue is busy. Try again shortly.", 503, 2)
   if (auth.apiKey) url.searchParams.set("api_key", auth.apiKey)
+  const task = (async () => {
+    let response: Response
+    try {
+      response = await fetch(url, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(12_000), headers: { Accept: "application/json", ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}) } })
+    } catch {
+      // Never log exception URLs: query authentication may be present.
+      throw new SynnFlixUpstreamError("TMDB is temporarily unreachable", 502)
+    }
+    if (response.status === 401 || response.status === 403) throw new SynnFlixUpstreamError("TMDB rejected the configured credentials", 503)
+    if (response.status === 404) throw new SynnFlixUpstreamError("That title was not found", 404)
+    if (response.status === 429) {
+      const retry = response.headers.get("retry-after")
+      const seconds = /^\d+$/.test(retry || "") ? Number(retry) : retry ? (Date.parse(retry) - Date.now()) / 1000 : 30
+      const wait = Number.isFinite(seconds) ? Math.max(1, Math.min(300, Math.ceil(seconds))) : 30
+      retryAt = Date.now() + wait * 1000
+      throw new SynnFlixUpstreamError("TMDB is rate-limiting requests. Try again shortly.", 503, wait)
+    }
+    if (!response.ok) throw new SynnFlixUpstreamError("TMDB could not provide that content", 502)
+    let payload: JsonObject
+    try {
+      const parsed: unknown = await response.json()
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid payload")
+      payload = parsed as JsonObject
+    } catch { throw new SynnFlixUpstreamError("TMDB returned an invalid response", 502) }
+    cache.delete(key)
+    cache.set(key, { expiresAt: Date.now() + 5 * 60_000, payload })
+    while (cache.size > 256) cache.delete(cache.keys().next().value!)
+    return payload
+  })()
+  inFlight.set(key, task)
+  try { return await task } finally { inFlight.delete(key) }
+}
 
-  let response: Response
-  try {
-    response = await fetch(url, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(12_000),
-      headers: {
-        Accept: "application/json",
-        ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-      },
-    })
-  } catch (error) {
-    console.error("[synnflix/tmdb] request failed", error instanceof Error ? error.message : error)
-    throw new SynnFlixUpstreamError("TMDB is temporarily unreachable", 502)
-  }
-
-  const payload = object(await response.json().catch(() => ({})))
-  if (response.ok) return payload
-
-  const upstreamMessage = stringValue(payload.status_message)
-  if (response.status === 401 || response.status === 403) {
-    throw new SynnFlixUpstreamError("TMDB rejected the configured SynnFlix credentials", 503)
-  }
-  if (response.status === 404) {
-    throw new SynnFlixUpstreamError("That title was not found", 404)
-  }
-  if (response.status === 429) {
-    throw new SynnFlixUpstreamError("TMDB is rate-limiting SynnFlix. Try again shortly.", 503)
-  }
-  console.error("[synnflix/tmdb] upstream error", response.status, upstreamMessage || "unknown")
-  throw new SynnFlixUpstreamError("TMDB could not provide that content", 502)
+function safePage(page = 1): number {
+  if (!Number.isSafeInteger(page) || page < 1 || page > 500) throw new SynnFlixUpstreamError("Invalid catalogue page", 400)
+  return page
 }
 
 function mediaTypeFromRaw(raw: JsonObject, fallback?: SynnFlixMediaType): SynnFlixMediaType | null {
@@ -207,9 +222,10 @@ function mergeLists(...lists: SynnFlixMediaItem[][]): SynnFlixMediaItem[] {
     .slice(0, 20)
 }
 
-export async function getSynnFlixHome(options: { animeOnly?: boolean } = {}): Promise<SynnFlixHomeData> {
+export async function getSynnFlixHome(options: { animeOnly?: boolean; page?: number } = {}): Promise<SynnFlixHomeData> {
+  const page = safePage(options.page)
   if (options.animeOnly) {
-    const common = { include_adult: false, language: "en-US", page: 1, with_genres: 16, with_original_language: "ja", "vote_count.gte": 80 }
+    const common = { include_adult: false, language: "en-US", page, with_genres: 16, with_original_language: "ja", "vote_count.gte": 80 }
     const [popularMovies, popularTv, topRatedMovies, topRatedTv] = await Promise.all([
       tmdbFetch("/discover/movie", { ...common, sort_by: "popularity.desc" }),
       tmdbFetch("/discover/tv", { ...common, sort_by: "popularity.desc" }),
@@ -228,11 +244,11 @@ export async function getSynnFlixHome(options: { animeOnly?: boolean } = {}): Pr
   }
 
   const [trending, popularMovies, popularTv, topRatedMovies, topRatedTv] = await Promise.all([
-    tmdbFetch("/trending/all/week", { language: "en-US" }),
-    tmdbFetch("/movie/popular", { language: "en-US", page: 1 }),
-    tmdbFetch("/tv/popular", { language: "en-US", page: 1 }),
-    tmdbFetch("/movie/top_rated", { language: "en-US", page: 1 }),
-    tmdbFetch("/tv/top_rated", { language: "en-US", page: 1 }),
+    tmdbFetch("/trending/all/week", { language: "en-US", page }),
+    tmdbFetch("/movie/popular", { language: "en-US", page }),
+    tmdbFetch("/tv/popular", { language: "en-US", page }),
+    tmdbFetch("/movie/top_rated", { language: "en-US", page }),
+    tmdbFetch("/tv/top_rated", { language: "en-US", page }),
   ])
 
   return {
@@ -244,14 +260,13 @@ export async function getSynnFlixHome(options: { animeOnly?: boolean } = {}): Pr
   }
 }
 
-export async function searchSynnFlix(query: string, options: { animeOnly?: boolean } = {}): Promise<SynnFlixMediaItem[]> {
-  const payload = await tmdbFetch("/search/multi", {
-    query,
-    include_adult: false,
-    language: "en-US",
-    page: 1,
-  })
-  return options.animeOnly ? normalizeAnimeList(payload) : normalizeList(payload)
+export async function searchSynnFlixPage(query: string, options: { animeOnly?: boolean; page?: number } = {}): Promise<MediaSearchPage> {
+  const page = safePage(options.page)
+  const payload = await tmdbFetch("/search/multi", { query, include_adult: false, language: "en-US", page })
+  return { results: options.animeOnly ? normalizeAnimeList(payload) : normalizeList(payload), page, totalPages: Math.min(500, Math.max(0, integer(payload.total_pages))) }
+}
+export async function searchSynnFlix(query: string, options: { animeOnly?: boolean; page?: number } = {}): Promise<SynnFlixMediaItem[]> {
+  return (await searchSynnFlixPage(query, options)).results
 }
 
 function normalizeSeasonSummary(value: unknown): SynnFlixSeasonSummary | null {
@@ -271,7 +286,8 @@ function normalizeSeasonSummary(value: unknown): SynnFlixSeasonSummary | null {
 }
 
 export async function getSynnFlixDetails(mediaType: SynnFlixMediaType, id: number): Promise<SynnFlixDetails> {
-  const payload = await tmdbFetch(`/${mediaType}/${id}`, { language: "en-US" })
+  if ((mediaType !== "movie" && mediaType !== "tv") || !Number.isSafeInteger(id) || id < 1) throw new SynnFlixUpstreamError("Invalid title", 400)
+  const payload = await tmdbFetch(`/${mediaType}/${id}`, { language: "en-US", append_to_response: "credits,recommendations,similar,alternative_titles" })
   const base = normalizeMedia(payload, mediaType)
   if (!base) throw new SynnFlixUpstreamError("That title was not found", 404)
 
@@ -290,6 +306,11 @@ export async function getSynnFlixDetails(mediaType: SynnFlixMediaType, id: numbe
 
   return {
     ...base,
+    cast: safeArray(object(payload.credits).cast).slice(0, 12).map(value => { const row = object(value); return { id: integer(row.id), name: stringValue(row.name), character: stringValue(row.character), profilePath: nullableString(row.profile_path) } }).filter(row => row.id > 0 && row.name),
+    recommendations: normalizeList(object(payload.recommendations), mediaType),
+    similar: normalizeList(object(payload.similar), mediaType),
+    studios: safeArray(payload.production_companies).map(value => stringValue(object(value).name)).filter(Boolean).slice(0, 8),
+    alternativeTitles: safeArray(object(payload.alternative_titles).titles ?? object(payload.alternative_titles).results).map(value => stringValue(object(value).title)).filter(Boolean).slice(0, 12),
     tagline: stringValue(payload.tagline).trim(),
     genres,
     status: nullableString(payload.status),
@@ -320,6 +341,7 @@ function normalizeEpisode(value: unknown): SynnFlixEpisode | null {
 }
 
 export async function getSynnFlixSeason(seriesId: number, seasonNumber: number): Promise<SynnFlixSeasonDetails> {
+  if (!Number.isSafeInteger(seriesId) || seriesId < 1 || !Number.isSafeInteger(seasonNumber) || seasonNumber < 0 || seasonNumber > 999) throw new SynnFlixUpstreamError("Invalid season", 400)
   const payload = await tmdbFetch(`/tv/${seriesId}/season/${seasonNumber}`, { language: "en-US" })
   const id = integer(payload.id)
   if (id <= 0) throw new SynnFlixUpstreamError("That season was not found", 404)
@@ -336,3 +358,5 @@ export async function getSynnFlixSeason(seriesId: number, seasonNumber: number):
       .filter((value): value is SynnFlixEpisode => Boolean(value)),
   }
 }
+
+export const tmdbMetadataProvider: MediaMetadataProvider = { id: "tmdb", home: getSynnFlixHome, search: searchSynnFlixPage, details: getSynnFlixDetails, season: getSynnFlixSeason }

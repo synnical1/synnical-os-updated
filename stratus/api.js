@@ -1056,6 +1056,8 @@ function createStratusApp(options = {}) {
   // Load sites.json — required. Tolerates JSONC-style // comments so users
   // can annotate the file.
   sites = loadSitesConfig(sitesPath);
+  if (options.apiKey !== undefined && sites.sites.synnical) sites.sites.synnical.api_key = options.apiKey;
+  const ownsSession = (req, session) => !options.requireUserIdentity || (typeof req.headers["x-synnical-user-id"] === "string" && session.user_id === req.headers["x-synnical-user-id"]);
 
   const app = express();
 
@@ -1088,6 +1090,7 @@ function createStratusApp(options = {}) {
     }
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("Content-Security-Policy", "frame-ancestors 'self'");
     res.sendFile(path.join(publicDir, "e.html"));
   });
@@ -1102,6 +1105,7 @@ function createStratusApp(options = {}) {
     const session = sessions.get(id);
     if (!session)
       return res.status(404).json({ code: "GAME_SESSION_NOT_FOUND", error: "Session not found or expired." });
+    if (!ownsSession(req, session)) return res.status(404).json({ error: "Session not found." });
     if (session.state !== "active")
       return res.status(409).json({ code: "GAME_SESSION_NOT_ACTIVE", error: `Session is '${session.state}', not active.` });
     res.json({
@@ -1137,6 +1141,7 @@ function createStratusApp(options = {}) {
       return res.status(400).json({ error: "Invalid game_key." });
     }
 
+    if (options.requireUserIdentity && typeof req.headers["x-synnical-user-id"] !== "string") return res.status(401).json({ error: "Unauthorized" });
     const { site, apiKey } = req;
 
     if (countActiveSessions(apiKey) >= site.max_concurrent_sessions) {
@@ -1171,6 +1176,7 @@ function createStratusApp(options = {}) {
     const session = {
       uuid,
       api_key: apiKey,
+      user_id: options.requireUserIdentity ? req.headers["x-synnical-user-id"] : undefined,
       state: "creating",
       game_key,
       sn: "",
@@ -1286,7 +1292,7 @@ function createStratusApp(options = {}) {
     const session = sessions.get(uuid);
     if (!session)
       return res.status(404).json({ code: "GAME_SESSION_NOT_FOUND", error: "Session not found or expired." });
-    if (session.api_key !== req.apiKey)
+    if (session.api_key !== req.apiKey || !ownsSession(req, session))
       return res.status(403).json({ error: "Forbidden." });
 
     // Queue requests can race the transition performed by startGame. Treat an
@@ -1463,7 +1469,7 @@ function createStratusApp(options = {}) {
     const session = sessions.get(uuid);
     if (!session)
       return res.status(404).json({ code: "GAME_SESSION_NOT_FOUND", error: "Session not found or expired." });
-    if (session.api_key !== req.apiKey)
+    if (session.api_key !== req.apiKey || !ownsSession(req, session))
       return res.status(403).json({ error: "Forbidden." });
     if (session.state === "active") {
       // Idempotent success: a duplicate transition request can happen when a
@@ -1539,7 +1545,7 @@ function createStratusApp(options = {}) {
     const session = sessions.get(uuid);
     if (!session)
       return res.status(404).json({ error: "Session not found or expired." });
-    if (session.api_key !== req.apiKey)
+    if (session.api_key !== req.apiKey || !ownsSession(req, session))
       return res.status(403).json({ error: "Forbidden." });
     if (session.state !== "active")
       return res.status(400).json({ error: "Session is not active." });
@@ -1577,7 +1583,7 @@ function createStratusApp(options = {}) {
     const session = sessions.get(uuid);
     if (!session)
       return res.status(404).json({ error: "Session not found or expired." });
-    if (session.api_key !== req.apiKey)
+    if (session.api_key !== req.apiKey || !ownsSession(req, session))
       return res.status(403).json({ error: "Forbidden." });
 
     logApi(
@@ -1623,12 +1629,12 @@ function createStratusApp(options = {}) {
      * false otherwise (so synnical can hand it to Socket.IO or destroy it).
      */
     handleUpgrade(req, socket, head) {
-      const url = req.url || "";
+      const url = new URL(req.url || "/", "http://localhost").pathname;
       const m = url.match(signalPathRegex);
       if (!m) return false;
       const uuid = m[1];
       const session = sessions.get(uuid);
-      if (!session || session.state !== "active") {
+      if (!session || session.state !== "active" || !ownsSession(req, session)) {
         socket.destroy();
         return true;
       }

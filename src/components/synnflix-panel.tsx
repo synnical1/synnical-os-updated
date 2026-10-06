@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowLeft,
   Bookmark,
@@ -36,6 +36,8 @@ import type {
   SynnFlixMediaType,
   SynnFlixSeasonDetails,
 } from "@/lib/synnflix-types"
+import { MediaPlayer } from "@/components/media-player"
+import type { NativePlaybackEvent } from "@/lib/media-provider-types"
 import { featureApi } from "@/lib/feature-api"
 import { io, type Socket } from "socket.io-client"
 import { toast } from "sonner"
@@ -50,8 +52,6 @@ import {
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 const TMDB_LOGO = "https://www.themoviedb.org/assets/2/v4/logos/v2/blue_square_2-d537fb228cf3ded904ef09b136fe3fec72548ebc1fea3fbbd1ad9e36364db38b.svg"
-const VIDKING_ORIGIN = "https://www.vidking.net"
-const PLAYER_COLOR = "ffffff"
 const RESUME_REWIND_SECONDS = 10
 
 type LibraryView = "home" | "movies" | "tv"
@@ -62,19 +62,6 @@ type PlayerState = {
   season: number | null
   episode: number | null
   episodeName: string | null
-}
-
-type PlayerEventData = {
-  event?: unknown
-  currentTime?: unknown
-  duration?: unknown
-  progress?: unknown
-  id?: unknown
-  mediaType?: unknown
-  type?: unknown
-  season?: unknown
-  episode?: unknown
-  timestamp?: unknown
 }
 
 type MediaProgressRow = {
@@ -90,97 +77,6 @@ type MediaProgressRow = {
   duration?: number | null
   completed?: boolean | null
   updatedAt?: string | null
-}
-
-function vidkingEventData(message: unknown): PlayerEventData | null {
-  let parsed = message
-  if (typeof parsed === "string") {
-    try { parsed = JSON.parse(parsed) } catch { return null }
-  }
-  if (!parsed || typeof parsed !== "object") return null
-
-  const candidate = parsed as { type?: unknown; payload?: unknown; data?: unknown; event?: unknown }
-  const envelope = candidate.type === "SYNNFLIX_PLAYER_EVENT" && candidate.payload && typeof candidate.payload === "object"
-    ? candidate.payload as { type?: unknown; data?: unknown }
-    : candidate
-  if (envelope.type === "PLAYER_EVENT" && envelope.data && typeof envelope.data === "object") {
-    return envelope.data as PlayerEventData
-  }
-
-  // Vidking's field list also describes the event fields directly. Supporting
-  // that documented form keeps progress working across player revisions. The
-  // active media identity and event schema are validated before it is accepted.
-  return "event" in candidate ? candidate as PlayerEventData : null
-}
-
-
-function VidkingPlayerFrame({
-  src,
-  title,
-  playerFrameRef,
-}: {
-  src: string
-  title: string
-  playerFrameRef: MutableRefObject<HTMLIFrameElement | null>
-}) {
-  const hostRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const host = hostRef.current
-    if (!host) return
-
-    const providerUrl = new URL(src)
-    if (providerUrl.origin !== VIDKING_ORIGIN || !providerUrl.pathname.startsWith("/embed/")) return
-
-    const match = providerUrl.pathname.match(/^\/embed\/(movie|tv)\/(\d+)(?:\/(\d+)\/(\d+))?$/)
-    if (!match) return
-
-    const iframe = document.createElement("iframe")
-    iframe.className = "block h-full min-h-[420px] w-full border-0 bg-black"
-    iframe.title = title
-    iframe.width = "100%"
-    iframe.height = "100%"
-    iframe.loading = "eager"
-    ;(iframe as HTMLIFrameElement & { fetchPriority?: string }).fetchPriority = "high"
-    iframe.setAttribute("frameborder", "0")
-    iframe.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media"
-    iframe.allowFullscreen = true
-    iframe.setAttribute("allowfullscreen", "")
-    iframe.referrerPolicy = "strict-origin-when-cross-origin"
-
-    const forcePlaybackIntent = () => {
-      try { iframe.focus({ preventScroll: true }) } catch { try { iframe.focus() } catch {} }
-      const target = iframe.contentWindow
-      if (!target) return
-      for (const message of [
-        { type: "PLAYER_COMMAND", command: "play" },
-        { type: "SYNNFLIX_PLAYER_COMMAND", command: "play" },
-        { event: "play" },
-      ]) {
-        try { target.postMessage(message, VIDKING_ORIGIN) } catch {}
-      }
-    }
-
-    iframe.src = providerUrl.toString()
-    playerFrameRef.current = iframe
-    host.replaceChildren(iframe)
-    iframe.addEventListener("load", forcePlaybackIntent)
-    const forceTimers = [
-      window.setTimeout(forcePlaybackIntent, 150),
-      window.setTimeout(forcePlaybackIntent, 650),
-      window.setTimeout(forcePlaybackIntent, 1_500),
-    ]
-
-    return () => {
-      iframe.removeEventListener("load", forcePlaybackIntent)
-      forceTimers.forEach((timer) => window.clearTimeout(timer))
-      if (playerFrameRef.current === iframe) playerFrameRef.current = null
-      try { iframe.src = "about:blank" } catch {}
-      iframe.remove()
-    }
-  }, [playerFrameRef, src, title])
-
-  return <div ref={hostRef} className="h-full min-h-[420px] w-full bg-black" />
 }
 
 function imageUrl(path: string | null | undefined, size: "w342" | "w500" | "w780" | "w1280" = "w500"): string | null {
@@ -269,32 +165,9 @@ function progressMedia(row: MediaProgressRow): SynnFlixMediaItem {
   }
 }
 
-function buildPlayerUrl(player: PlayerState, profileId: string, options?: { progress?: number; autoplay?: boolean }): string {
-  const savedProgress = typeof window === "undefined" ? 0 : readProgress(player, profileId)
-  const progress = Number.isFinite(options?.progress) ? Math.max(0, Math.floor(Number(options?.progress))) : savedProgress
-  const shouldAutoplay = options?.autoplay !== false
-  const params = new URLSearchParams({
-    color: PLAYER_COLOR,
-    autoPlay: String(shouldAutoplay),
-    autoplay: String(shouldAutoplay),
-    autoStart: String(shouldAutoplay),
-    autostart: String(shouldAutoplay),
-  })
-  if (shouldAutoplay) params.set("play", "true")
-  if (progress > 0) params.set("progress", String(progress))
-
-  if (player.media.mediaType === "movie") {
-    return `${VIDKING_ORIGIN}/embed/movie/${player.media.id}?${params.toString()}`
-  }
-
-  params.set("nextEpisode", "true")
-  params.set("episodeSelector", "true")
-  return `${VIDKING_ORIGIN}/embed/tv/${player.media.id}/${player.season || 1}/${player.episode || 1}?${params.toString()}`
-}
-
 function ProfileAvatar({ profile, className = "h-20 w-20" }: { profile: SynnFlixProfile; className?: string }) {
   if (profile.avatarUrl) {
-    return <img src={profile.avatarUrl} alt="" className={`${className} rounded-full object-cover ring-2 ring-white/15`} />
+    return <MediaImage src={profile.avatarUrl} alt="" className={`${className} rounded-full object-cover ring-2 ring-white/15`} />
   }
   const avatar = synnFlixAvatar(profile.avatarKey)
   return (
@@ -310,8 +183,8 @@ function ProfileAvatar({ profile, className = "h-20 w-20" }: { profile: SynnFlix
   )
 }
 
-async function apiJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store", credentials: "same-origin" })
+async function apiJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(url, { cache: "no-store", credentials: "same-origin", signal })
   const data = await response.json().catch(() => ({})) as { error?: unknown }
   if (!response.ok) {
     throw new Error(typeof data.error === "string" && data.error ? data.error : "SynnFlix request failed")
@@ -329,6 +202,12 @@ function dedupe(items: SynnFlixMediaItem[]): SynnFlixMediaItem[] {
   })
 }
 
+function MediaImage(props: React.ImgHTMLAttributes<HTMLImageElement>) {
+  const [failed, setFailed] = useState(false)
+  useEffect(() => setFailed(false), [props.src])
+  return failed || !props.src ? <span role="img" aria-label="Image unavailable" className={`${props.className || ""} grid min-h-12 place-items-center bg-black text-xs text-white/45`}>Image unavailable</span> : <img {...props} alt={props.alt ?? ""} onError={() => setFailed(true)} />
+}
+
 function MediaCard({ item, onSelect }: { item: SynnFlixMediaItem; onSelect: (item: SynnFlixMediaItem) => void }) {
   const poster = imageUrl(item.posterPath, "w342")
   return (
@@ -338,11 +217,11 @@ function MediaCard({ item, onSelect }: { item: SynnFlixMediaItem; onSelect: (ite
       className="group w-[145px] shrink-0 text-left sm:w-[160px]"
       aria-label={`Open ${item.title}`}
     >
-      <span className="relative block aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-[#090909] shadow-lg shadow-black/30 transition duration-200 group-hover:-translate-y-1 group-hover:border-white/35">
+      <span className="relative block aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-black shadow-lg shadow-black/30 transition duration-200 group-hover:-translate-y-1 group-hover:border-white/35">
         {poster ? (
-          <img src={poster} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+          <MediaImage src={poster} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
         ) : (
-          <span className="grid h-full w-full place-items-center bg-[#0b0b0b] text-white/25">
+          <span className="grid h-full w-full place-items-center bg-black text-white/25">
             {item.mediaType === "movie" ? <Film className="h-8 w-8" /> : <Tv className="h-8 w-8" />}
           </span>
         )}
@@ -403,8 +282,8 @@ function ContinueWatchingRail({
           return (
             <article key={identity} className="group relative w-[190px] shrink-0 sm:w-[220px]">
               <button type="button" onClick={() => onResume(row)} className="block w-full text-left" aria-label={`Resume ${row.title}`}>
-                <span className="relative block aspect-video overflow-hidden rounded-xl border border-white/10 bg-[#090909] shadow-lg shadow-black/30 transition group-hover:-translate-y-0.5 group-hover:border-white/35">
-                  {poster ? <img src={poster} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : <span className="grid h-full w-full place-items-center text-white/25">{row.mediaType === "movie" ? <Film className="h-7 w-7" /> : <Tv className="h-7 w-7" />}</span>}
+                <span className="relative block aspect-video overflow-hidden rounded-xl border border-white/10 bg-black shadow-lg shadow-black/30 transition group-hover:-translate-y-0.5 group-hover:border-white/35">
+                  {poster ? <MediaImage src={poster} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : <span className="grid h-full w-full place-items-center text-white/25">{row.mediaType === "movie" ? <Film className="h-7 w-7" /> : <Tv className="h-7 w-7" />}</span>}
                   <span className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/10" />
                   <span className="absolute inset-0 grid place-items-center"><span className="grid h-10 w-10 place-items-center rounded-full bg-white text-black shadow-xl transition group-hover:scale-105"><Play className="ml-0.5 h-4 w-4 fill-current" /></span></span>
                   <span className="absolute inset-x-0 bottom-0 h-1 bg-white/15"><span className="block h-full bg-white" style={{ width: `${percent}%` }} /></span>
@@ -471,8 +350,17 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
   const homeUrl = animeMode ? "/api/synnflix/home?mode=anime" : "/api/synnflix/home"
   const { user } = useAuth()
   const fullscreenShellRef = useRef<HTMLElement | null>(null)
-  const playerFrameRef = useRef<HTMLIFrameElement | null>(null)
   const flushPlaybackProgressRef = useRef<(reason: "hidden" | "pagehide" | "blur" | "close") => void>(() => {})
+  const detailsRequestRef = useRef<AbortController | null>(null)
+  const seasonRequestRef = useRef<AbortController | null>(null)
+  const searchRequestRef = useRef<AbortController | null>(null)
+  const homeRequestRef = useRef<AbortController | null>(null)
+  const [catalogPage, setCatalogPage] = useState(1)
+  const [searchPage, setSearchPage] = useState(1)
+  const [searchTotalPages, setSearchTotalPages] = useState(1)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [moreError, setMoreError] = useState("")
+  useEffect(() => () => { detailsRequestRef.current?.abort(); seasonRequestRef.current?.abort(); searchRequestRef.current?.abort(); homeRequestRef.current?.abort() }, [])
   const [home, setHome] = useState<SynnFlixHomeData | null>(null)
   const [homeLoading, setHomeLoading] = useState(true)
   const [homeError, setHomeError] = useState("")
@@ -490,10 +378,7 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
   const [seasonLoading, setSeasonLoading] = useState(false)
   const [seasonError, setSeasonError] = useState("")
   const [player, setPlayer] = useState<PlayerState | null>(null)
-  // `player` owns the iframe URL. `trackedPlayer` owns the episode identity that
-  // Vidking says is actually playing. They intentionally diverge when Vidking
-  // auto-advances inside the same iframe so Synnical can follow progress without
-  // destroying/recreating a live provider player.
+  // Playback identity is controlled by Synnical, independent of source/provider.
   const [trackedPlayer, setTrackedPlayer] = useState<PlayerState | null>(null)
   const trackedPlayerRef = useRef<PlayerState | null>(null)
   const autoplayFallbackTimerRef = useRef<number | null>(null)
@@ -527,7 +412,11 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
   const [keepUploadedAvatar, setKeepUploadedAvatar] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
 
+  const profileRequestRef = useRef<AbortController | null>(null)
+  const featureRequestRef = useRef<AbortController | null>(null)
   const loadProfiles = useCallback(async () => {
+    profileRequestRef.current?.abort()
+    const controller = new AbortController(); profileRequestRef.current = controller
     if (!user?.id) {
       setProfiles([])
       setActiveProfile(null)
@@ -537,20 +426,22 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
     setProfilesLoading(true)
     setProfileError("")
     try {
-      const result = await apiJson<{ profiles: SynnFlixProfile[]; lastActiveProfileId?: string }>("/api/features/media/profiles")
+      const result = await apiJson<{ profiles: SynnFlixProfile[]; lastActiveProfileId?: string }>("/api/features/media/profiles", controller.signal)
+      if (controller.signal.aborted) return
       setProfiles(result.profiles)
       setActiveProfile(result.profiles.find((profile) => profile.id === result.lastActiveProfileId) || result.profiles[0] || null)
       setManagingProfiles(false)
       setEditingProfileId(null)
     } catch (error) {
-      setProfileError(error instanceof Error ? error.message : "Profiles could not load")
+      if (!controller.signal.aborted) setProfileError(error instanceof Error ? error.message : "Profiles could not load")
     } finally {
-      setProfilesLoading(false)
+      if (!controller.signal.aborted) setProfilesLoading(false)
     }
   }, [user?.id])
 
   useEffect(() => {
     void loadProfiles()
+    return () => { profileRequestRef.current?.abort(); featureRequestRef.current?.abort() }
   }, [loadProfiles])
 
   const mediaAction = useCallback((action: string, payload: Record<string, unknown> = {}) => {
@@ -655,7 +546,9 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
   }, [])
 
   const refreshMediaFeatures = useCallback(async (focus?: PlayerState | null, partyId?: string | null) => {
+    featureRequestRef.current?.abort()
     if (!activeProfile?.id) return
+    const controller = new AbortController(); featureRequestRef.current = controller
     try {
       let url = "/api/features/media"
       const params = new URLSearchParams()
@@ -668,23 +561,20 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
       }
       if (partyId) params.set("partyId", partyId)
       if (params.size) url += `?${params.toString()}`
-      const response = await fetch(url, { credentials: "same-origin", cache: "no-store" })
+      const response = await fetch(url, { credentials: "same-origin", cache: "no-store", signal: controller.signal })
       if (!response.ok) return
       const body = await response.json()
-      setMediaFeatures(body)
+      if (!controller.signal.aborted) setMediaFeatures(body)
     } catch {}
   }, [activeProfile])
 
   const loadHome = useCallback(async () => {
-    setHomeLoading(true)
-    setHomeError("")
-    try {
-      setHome(await apiJson<SynnFlixHomeData>(homeUrl))
-    } catch (error) {
-      setHomeError(error instanceof Error ? error.message : `${brandName} could not load`)
-    } finally {
-      setHomeLoading(false)
-    }
+    homeRequestRef.current?.abort()
+    const controller = new AbortController(); homeRequestRef.current = controller
+    setHomeLoading(true); setHomeError(""); setCatalogPage(1)
+    try { const body = await apiJson<SynnFlixHomeData>(homeUrl, controller.signal); if (!controller.signal.aborted) setHome(body) }
+    catch (error) { if (!controller.signal.aborted) setHomeError(error instanceof Error ? error.message : `${brandName} could not load`) }
+    finally { if (!controller.signal.aborted) setHomeLoading(false) }
   }, [brandName, homeUrl])
 
   useEffect(() => {
@@ -692,38 +582,32 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
   }, [loadHome])
 
   useEffect(() => {
+    setMediaFeatures(null)
     if (activeProfile?.id && !profilePickerOpen) void refreshMediaFeatures()
+    return () => { featureRequestRef.current?.abort() }
   }, [activeProfile?.id, profilePickerOpen, refreshMediaFeatures])
 
   const openMedia = useCallback(async (item: SynnFlixMediaItem) => {
-    setSelected(item)
-    setDetails(null)
-    setSeason(null)
-    setDetailsError("")
-    setSeasonError("")
-    setDetailsLoading(true)
+    detailsRequestRef.current?.abort(); seasonRequestRef.current?.abort()
+    const controller = new AbortController(); detailsRequestRef.current = controller
+    setSelected(item); setDetails(null); setSeason(null); setDetailsError(""); setSeasonError(""); setDetailsLoading(true); setSeasonLoading(false)
     try {
-      const response = await apiJson<{ details: SynnFlixDetails }>(`/api/synnflix/details?type=${item.mediaType}&id=${item.id}`)
+      const response = await apiJson<{ details: SynnFlixDetails }>(`/api/synnflix/details?type=${item.mediaType}&id=${item.id}`, controller.signal)
+      if (controller.signal.aborted) return
       setDetails(response.details)
       if (item.mediaType === "tv") {
-        const initialSeason = response.details.seasons.find((entry) => entry.seasonNumber > 0) || response.details.seasons[0]
+        const initialSeason = response.details.seasons.find(entry => entry.seasonNumber > 0) || response.details.seasons[0]
         if (initialSeason) {
           setSeasonLoading(true)
           try {
-            const seasonResponse = await apiJson<{ season: SynnFlixSeasonDetails }>(`/api/synnflix/season?id=${item.id}&season=${initialSeason.seasonNumber}`)
-            setSeason(seasonResponse.season)
-          } catch (error) {
-            setSeasonError(error instanceof Error ? error.message : "Could not load episodes")
-          } finally {
-            setSeasonLoading(false)
-          }
+            const seasonResponse = await apiJson<{ season: SynnFlixSeasonDetails }>(`/api/synnflix/season?id=${item.id}&season=${initialSeason.seasonNumber}`, controller.signal)
+            if (!controller.signal.aborted) setSeason(seasonResponse.season)
+          } catch (error) { if (!controller.signal.aborted) setSeasonError(error instanceof Error ? error.message : "Could not load episodes") }
+          finally { if (!controller.signal.aborted) setSeasonLoading(false) }
         }
       }
-    } catch (error) {
-      setDetailsError(error instanceof Error ? error.message : "Could not load title")
-    } finally {
-      setDetailsLoading(false)
-    }
+    } catch (error) { if (!controller.signal.aborted) setDetailsError(error instanceof Error ? error.message : "Could not load title") }
+    finally { if (!controller.signal.aborted) setDetailsLoading(false) }
   }, [])
 
   useEffect(() => {
@@ -737,42 +621,46 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
   }, [openMedia])
 
   const loadSeason = useCallback(async (seriesId: number, seasonNumber: number) => {
-    setSeasonLoading(true)
-    setSeasonError("")
-    try {
-      const response = await apiJson<{ season: SynnFlixSeasonDetails }>(`/api/synnflix/season?id=${seriesId}&season=${seasonNumber}`)
-      setSeason(response.season)
-    } catch (error) {
-      setSeason(null)
-      setSeasonError(error instanceof Error ? error.message : "Could not load episodes")
-    } finally {
-      setSeasonLoading(false)
-    }
+    seasonRequestRef.current?.abort()
+    const controller = new AbortController(); seasonRequestRef.current = controller
+    setSeason(null); setSeasonLoading(true); setSeasonError("")
+    try { const response = await apiJson<{ season: SynnFlixSeasonDetails }>(`/api/synnflix/season?id=${seriesId}&season=${seasonNumber}`, controller.signal); if (!controller.signal.aborted) setSeason(response.season) }
+    catch (error) { if (!controller.signal.aborted) setSeasonError(error instanceof Error ? error.message : "Could not load episodes") }
+    finally { if (!controller.signal.aborted) setSeasonLoading(false) }
   }, [])
 
   const runSearch = useCallback(async () => {
+    searchRequestRef.current?.abort()
     const value = query.trim().replace(/\s+/g, " ")
-    if (!value) {
-      setSubmittedQuery("")
-      setResults([])
-      setSearchError("")
-      return
-    }
+    setSubmittedQuery(value); setResults([]); setSearchError(""); setSearchPage(1); setSearchTotalPages(1)
+    if (!value) { setSearching(false); return }
+    const controller = new AbortController(); searchRequestRef.current = controller
     setSearching(true)
-    setSearchError("")
-    setSubmittedQuery(value)
     try {
-      const response = await apiJson<{ results: SynnFlixMediaItem[] }>(`/api/synnflix/search?q=${encodeURIComponent(value)}${animeMode ? "&mode=anime" : ""}`)
-      setResults(response.results)
-    } catch (error) {
-      setResults([])
-      setSearchError(error instanceof Error ? error.message : "Search failed")
-    } finally {
-      setSearching(false)
-    }
+      const response = await apiJson<{ results: SynnFlixMediaItem[]; totalPages: number }>(`/api/synnflix/search?q=${encodeURIComponent(value)}${animeMode ? "&mode=anime" : ""}`, controller.signal)
+      if (!controller.signal.aborted) { setResults(response.results); setSearchTotalPages(response.totalPages) }
+    } catch (error) { if (!controller.signal.aborted) setSearchError(error instanceof Error ? error.message : "Search failed") }
+    finally { if (!controller.signal.aborted) setSearching(false) }
   }, [animeMode, query])
 
+  const loadMore = async () => {
+    if (loadingMore) return
+    setLoadingMore(true); setMoreError("")
+    const controller = submittedQuery ? searchRequestRef.current || new AbortController() : homeRequestRef.current || new AbortController()
+    try {
+      if (submittedQuery) {
+        const response = await apiJson<{ results: SynnFlixMediaItem[]; totalPages: number }>(`/api/synnflix/search?q=${encodeURIComponent(submittedQuery)}&page=${searchPage + 1}${animeMode ? "&mode=anime" : ""}`, controller.signal)
+        if (!controller.signal.aborted) { setResults(previous => dedupe([...previous, ...response.results])); setSearchPage(previous => previous + 1); setSearchTotalPages(response.totalPages) }
+      } else {
+        const response = await apiJson<SynnFlixHomeData>(`${homeUrl}${homeUrl.includes("?") ? "&" : "?"}page=${catalogPage + 1}`, controller.signal)
+        if (!controller.signal.aborted) { setHome(previous => previous ? Object.fromEntries(Object.keys(previous).map(key => [key, dedupe([...previous[key as keyof SynnFlixHomeData], ...response[key as keyof SynnFlixHomeData]])])) as SynnFlixHomeData : response); setCatalogPage(previous => previous + 1) }
+      }
+    } catch { if (!controller.signal.aborted) setMoreError("Could not load more titles. Try again.") }
+    finally { setLoadingMore(false) }
+  }
+
   const clearSearch = () => {
+    searchRequestRef.current?.abort(); setSearching(false); setMoreError("")
     setQuery("")
     setSubmittedQuery("")
     setResults([])
@@ -926,143 +814,40 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
     return () => { window.dispatchEvent(new CustomEvent("synnical-rich-presence", { detail: { source: "synnflix", activity: null } })) }
   }, [player, trackedPlayer, playerPlaying])
 
-  useEffect(() => {
-    if (!player) return
-    const handleMessage = (event: MessageEvent) => {
-      // Vidking can relay PLAYER_EVENT from a nested provider frame, whose
-      // origin and source are not necessarily the top-level vidking iframe.
-      // Reject same-window messages, then authenticate the message against the
-      // exact active media identity and documented event schema below.
-      if (event.source === window) return
-      const data = vidkingEventData(event.data)
-      if (!data) return
-      if (String(data.id ?? "") !== String(player.media.id)) return
-      const reportedMediaType = String(data.mediaType ?? data.type ?? "").toLowerCase()
-      if (reportedMediaType !== player.media.mediaType) return
-      const eventName = String(data.event ?? "").toLowerCase()
-      if (!["timeupdate", "play", "pause", "ended", "seeked"].includes(eventName)) return
-      let eventPlayer: PlayerState = player
-      if (player.media.mediaType === "tv") {
-        const eventSeason = Number(data.season)
-        const eventEpisode = Number(data.episode)
-        if (!Number.isSafeInteger(eventSeason) || eventSeason < 1 || !Number.isSafeInteger(eventEpisode) || eventEpisode < 1) return
-        const knownEpisodeName = season?.seasonNumber === eventSeason
-          ? season.episodes.find((item) => item.episodeNumber === eventEpisode)?.name || null
-          : null
-        eventPlayer = {
-          media: player.media,
-          season: eventSeason,
-          episode: eventEpisode,
-          episodeName: knownEpisodeName
-            || (trackedPlayerRef.current?.season === eventSeason && trackedPlayerRef.current?.episode === eventEpisode ? trackedPlayerRef.current.episodeName : null)
-            || `Episode ${eventEpisode}`,
-        }
-        const trackedIdentity = trackedPlayerRef.current ? playerIdentity(trackedPlayerRef.current) : null
-        if (trackedIdentity !== playerIdentity(eventPlayer)) {
-          trackedPlayerRef.current = eventPlayer
-          setTrackedPlayer(eventPlayer)
-          setCurrentPlayerTime(0)
-          currentPlayerTimeRef.current = 0
-          setSyncedProgress(undefined)
-        }
-      } else if (trackedPlayerRef.current !== player) {
-        trackedPlayerRef.current = player
-        setTrackedPlayer(player)
-      }
-      const duration = Number(data.duration)
-      if (Number.isFinite(duration) && duration > 0) currentPlayerDurationRef.current = duration
-      const directTime = Number(data.currentTime)
-      const progressPercent = Number(data.progress)
-      const providerTimestamp = Number(data.timestamp)
-      const legacyTimestampSeconds = Number.isFinite(providerTimestamp)
-        && providerTimestamp >= 0
-        && providerTimestamp < 100_000_000
-        && (!(duration > 0) || providerTimestamp <= duration + 60)
-        ? providerTimestamp
-        : NaN
-      const currentTime = Number.isFinite(directTime) && directTime >= 0
-        ? directTime
-        : Number.isFinite(legacyTimestampSeconds)
-          ? legacyTimestampSeconds
-        : Number.isFinite(duration) && duration > 0 && Number.isFinite(progressPercent) && progressPercent >= 0 && progressPercent <= 100
-          ? duration * (progressPercent / 100)
-          : NaN
-      if (!Number.isFinite(currentTime) || currentTime < 0) return
-      const identity = playerIdentity(eventPlayer)
-      if (Number.isFinite(providerTimestamp) && providerTimestamp >= 100_000_000_000) {
-        const lastTimestamp = lastProviderEventTimestampRef.current.get(identity) || 0
-        if (providerTimestamp < lastTimestamp) return
-        lastProviderEventTimestampRef.current.set(identity, providerTimestamp)
-      }
-      const playingNow = eventName === "play" || eventName === "timeupdate"
-        ? true
-        : eventName === "pause" || eventName === "ended"
-          ? false
-          : playerPlayingRef.current
-      playerPlayingRef.current = playingNow
-      setPlayerPlaying(playingNow)
-      setCurrentPlayerTime(currentTime)
-      currentPlayerTimeRef.current = currentTime
-      if (activeParty?.id && activeParty.hostId === mediaFeatures?.meId) {
-        partySocketRef.current?.emit("watch-party-state", { partyId: activeParty.id, currentTime, playing: playingNow, season: eventPlayer.season, episode: eventPlayer.episode })
-      }
-      if (eventName === "ended") {
-        const credibleDuration = Number.isFinite(duration) && duration > 0 ? duration : currentPlayerDurationRef.current
-        const genuinelyCompleted = credibleDuration > 0 && currentTime >= credibleDuration * 0.92
-        if (!genuinelyCompleted) {
-          // Provider ad/pop-under navigation can tear down a nested playback frame
-          // and surface an early `ended` event. That is an interruption, not the
-          // end of the movie/episode. Preserve ordinary playback progress instead of
-          // falsely marking the title complete.
-          if (currentTime >= 3) {
-            if (activeProfile?.id) writeProgress(eventPlayer, activeProfile.id, currentTime)
-            void mediaAction("progress", { mediaType: eventPlayer.media.mediaType, mediaId: String(eventPlayer.media.id), title: eventPlayer.media.title, poster: eventPlayer.media.posterPath, backdrop: eventPlayer.media.backdropPath, season: eventPlayer.season, episode: eventPlayer.episode, episodeName: eventPlayer.episodeName, currentTime: Math.floor(currentTime), duration: credibleDuration, activePlayback: false }).catch(() => {})
-          }
-          return
-        }
-        void mediaAction("progress", { mediaType: eventPlayer.media.mediaType, mediaId: String(eventPlayer.media.id), title: eventPlayer.media.title, poster: eventPlayer.media.posterPath, backdrop: eventPlayer.media.backdropPath, season: eventPlayer.season, episode: eventPlayer.episode, episodeName: eventPlayer.episodeName, currentTime, duration: credibleDuration, completed: true }).catch(() => {})
-        if (activeProfile?.id) clearProgress(eventPlayer, activeProfile.id)
-        lastServerProgressRef.current.delete(identity)
-        if (eventPlayer.media.mediaType === "tv" && mediaFeatures?.preference?.episodeAutoplay) {
-          // Vidking has nextEpisode enabled and may advance inside this exact
-          // iframe. Give the provider first chance; only remount as a fallback
-          // if no valid event for a different episode arrives shortly after end.
-          void (async () => {
-            try {
-              const loaded = season?.seasonNumber === eventPlayer.season
-                ? season
-                : (await apiJson<{ season: SynnFlixSeasonDetails }>(`/api/synnflix/season?id=${eventPlayer.media.id}&season=${eventPlayer.season || 1}`)).season
-              const next = loaded.episodes.find((episode) => episode.episodeNumber === Number(eventPlayer.episode || 0) + 1)
-              if (!next) return
-              if (autoplayFallbackTimerRef.current !== null) window.clearTimeout(autoplayFallbackTimerRef.current)
-              const endedIdentity = identity
-              autoplayFallbackTimerRef.current = window.setTimeout(() => {
-                autoplayFallbackTimerRef.current = null
-                const tracked = trackedPlayerRef.current
-                if (tracked && playerIdentity(tracked) !== endedIdentity) return
-                setSyncedProgress(undefined)
-                setPartyHeld(false)
-                setPlayer({ media: eventPlayer.media, season: next.seasonNumber, episode: next.episodeNumber, episodeName: next.name })
-              }, 3000)
-            } catch {}
-          })()
-        }
-        return
-      }
-
-      if (currentTime < 3) return
+  const handlePlaybackEvent = useCallback((data: NativePlaybackEvent) => {
+    if (!player || data.id !== player.media.id || data.mediaType !== player.media.mediaType) return
+    if (player.media.mediaType === "tv" && (data.season !== player.season || data.episode !== player.episode)) return
+    const { currentTime, duration } = data
+    if (!Number.isFinite(currentTime) || currentTime < 0 || !Number.isFinite(duration) || duration < 0) return
+    const eventPlayer = player
+    const identity = playerIdentity(eventPlayer)
+    trackedPlayerRef.current = eventPlayer
+    setTrackedPlayer(eventPlayer)
+    currentPlayerTimeRef.current = currentTime
+    currentPlayerDurationRef.current = duration
+    setCurrentPlayerTime(currentTime)
+    const playingNow = data.event === "play" ? true : data.event === "pause" || data.event === "ended" ? false : playerPlayingRef.current
+    playerPlayingRef.current = playingNow
+    setPlayerPlaying(playingNow)
+    if (activeParty?.id && activeParty.hostId === mediaFeatures?.meId) partySocketRef.current?.emit("watch-party-state", { partyId: activeParty.id, currentTime, playing: playingNow, season: eventPlayer.season, episode: eventPlayer.episode })
+    const credibleDuration = duration || currentPlayerDurationRef.current
+    const genuinelyCompleted = credibleDuration > 0 && currentTime >= credibleDuration * 0.92
+    const now = Date.now()
+    const lastWrite = lastServerProgressRef.current.get(identity) || 0
+    if (currentTime >= 3 && (data.event !== "timeupdate" || now - lastWrite >= 15_000)) {
+      lastServerProgressRef.current.set(identity, now)
       if (activeProfile?.id) writeProgress(eventPlayer, activeProfile.id, currentTime)
-      const second = Math.floor(currentTime)
-      const lastServer = lastServerProgressRef.current.get(identity) ?? -30
-      if (eventName !== "timeupdate" || second - lastServer >= 15) {
-        lastServerProgressRef.current.set(identity, second)
-        mergeProgressSnapshot(eventPlayer, second, Number.isFinite(duration) && duration > 0 ? duration : currentPlayerDurationRef.current)
-        void mediaAction("progress", { mediaType: eventPlayer.media.mediaType, mediaId: String(eventPlayer.media.id), title: eventPlayer.media.title, poster: eventPlayer.media.posterPath, backdrop: eventPlayer.media.backdropPath, season: eventPlayer.season, episode: eventPlayer.episode, episodeName: eventPlayer.episodeName, currentTime: second, duration: Number.isFinite(duration) && duration > 0 ? duration : 0, activePlayback: playingNow }).catch(() => {})
+      mergeProgressSnapshot(eventPlayer, currentTime, credibleDuration)
+      void mediaAction("progress", { mediaType: eventPlayer.media.mediaType, mediaId: String(eventPlayer.media.id), title: eventPlayer.media.title, poster: eventPlayer.media.posterPath, backdrop: eventPlayer.media.backdropPath, season: eventPlayer.season, episode: eventPlayer.episode, episodeName: eventPlayer.episodeName, currentTime, duration: credibleDuration, completed: data.event === "ended" && genuinelyCompleted, activePlayback: playingNow }).catch(() => {})
+    }
+    if (data.event === "ended" && genuinelyCompleted) {
+      if (activeProfile?.id) clearProgress(eventPlayer, activeProfile.id)
+      if (eventPlayer.media.mediaType === "tv" && mediaFeatures?.preference?.episodeAutoplay) {
+        const next = season?.episodes.find(episode => episode.episodeNumber === Number(eventPlayer.episode) + 1)
+        if (next) { setSyncedProgress(undefined); setPlayer({ media: eventPlayer.media, season: next.seasonNumber, episode: next.episodeNumber, episodeName: next.name }) }
       }
     }
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
-  }, [player, activeParty, activeProfile?.id, mediaAction, mediaFeatures?.meId, mediaFeatures?.preference?.episodeAutoplay, mergeProgressSnapshot, season])
+  }, [player, activeParty, activeProfile, mediaAction, mediaFeatures?.meId, mediaFeatures?.preference?.episodeAutoplay, mergeProgressSnapshot, season])
 
   useEffect(() => {
     const current = trackedPlayer || player
@@ -1236,13 +1021,8 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
 
   useEffect(() => { currentPlayerTimeRef.current = currentPlayerTime }, [currentPlayerTime])
 
-  // Keep the provider URL stable while playback advances. readProgress() reads
-  // localStorage; rebuilding this URL on every timeupdate changes the iframe key
-  // and restarts playback. Recompute only for an intentional player/sync change.
-  const playerUrl = useMemo(
-    () => player && activeProfile?.id ? buildPlayerUrl(player, activeProfile.id, { progress: syncedProgress, autoplay: true }) : "",
-    [activeProfile, player, syncedProgress],
-  )
+  // Keep playback identity stable while progress advances.
+  const playbackIdentity = useMemo(() => player ? playerIdentity(player) : "", [player])
 
   useEffect(() => {
     if (!activeParty?.id) return
@@ -1255,9 +1035,7 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
       setActiveParty((previous: any) => previous ? { ...previous, ...state } : state)
       const target = Math.max(0, Number(state.currentTime) || 0)
       setPartyHeld(!state.playing)
-      // The provider does not document a parent-window play/pause command.
-      // Party updates therefore never unmount or rewrite the iframe. A guest can
-      // explicitly sync to the host without Synnical stealing the Play button.
+      // Guests explicitly sync to the host without interrupting playback.
       if (Math.abs(currentPlayerTimeRef.current - target) > 15) setActiveParty((previous: any) => previous ? { ...previous, needsSync: true } : previous)
     })
     socket.on("watch-party-error", (data: any) => window.alert(data?.error || "Watch party error"))
@@ -1310,8 +1088,7 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
     setTrackedPlayer(null)
     playerPlayingRef.current = false
     setPlayerPlaying(false)
-    // If Vidking auto-advanced inside the iframe, restart the exact episode the
-    // user is currently watching by intentionally remounting that episode.
+    // Restart the exact episode with the same provider-independent identity.
     if (playerIdentity(activePlaybackPlayer) !== playerIdentity(player!)) setPlayer(activePlaybackPlayer)
     void refreshMediaFeatures(activePlaybackPlayer, activeParty?.id || null)
   }
@@ -1328,7 +1105,7 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
       ? profiles.find((profile) => profile.id === editingProfileId) || null
       : null
     return (
-      <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#030303] text-white">
+      <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-black text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_25%,rgba(255,255,255,0.08),transparent_42%)]" />
         <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-8 sm:px-8 sm:py-12">
           <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
@@ -1441,14 +1218,20 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
           <span className="hidden text-[11px] text-white/35 sm:block">{brandName} Player</span>
         </header>
         <div className="relative min-h-0 w-full flex-1 bg-black">
-          <VidkingPlayerFrame
-            key={`${playerRevision}:${playerUrl}`}
-            src={playerUrl}
+          <MediaPlayer
+            key={`${playerRevision}:${playbackIdentity}`}
+            request={{ mediaType: player.media.mediaType, mediaId: player.media.id, season: player.season ?? undefined, episode: player.episode ?? undefined }}
             title={`${displayPlayer.media.title} — ${brandName}`}
-            playerFrameRef={playerFrameRef}
+            startSeconds={syncedProgress ?? (activeProfile ? readProgress(player, activeProfile.id) : 0)}
+            onPlaybackEvent={handlePlaybackEvent}
           />
+          {player.media.mediaType === "tv" && season ? <div className="flex flex-wrap items-center gap-2 p-3 text-xs">
+            <button type="button" disabled={!season.episodes.some(e => e.episodeNumber === Number(player.episode) - 1)} onClick={() => { const previous = season.episodes.find(e => e.episodeNumber === Number(player.episode) - 1); if (previous) void startEpisode(player.media, previous) }} className="rounded border border-white/20 px-3 py-2 disabled:opacity-30">Previous episode</button>
+            <select aria-label="Episode" value={player.episode ?? 1} onChange={event => { const episode = season.episodes.find(e => e.episodeNumber === Number(event.target.value)); if (episode) void startEpisode(player.media, episode) }} className="max-w-64 rounded bg-black px-2 py-2">{season.episodes.map(e => <option key={e.id} value={e.episodeNumber}>E{e.episodeNumber} · {e.name}</option>)}</select>
+            <button type="button" disabled={!season.episodes.some(e => e.episodeNumber === Number(player.episode) + 1)} onClick={() => { const next = season.episodes.find(e => e.episodeNumber === Number(player.episode) + 1); if (next) void startEpisode(player.media, next) }} className="rounded border border-white/20 px-3 py-2 disabled:opacity-30">Next episode</button>
+          </div> : null}
         </div>
-        {activeParty && activeParty.hostId !== mediaFeatures?.meId ? <div className="flex items-center gap-2 border-t border-white/10 bg-[#080808] px-3 py-2 text-[11px] text-white/55"><span>{partyHeld ? "Host is paused" : "Party is playing"}</span>{activeParty.needsSync ? <button type="button" className="rounded border border-white/15 px-2 py-1 text-white/80" onClick={() => { setSyncedProgress(Math.max(0, Number(activeParty.currentTime) || 0)); setPlayerRevision((value) => value + 1); setActiveParty((previous: any) => previous ? { ...previous, needsSync: false } : previous) }}>Sync to host</button> : null}</div> : null}
+        {activeParty && activeParty.hostId !== mediaFeatures?.meId ? <div className="flex items-center gap-2 border-t border-white/10 bg-black px-3 py-2 text-[11px] text-white/55"><span>{partyHeld ? "Host is paused" : "Party is playing"}</span>{activeParty.needsSync ? <button type="button" className="rounded border border-white/15 px-2 py-1 text-white/80" onClick={() => { setSyncedProgress(Math.max(0, Number(activeParty.currentTime) || 0)); setPlayerRevision((value) => value + 1); setActiveParty((previous: any) => previous ? { ...previous, needsSync: false } : previous) }}>Sync to host</button> : null}</div> : null}
         <div className="flex flex-wrap gap-2 border-t border-white/10 p-3">
           {mediaFeatures?.introMarker && mediaFeatures?.preference?.skipIntroEnabled && currentPlayerTime >= Number(mediaFeatures.introMarker.startSeconds || 0) && currentPlayerTime < Number(mediaFeatures.introMarker.endSeconds || 0) ? <button type="button" className="rounded bg-white px-3 py-1.5 text-xs font-semibold text-black" onClick={() => { setSyncedProgress(Number(mediaFeatures.introMarker.endSeconds)); setPlayerRevision((value) => value + 1) }}>Skip intro</button> : null}
           {activeParty ? <button type="button" className="rounded border border-white/15 px-3 py-1.5 text-xs" onClick={async () => { await mediaAction("leave-party", { partyId: activeParty.id }); setActiveParty(null); setPartyHeld(false); setPartyConnected(0) }}>Leave party</button> : null}
@@ -1479,25 +1262,25 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
                   <small className="mt-1 block text-[10px] uppercase tracking-[0.16em] text-white/35">{brandSubtitle}</small>
                 </span>
               </button>
-              <nav className="flex items-center rounded-lg border border-white/10 bg-[#080808] p-1 lg:hidden" aria-label="SynnFlix sections">
+              <nav className="flex items-center rounded-lg border border-white/10 bg-black p-1 lg:hidden" aria-label="SynnFlix sections">
                 {(["home", "movies", "tv"] as LibraryView[]).map((item) => (
                   <button key={item} type="button" onClick={() => { setView(item); clearSearch() }} className={`rounded-md px-2.5 py-1.5 text-xs capitalize ${view === item && !submittedQuery ? "bg-white text-black" : "text-white/55 hover:text-white"}`}>{item === "tv" ? "TV" : item}</button>
                 ))}
               </nav>
             </div>
 
-            <nav className="hidden items-center rounded-lg border border-white/10 bg-[#080808] p-1 lg:flex" aria-label="SynnFlix sections">
+            <nav className="hidden items-center rounded-lg border border-white/10 bg-black p-1 lg:flex" aria-label="SynnFlix sections">
               {(["home", "movies", "tv"] as LibraryView[]).map((item) => (
                 <button key={item} type="button" onClick={() => { setView(item); clearSearch() }} className={`rounded-md px-3 py-1.5 text-xs capitalize ${view === item && !submittedQuery ? "bg-white text-black" : "text-white/55 hover:text-white"}`}>{item === "tv" ? "TV" : item}</button>
               ))}
             </nav>
 
-            <button type="button" onClick={() => { setProfilePickerOpen(true); setManagingProfiles(false); setEditingProfileId(null) }} className="flex shrink-0 items-center gap-2 rounded-lg border border-white/10 bg-[#080808] px-2 py-1.5 text-xs text-white/65 hover:border-white/25 hover:text-white" aria-label={`Switch profile. Current profile: ${activeProfile.name}`}>
+            <button type="button" onClick={() => { setProfilePickerOpen(true); setManagingProfiles(false); setEditingProfileId(null) }} className="flex shrink-0 items-center gap-2 rounded-lg border border-white/10 bg-black px-2 py-1.5 text-xs text-white/65 hover:border-white/25 hover:text-white" aria-label={`Switch profile. Current profile: ${activeProfile.name}`}>
               <ProfileAvatar profile={activeProfile} className="h-6 w-6" />
               <span className="hidden max-w-20 truncate xl:block">{activeProfile.name}</span>
             </button>
-            <button type="button" onClick={() => void joinParty()} className="rounded-lg border border-white/10 bg-[#080808] px-3 py-2 text-xs text-white/60 hover:text-white"><Users className="mr-1.5 inline h-3.5 w-3.5" />Join party</button>
-            <form onSubmit={(event) => { event.preventDefault(); void runSearch() }} className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-[#080808] px-3 focus-within:border-white/30 lg:ml-auto lg:max-w-xl">
+            <button type="button" onClick={() => void joinParty()} className="rounded-lg border border-white/10 bg-black px-3 py-2 text-xs text-white/60 hover:text-white"><Users className="mr-1.5 inline h-3.5 w-3.5" />Join party</button>
+            <form onSubmit={(event) => { event.preventDefault(); void runSearch() }} className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black px-3 focus-within:border-white/30 lg:ml-auto lg:max-w-xl">
               <Search className="h-4 w-4 shrink-0 text-white/35" />
               <input
                 value={query}
@@ -1541,7 +1324,7 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
             <div>
               {hero ? (
                 <section className="relative isolate min-h-[330px] overflow-hidden border-b border-white/8 sm:min-h-[410px]">
-                  {imageUrl(hero.backdropPath, "w1280") ? <img src={imageUrl(hero.backdropPath, "w1280")!} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-60" referrerPolicy="no-referrer" /> : null}
+                  {imageUrl(hero.backdropPath, "w1280") ? <MediaImage src={imageUrl(hero.backdropPath, "w1280")!} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-60" referrerPolicy="no-referrer" /> : null}
                   <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black via-black/72 to-black/20" />
                   <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black via-transparent to-black/25" />
                   <div className="mx-auto flex min-h-[330px] max-w-7xl items-end px-5 pb-9 pt-16 sm:min-h-[410px] sm:pb-12">
@@ -1582,6 +1365,7 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
               <SynnFlixCredits />
             </div>
           ) : null}
+          {!homeLoading && !homeError && home && (!submittedQuery || searchPage < searchTotalPages) ? <div className="px-5 pb-8 text-center"><button type="button" disabled={loadingMore || catalogPage >= 500 || searching} onClick={() => void loadMore()} className="rounded-lg border border-white/20 px-5 py-2 text-sm disabled:opacity-40">{loadingMore ? "Loading…" : "Load more titles"}</button>{moreError ? <p role="alert" className="mt-2 text-sm text-rose-300">{moreError}</p> : null}</div> : null}
         </div>
       </div>
 
@@ -1602,13 +1386,13 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
             ) : (
               <div>
                 <section className="relative isolate overflow-hidden border-b border-white/10">
-                  {imageUrl(details.backdropPath, "w1280") ? <img src={imageUrl(details.backdropPath, "w1280")!} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45" referrerPolicy="no-referrer" /> : null}
+                  {imageUrl(details.backdropPath, "w1280") ? <MediaImage src={imageUrl(details.backdropPath, "w1280")!} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45" referrerPolicy="no-referrer" /> : null}
                   <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black via-black/80 to-black/35" />
                   <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black via-black/20 to-transparent" />
                   <div className="mx-auto grid max-w-6xl gap-6 px-5 py-8 sm:grid-cols-[180px_1fr] sm:py-12">
                     <div className="mx-auto w-[170px] sm:mx-0">
-                      <div className="aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-[#090909] shadow-2xl shadow-black/50">
-                        {imageUrl(details.posterPath, "w342") ? <img src={imageUrl(details.posterPath, "w342")!} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <span className="grid h-full w-full place-items-center text-white/20"><Film className="h-10 w-10" /></span>}
+                      <div className="aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/50">
+                        {imageUrl(details.posterPath, "w342") ? <MediaImage src={imageUrl(details.posterPath, "w342")!} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <span className="grid h-full w-full place-items-center text-white/20"><Film className="h-10 w-10" /></span>}
                       </div>
                     </div>
                     <div className="self-end">
@@ -1621,6 +1405,12 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
                       <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{details.title}</h1>
                       {details.tagline ? <p className="mt-2 text-sm italic text-white/45">{details.tagline}</p> : null}
                       {details.overview ? <p className="mt-4 max-w-3xl text-sm leading-6 text-white/68">{details.overview}</p> : null}
+                      {animeMode && details.studios?.length ? <p className="mt-3 text-xs text-white/55">Studios: {details.studios.join(" · ")}</p> : null}
+                      {animeMode && details.alternativeTitles?.length ? <p className="mt-2 text-xs text-white/45">Also known as: {details.alternativeTitles.slice(0, 3).join(" · ")}</p> : null}
+                      {details.cast?.length ? <div className="mt-5"><h3 className="mb-2 font-semibold">Cast</h3><div className="flex gap-3 overflow-x-auto">{details.cast.map(person => <div key={person.id} className="w-24 shrink-0 text-xs"><MediaImage src={imageUrl(person.profilePath, "w342") || undefined} alt={person.name} loading="lazy" className="aspect-[2/3] w-full rounded-lg object-cover" /><strong className="mt-1 block">{person.name}</strong><span className="text-white/45">{person.character}</span></div>)}</div></div> : null}
+                      {details.recommendations?.length ? <div className="mt-5"><Rail title="Recommended" icon={<Film className="h-4 w-4" />} items={details.recommendations} onSelect={openMedia} /></div> : null}
+                      {details.similar?.length ? <Rail title="Similar titles" icon={<Tv className="h-4 w-4" />} items={details.similar} onSelect={openMedia} /> : null}
+
                       {details.genres.length ? <div className="mt-4 flex flex-wrap gap-2">{details.genres.map((genre) => <span key={genre} className="rounded-full border border-white/10 bg-black/40 px-2.5 py-1 text-[11px] text-white/55">{genre}</span>)}</div> : null}
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button type="button" onClick={() => void toggleMediaList(details, "watchlist")} className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs"><Bookmark className="mr-1.5 inline h-3.5 w-3.5" />{mediaListActive(details, "watchlist") ? "Remove watchlist" : "Watchlist"}</button>
@@ -1651,7 +1441,7 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
                         <select
                           value={season?.seasonNumber ?? ""}
                           onChange={(event) => void loadSeason(details.id, Number(event.target.value))}
-                          className="h-9 rounded-lg border border-white/12 bg-[#080808] px-3 text-sm text-white outline-none focus:border-white/35"
+                          className="h-9 rounded-lg border border-white/12 bg-black px-3 text-sm text-white outline-none focus:border-white/35"
                         >
                           {!season ? <option value="" disabled>Choose</option> : null}
                           {details.seasons.map((entry) => <option key={entry.id} value={entry.seasonNumber}>{entry.name} ({entry.episodeCount})</option>)}
@@ -1662,9 +1452,9 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
                     {seasonLoading ? <div className="grid h-40 place-items-center"><Loader2 className="h-6 w-6 animate-spin text-white/45" /></div> : seasonError ? <div role="alert" className="rounded-xl border border-rose-300/15 bg-rose-300/5 p-4 text-sm text-rose-200">{seasonError}</div> : season?.episodes.length ? (
                       <div className="grid gap-3">
                         {season.episodes.map((episode) => (
-                          <button key={episode.id} type="button" onClick={() => startEpisode(details, episode)} className="group grid gap-3 rounded-xl border border-white/9 bg-[#070707] p-3 text-left transition hover:border-white/25 hover:bg-[#0b0b0b] sm:grid-cols-[150px_1fr_auto] sm:items-center">
-                            <span className="aspect-video overflow-hidden rounded-lg bg-[#0b0b0b]">
-                              {imageUrl(episode.stillPath, "w500") ? <img src={imageUrl(episode.stillPath, "w500")!} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : <span className="grid h-full w-full place-items-center text-white/20"><Tv className="h-6 w-6" /></span>}
+                          <button key={episode.id} type="button" onClick={() => startEpisode(details, episode)} className="group grid gap-3 rounded-xl border border-white/9 bg-black p-3 text-left transition hover:border-white/25 hover:bg-black sm:grid-cols-[150px_1fr_auto] sm:items-center">
+                            <span className="aspect-video overflow-hidden rounded-lg bg-black">
+                              {imageUrl(episode.stillPath, "w500") ? <MediaImage src={imageUrl(episode.stillPath, "w500")!} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : <span className="grid h-full w-full place-items-center text-white/20"><Tv className="h-6 w-6" /></span>}
                             </span>
                             <span className="min-w-0">
                               <span className="block text-xs font-medium text-white/40">Episode {episode.episodeNumber}{formatRuntime(episode.runtimeMinutes) ? ` · ${formatRuntime(episode.runtimeMinutes)}` : ""}</span>
@@ -1694,10 +1484,10 @@ function SynnFlixCredits() {
   return (
     <footer className="mt-8 flex flex-col gap-3 border-t border-white/8 py-6 text-[11px] leading-5 text-white/32 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
-        <img src={TMDB_LOGO} alt="TMDB" className="h-8 w-auto max-w-[48px] object-contain opacity-70" referrerPolicy="no-referrer" />
+        <MediaImage src={TMDB_LOGO} alt="TMDB" className="h-8 w-auto max-w-[48px] object-contain opacity-70" referrerPolicy="no-referrer" />
         <p className="max-w-2xl">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
       </div>
-      <p className="shrink-0">Metadata: TMDB · Playback: Vidking</p>
+      <p className="shrink-0">Metadata: TMDB · Playback requires an authorized provider</p>
     </footer>
   )
 }

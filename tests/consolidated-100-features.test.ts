@@ -133,12 +133,16 @@ test("capability-gated features stay honest instead of exposing dead controls", 
   assert.match(media, /introMarker/)
 })
 
-test("SynnFlix player stays a direct provider iframe without Synnical sandbox regressions", async () => {
+test("SynnFlix uses native controls and provider-independent unavailable state", async () => {
   const wrapper = await source("src/components/synnflix-panel.tsx")
-  assert.match(wrapper, /iframe\.src = providerUrl\.toString\(\)/)
-  assert.doesNotMatch(wrapper, /iframe\.sandbox/)
-  assert.doesNotMatch(wrapper, /\/api\/synnflix\/player/)
+  const player = await source("src/components/media-player.tsx")
+  assert.match(wrapper, /<MediaPlayer/)
+  assert.doesNotMatch(wrapper, /iframe|VIDKING_ORIGIN/)
+  assert.match(player, /<video/)
+  assert.match(player, /controls playsInline/)
+  assert.match(player, /Playback unavailable/)
 })
+
 test("completion provider pool excludes OpenAI", async () => {
   const pool = await source("src/lib/ai-provider-pool.ts")
   assert.match(pool, /openrouter/)
