@@ -51,6 +51,13 @@ jobs:
           DATABASE_URL: file:./prisma/ci.db
         run: npm run test:smoke
 
+      - name: Run single-core production smoke regression
+        env:
+          DATABASE_URL: file:./prisma/ci.db
+        run: |
+          smoke_cpu="$(awk '/^Cpus_allowed_list:/ { split($2, cpus, /[-,]/); print cpus[1] }' /proc/self/status)"
+          taskset --cpu-list "$smoke_cpu" npm run test:smoke
+
   deploy:
     name: Deploy to Oracle ARM64
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

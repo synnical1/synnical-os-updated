@@ -180,9 +180,23 @@ try {
   await request("/api/features/media", { cookie: b.cookie, data: { ...media, action: "progress", currentTime: 10, duration: 100 }, status: 404 })
   const favorite = (await request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "toggle-item", kind: "favorite" } })).json
   await request("/api/features/media", { cookie: b.cookie, data: { ...media, profileId: undefined, action: "toggle-item", listId: favorite.listId }, status: 404 })
-  await Promise.all(Array.from({ length: 4 }, () => request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "toggle-item", kind: "watchlist", mediaId: "456" } })))
+  const parallelToggles = await Promise.all(Array.from({ length: 4 }, () => request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "toggle-item", kind: "watchlist", mediaId: "456" } })))
+  assert.equal(parallelToggles.filter(row => row.json.active === true).length, 2)
+  assert.equal(parallelToggles.filter(row => row.json.active === false).length, 2)
+  for (const row of parallelToggles.filter(row => row.json.active)) {
+    assert.equal(row.json.item.mediaId, "456")
+    assert.equal(row.json.item.title, media.title)
+    assert.equal(row.json.item.season, null)
+    assert.equal(row.json.item.episode, null)
+  }
   const toggledList = await db.mediaList.findFirst({ where: { userId: a.id, profileId, kind: "watchlist" } })
   assert.equal(await db.mediaListItem.count({ where: { listId: toggledList.id, mediaId: "456" } }), 0)
+  // Existing SQLite rows can duplicate a nullable unique key. Toggling off must
+  // remove the whole matching set without affecting a different title.
+  await db.mediaListItem.createMany({ data: ["456", "456", "457"].map(mediaId => ({ listId: toggledList.id, mediaType: "movie", mediaId, title: media.title })) })
+  assert.equal((await request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "toggle-item", kind: "watchlist", mediaId: "456" } })).json.active, false)
+  assert.equal(await db.mediaListItem.count({ where: { listId: toggledList.id, mediaId: "456" } }), 0)
+  assert.equal(await db.mediaListItem.count({ where: { listId: toggledList.id, mediaId: "457" } }), 1)
   pass("media rejects corrupt progress, foreign profile/list mutations and duplicate nullable-key toggles")
 
   await request("/api/features/media", { cookie: a.cookie, data: { ...media, action: "progress", mediaType: "tv", mediaId: "789", ratingPrediction: 8 } })
