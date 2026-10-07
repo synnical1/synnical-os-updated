@@ -1,5 +1,6 @@
 import "server-only"
 import { createHash } from "node:crypto"
+import { resolveTmdbCredentials } from "./server/tmdb-credentials.mjs"
 import type { MediaMetadataProvider, MediaSearchPage } from "./media-provider-types"
 
 import type {
@@ -13,8 +14,6 @@ import type {
 } from "@/lib/synnflix-types"
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3"
-const TMDB_API_KEY_PATTERN = /^[a-f0-9]{32}$/i
-const TMDB_TOKEN_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 
 export class SynnFlixUpstreamError extends Error {
   constructor(message: string, readonly status = 502, readonly retryAfterSeconds?: number) {
@@ -58,11 +57,8 @@ function safeArray(value: unknown): unknown[] {
 }
 
 function tmdbAuth(): { token: string | null; apiKey: string | null } {
-  const token = process.env.TMDB_READ_TOKEN?.trim() || process.env.TMDB_API_READ_TOKEN?.trim() || ""
-  const apiKey = process.env.TMDB_API_KEY?.trim() || ""
-
-  if (token && TMDB_TOKEN_PATTERN.test(token)) return { token, apiKey: null }
-  if (apiKey && TMDB_API_KEY_PATTERN.test(apiKey)) return { token: null, apiKey }
+  const auth = resolveTmdbCredentials(process.env)
+  if (auth) return auth
 
   throw new SynnFlixUpstreamError("SynnFlix is not configured with valid TMDB credentials", 503)
 }

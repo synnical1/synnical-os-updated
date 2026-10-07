@@ -6,6 +6,7 @@
 // account; UUID possession is never authorization. See UPSTREAM.md for differences.
 const { randomUUID, createDecipheriv } = require("crypto");
 const { WebSocket: ProviderWebSocket } = require("ws");
+const { probeMalq } = require("./readiness.cjs");
 
 
 if (!globalThis.crypto) globalThis.crypto = require("crypto").webcrypto;
@@ -66,6 +67,19 @@ try {
   mailConfigured = mailUrl.protocol === "http:" && ["127.0.0.1", "[::1]", "localhost"].includes(mailUrl.hostname) && !mailUrl.username && !mailUrl.password && mailUrl.pathname === "/" && !mailUrl.search && !mailUrl.hash;
 } catch {}
 const MAIL_TIMEOUT_MS = 10_000;
+let readinessTask;
+let readinessUntil = 0;
+let malqReadiness = "unknown";
+async function checkMalqReadiness() {
+  if (!mailConfigured) return "invalid";
+  if (Date.now() < readinessUntil) return malqReadiness;
+  if (!readinessTask) readinessTask = probeMalq(MAIL_HOST, options.fetch || globalThis.fetch).then(status => {
+    malqReadiness = status;
+    readinessUntil = Date.now() + 10_000;
+    return status;
+  }).finally(() => { readinessTask = null; });
+  return readinessTask;
+}
 
 // malq answers non-2xx as a JSON `{ error }` body rather than mail.tm's
 // text/html, but still 429s if the underlying provider it picked is rate
@@ -955,7 +969,7 @@ return { WebSocket, MAX_SESSION_SECONDS, MAX_CONCURRENT_SESSIONS, MAX_SIGNAL_BUF
   sessions, ipLimits, embedIpLimits, checkIpLimit, countActiveSessions, acquireAccountSlot,
   releaseAccountSlot, createAccount, doInitGame, doPollQueue, tryClaimGame, doCost,
   applyServerData, killSession, resetPingTimeout, connectRaccoonSignaling, reapSessions,
-  PROVIDER_WAIT_MAX_AGE, QUEUE_ABANDON_MS, START_GAME_GRACE_MS,
+  PROVIDER_WAIT_MAX_AGE, QUEUE_ABANDON_MS, START_GAME_GRACE_MS, checkMalqReadiness,
   providerWaitRetryMs, providerWaitElapsedMs, providerWaitLimitLabel, shutdown,
   dependencyStatus: () => ({ mail: mailConfigured ? mailState : "invalid", pool_target: POOL_TARGET, cooldown: providerCooldownUntil > Date.now() }) };
 }

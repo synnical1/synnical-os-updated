@@ -90,9 +90,15 @@ function createStratusApp(options = {}) {
     });
   });
 
-  // Cheap same-origin readiness route used by Synnical deployment/smoke checks.
-  app.get("/cloud/v1/health", (_req, res) => {
-    res.json({ status: "ok", service: "stratus", base_path: basePath, provider: { ...core.dependencyStatus(), configured: Boolean(options.apiKey || Object.values(sites.sites).some(site => site.api_key)), ready: core.dependencyStatus().mail === "available" } });
+  // Liveness and dependency readiness are separate. No live session is created.
+  app.get("/cloud/v1/health", async (_req, res) => {
+    const configured = options.apiKey !== undefined ? Boolean(options.apiKey.trim()) : Object.values(sites.sites).some(site => Boolean(site.api_key));
+    const malq = await core.checkMalqReadiness();
+    const dependency = core.dependencyStatus();
+    const ready = configured && malq === "ready" && !dependency.cooldown;
+    res.set("Cache-Control", "no-store").json({ status: "ok", service: "stratus", base_path: basePath,
+      readiness: ready ? "ready" : "degraded",
+      provider: { ...dependency, configured, malq, ready, live_session: "unverified" } });
   });
 
   // Serve the full cloud games catalogue from cloud.json

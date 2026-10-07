@@ -4,7 +4,7 @@ SynnFlix and Synnime share the native catalogue and account/profile-scoped media
 
 ## Metadata
 
-Set `TMDB_READ_TOKEN` (preferred) or `TMDB_API_KEY` in the server environment. `TMDB_API_READ_TOKEN` remains a compatibility alias. Do not use `NEXT_PUBLIC_*` variables for these credentials. Never commit the configured environment file.
+Set `TMDB_API_READ_TOKEN` (preferred) or `TMDB_API_KEY` in the server environment. `TMDB_READ_TOKEN` remains a compatibility alias. Do not use `NEXT_PUBLIC_*` variables for these credentials. Never commit the configured environment file.
 
 `MediaMetadataProvider` exposes typed home, search, details and season operations. The TMDB adapter uses a five-minute, 256-entry process cache, coalesces equal requests, bounds concurrent upstream work to 32 requests, times out at 12 seconds, rejects redirects, and respects a bounded Retry-After cooldown. Browser request cancellation prevents stale catalogue/profile responses from replacing newer state. Shared upstream requests are intentionally not cancelled when one subscriber disconnects.
 
