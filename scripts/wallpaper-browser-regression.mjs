@@ -1,14 +1,16 @@
+import { verifyDesktopLayout } from "./desktop-layout-regression.mjs"
+import { pathToFileURL } from "node:url"
 import assert from "node:assert/strict"
 import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import WebSocket from "ws"
 
 /** Exercise the actual production React component/video decoder, not a simulated clock. */
-export async function verifyWallpaperAdvances(base) {
+export async function verifyWallpaperAdvances(base, { cookie } = {}) {
   const executable = [process.env.SYNNICAL_BROWSER_EXECUTABLE, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"].filter(Boolean).find(existsSync)
   assert.ok(executable, "Chrome/Chromium is required for the wallpaper browser regression")
   const profile = await mkdtemp(path.join(tmpdir(), "synnical-wallpaper-browser-"))
@@ -45,8 +47,13 @@ export async function verifyWallpaperAdvances(base) {
       pending.set(key, { resolve, reject, timer })
       ws.send(JSON.stringify({ id: key, method, params, ...(sessionId ? { sessionId } : {}) }))
     })
-    const { targetId } = await command("Target.createTarget", { url: base })
+    const { targetId } = await command("Target.createTarget", { url: "about:blank" })
     const { sessionId } = await command("Target.attachToTarget", { targetId, flatten: true })
+    if (cookie) {
+      assert.equal(new URL(base).hostname, "127.0.0.1", "Disposable smoke cookies must never be sent to production")
+      await command("Network.setCookies", {cookies:cookie.split('; ').map(part => { const at=part.indexOf('='); return {name:part.slice(0,at),value:part.slice(at+1),url:base,httpOnly:true,sameSite:"Lax"} })}, sessionId)
+    }
+    await command("Page.navigate", {url:base}, sessionId)
     await command("Page.bringToFront", {}, sessionId)
     const evaluate = async expression => {
       const result = await command("Runtime.evaluate", { expression, returnByValue: true }, sessionId)
@@ -55,11 +62,27 @@ export async function verifyWallpaperAdvances(base) {
     }
     const snapshot = `(() => { const v = document.querySelector('video.synnical-live-wallpaper[src="/brand/wallpapers/synnical-default-wallpaper.webm"]'); return v ? { time: v.currentTime, duration: v.duration, frames: v.getVideoPlaybackQuality().totalVideoFrames, paused: v.paused, ready: v.readyState, error: v.error?.code || null } : null })()`
     let initial
+    let bootChecked = false
     for (let attempt = 0; attempt < 100; attempt++) {
+      if (!bootChecked) {
+        const boot = await evaluate(`(() => { const b=document.querySelector('.synnical-boot-wallpaper'); return b ? {r:b.getBoundingClientRect().toJSON(),w:innerWidth,h:innerHeight} : null })()`)
+        if (boot) {
+          assert.ok(boot.r.left <= 0 && boot.r.top <= 0 && boot.r.right >= boot.w && boot.r.bottom >= boot.h, "Boot wallpaper covers viewport")
+          bootChecked = true
+          if (process.env.SYNNICAL_LAYOUT_EVIDENCE_DIR) {
+            await mkdir(process.env.SYNNICAL_LAYOUT_EVIDENCE_DIR, {recursive:true})
+            const {data} = await command("Page.captureScreenshot", {format:"png",fromSurface:true}, sessionId)
+            await writeFile(path.join(process.env.SYNNICAL_LAYOUT_EVIDENCE_DIR,"boot.png"), Buffer.from(data,"base64"))
+          }
+        }
+      }
       initial = await evaluate(snapshot)
       if (initial?.ready >= 2 && !initial.paused) break
       await delay(200)
     }
+    assert.ok(bootChecked, "Fresh browser navigation exercises boot wallpaper bounds")
+    const dimensions = await evaluate(`(() => { const v=document.querySelector("video.synnical-live-wallpaper"); return [v.videoWidth,v.videoHeight] })()`)
+    assert.deepEqual(dimensions, [1920,1080], "Default WebM display dimensions match clean poster")
     assert.ok(initial?.ready >= 2 && !initial.paused, "Default wallpaper must load and play with normal settings")
     for (const mode of ["normal", "automatic-performance", "automatic-low-battery"]) {
       if (mode !== "normal") await evaluate(`document.documentElement.classList.add('${mode === "automatic-performance" ? "synnical-perf-mode" : "synnical-battery-perf"}'); true`)
@@ -72,6 +95,7 @@ export async function verifyWallpaperAdvances(base) {
       assert.ok(elapsed > 0.15, `${mode}: actual WebM currentTime must advance`)
       assert.ok(after.frames > before.frames, `${mode}: decoded video frames must advance`)
     }
+    await verifyDesktopLayout({ command, evaluate, sessionId, authenticated: Boolean(cookie) })
   } finally {
     for (const task of pending.values()) { clearTimeout(task.timer); task.reject(new Error("Wallpaper browser closed")) }
     // Ask Chrome to flush/close its helpers before deleting their profile.
@@ -85,3 +109,5 @@ export async function verifyWallpaperAdvances(base) {
     await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 }
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await verifyWallpaperAdvances(process.argv[2] || "http://127.0.0.1:3000")

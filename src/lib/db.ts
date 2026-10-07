@@ -52,4 +52,7 @@ export const db =
   globalForPrisma.prisma ??
   createPrismaClient()
 
-if (isDev) globalForPrisma.prisma = db
+// The custom Socket.IO server and Next.js route bundles evaluate this module
+// independently in production too. Share the client across both so SQLite's
+// single-connection queue also covers background chat transactions.
+globalForPrisma.prisma = db
