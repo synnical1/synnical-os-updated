@@ -4,8 +4,17 @@ import path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import sharp from "sharp"
 
-/** Runs against the real app in a fresh, unauthenticated Chrome profile.
- * No account settings, production data or credentials are read/written. */
+export async function verifyAuthenticatedLock({ authenticated, evaluate, wait, checkSurface, capture }) {
+  if (!authenticated) return "UNVERIFIED: authenticated account required"
+  await evaluate("window.dispatchEvent(new CustomEvent('synnical-os-lock')); true")
+  await wait("Boolean(document.querySelector('.synnical-os-lock video'))")
+  await checkSurface(".synnical-os-lock video")
+  await capture("lock-1366x768")
+  return "passed"
+}
+
+/** Public production checks use a fresh guest profile; authenticated checks
+ * use only the existing disposable, loopback CI fixture. */
 export async function verifyDesktopLayout({ command, evaluate, sessionId, authenticated = false }) {
   const wait = async expression => {
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -112,10 +121,8 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId, authen
   await checkSurface("video.synnical-live-wallpaper")
   await command("Runtime.evaluate", { expression:"document.exitFullscreen().then(()=>true)", awaitPromise:true, returnByValue:true }, sessionId)
   await checkSurface("video.synnical-live-wallpaper")
-  await evaluate("window.dispatchEvent(new CustomEvent('synnical-os-lock')); true")
-  await wait("Boolean(document.querySelector('.synnical-os-lock video'))")
-  await checkSurface(".synnical-os-lock video")
-  await capture("lock-1366x768")
-  if (evidenceDir) await writeFile(path.join(evidenceDir, "layout-results.json"), JSON.stringify({ measurements, switches:authenticated ? "contained in both states" : "UNVERIFIED: authenticated account required", themes:authenticated ? ["Blood","Synnical","Forest"] : [], fullscreen:"passed", lock:"passed" }, null, 2))
-  console.log(`PASS desktop edge pixels/bounds at 1366x768, 1920x1080, 1440x900, 1280x720; fullscreen; lock${authenticated ? "; theme switches; auto-hide" : ""}`)
+  const lock = await verifyAuthenticatedLock({ authenticated, evaluate, wait, checkSurface, capture })
+  if (!authenticated) console.log(`UNVERIFIED live lock screen: authenticated account required`)
+  if (evidenceDir) await writeFile(path.join(evidenceDir, "layout-results.json"), JSON.stringify({ measurements, switches:authenticated ? "contained in both states" : "UNVERIFIED: authenticated account required", themes:authenticated ? ["Blood","Synnical","Forest"] : [], fullscreen:"passed", lock }, null, 2))
+  console.log(`PASS desktop edge pixels/bounds at 1366x768, 1920x1080, 1440x900, 1280x720; fullscreen${authenticated ? "; lock; theme switches; auto-hide" : ""}`)
 }
