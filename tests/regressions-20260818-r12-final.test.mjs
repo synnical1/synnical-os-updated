@@ -406,13 +406,14 @@ test('r12 final: Files Recycle Bin auto-clean and F2 rename are real behaviors',
   assert.match(files, /renameScreenshot/)
 })
 
-test('r12 final: live wallpapers pause under Battery Saver or automatic low-end mode', () => {
+test('r12 final: live wallpapers respect deliberate Battery Saver while automatic low-end mode stays independent', () => {
   const shell = read('src/components/desktop-shell.tsx')
   const runtime = read('src/lib/settings-runtime.ts')
   const video = read('src/components/wallpaper-video.tsx')
   assert.match(shell, /<WallpaperVideo/)
   assert.match(shell, /paused=\{os\.batterySaver\}/)
-  assert.match(video, /root\.classList\.contains\("synnical-perf-mode"\)/)
+  assert.doesNotMatch(video, /synnical-perf-mode|synnical-battery-perf/)
+  assert.match(video, /syncWallpaperPlayback\(video, \{ reduceMotion: !animate, userPaused: paused, hidden: document\.hidden \}\)/)
   assert.match(video, /video\.pause\(\)/)
   assert.match(runtime, /adaptiveLowEndDetected/)
   assert.match(runtime, /synnical-perf-mode/)

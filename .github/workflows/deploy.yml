@@ -49,6 +49,7 @@ jobs:
       - name: Run production smoke suite
         env:
           DATABASE_URL: file:./prisma/ci.db
+          SYNNICAL_WALLPAPER_BROWSER_TEST: "true"
         run: npm run test:smoke
 
       - name: Run single-core production smoke regression
@@ -111,6 +112,7 @@ jobs:
           git reset --hard "$deploy_sha"
 
           npm ci --include=dev --include=optional
+          node scripts/runtime-preflight.mjs
           npx prisma generate
           npm run db:init
           npm run build
@@ -139,12 +141,9 @@ jobs:
 
           for attempt in $(seq 1 15); do
             if curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3000/api >/dev/null; then
-              if node -e 'Promise.all([
-                fetch("http://127.0.0.1:3000/api/games/cloud/v1/health").then(async r => { if (!r.ok) throw new Error("Stratus health HTTP " + r.status); const body = await r.json(); if (body.status !== "ok" || body.service !== "stratus") throw new Error("Invalid Stratus health response") }),
-                fetch("http://127.0.0.1:3000/api/games/cloud/v1/games").then(async r => { if (!r.ok) throw new Error("Stratus catalog HTTP " + r.status); const body = await r.json(); if (!Array.isArray(body) || body.length < 200 || typeof body[0]?.game_key !== "string") throw new Error("Invalid Stratus catalog") }),
-              ]).catch(error => { console.error(error); process.exit(1) })'; then
+              if node scripts/runtime-preflight.mjs --runtime; then
                 git rev-parse --verify HEAD
-                echo "Synnical + bundled Stratus deployment completed."
+                echo "Synnical application deployment completed. Games/TMDB readiness is reported separately above."
                 exit 0
               fi
             fi

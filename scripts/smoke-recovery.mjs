@@ -12,6 +12,7 @@ import { PrismaClient } from "@prisma/client"
 import sharp from "sharp"
 import { io } from "socket.io-client"
 import WebSocket from "ws"
+import { verifyWallpaperAdvances } from "./wallpaper-browser-regression.mjs"
 
 const root = await mkdtemp(path.join(tmpdir(), "synnical-smoke-"))
 const databaseUrl = `file:${path.join(root, "test.db")}`
@@ -75,9 +76,18 @@ try {
     if (attempt === 119) throw new Error("Server did not become ready")
   }
   await request("/")
+  if (process.env.SYNNICAL_WALLPAPER_BROWSER_TEST === "true") {
+    await verifyWallpaperAdvances(base)
+    pass("actual WebM advances with normal settings and automatic performance/battery hints")
+  }
   const stratusHealth = await request("/api/games/cloud/v1/health")
   assert.equal(stratusHealth.json.status, "ok")
   assert.equal(stratusHealth.json.service, "stratus")
+  assert.equal(stratusHealth.json.readiness, "degraded")
+  assert.equal(stratusHealth.json.provider.configured, true)
+  assert.equal(stratusHealth.json.provider.malq, "invalid")
+  assert.equal(stratusHealth.json.provider.ready, false)
+  assert.ok(!JSON.stringify(stratusHealth.json).includes(env.STRATUS_API_KEY))
   const stratusGames = await request("/api/games/cloud/v1/games")
   assert.ok(Array.isArray(stratusGames.json) && stratusGames.json.length > 50)
   assert.equal(typeof stratusGames.json[0]?.game_key, "string")

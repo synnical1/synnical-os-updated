@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { DEFAULT_OS_WALLPAPER, DEFAULT_OS_WALLPAPER_POSTER, type WallpaperFit } from "@/lib/os-settings"
+import { syncWallpaperPlayback } from "@/lib/wallpaper-playback"
 
 /** One stable video per visible surface; static poster on reduced motion/error. */
 export function WallpaperVideo({ src, className, style, paused = false, fit = "fill" }: {
@@ -24,9 +25,7 @@ export function WallpaperVideo({ src, className, style, paused = false, fit = "f
     const video = ref.current
     if (!video) return
     const update = () => {
-      const root = document.documentElement
-      if (!animate || paused || document.hidden || root.classList.contains("synnical-perf-mode") || root.classList.contains("synnical-battery-perf")) video.pause()
-      else void video.play().catch(() => {})
+      syncWallpaperPlayback(video, { reduceMotion: !animate, userPaused: paused, hidden: document.hidden })
     }
     const observer = new MutationObserver(update)
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })

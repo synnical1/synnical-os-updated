@@ -198,8 +198,11 @@ test("Games is cloud-only and bundled Stratus cannot be disabled by stale legacy
   assert.match(smoke, /\/api\/games\/cloud\/v1\/health/)
   assert.match(smoke, /\/api\/games\/cloud\/v1\/games/)
   const deploy = read(".github/workflows/deploy.yml")
-  assert.match(deploy, /bundled Stratus deployment completed/)
-  assert.match(deploy, /body\.length < 200/)
+  assert.match(deploy, /Games\/TMDB readiness is reported separately/)
+  assert.match(deploy, /node scripts\/runtime-preflight\.mjs --runtime/)
+  const preflight = read("scripts/runtime-preflight.mjs")
+  assert.match(preflight, /games\.length < 200/)
+  assert.match(preflight, /health\.provider\.ready !== expectedReady/)
 })
 
 test("Browser theme controls use compact swatch rows rather than inverted tile buttons", () => {
