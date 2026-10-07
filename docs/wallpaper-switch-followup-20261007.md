@@ -68,3 +68,17 @@ account is created and no production credentials enter the test runner.
 Games/Stratus and TMDB runtime configuration are outside this patch. Their
 preflight/security behavior is preserved; missing credentials/malq remain
 UNCONFIGURED. No production `.env` or infrastructure is configured here.
+# Release-blocking SQLite regression
+
+The single-core CI smoke assertion for chat read preferences revealed a Prisma
+`P1008` socket timeout, not a wallpaper or authentication failure. Production
+custom-server and Next.js bundles evaluated `db.ts` separately, while its global
+client cache was written only in development. Their independent SQLite pools
+could therefore contend despite the existing one-connection setting. Cache the
+client in production too, preserving the existing query and authorization logic.
+
+`production-db-runtime.test.mjs` evaluates two independently compiled production
+modules, requires the same client, and verifies a competing write queues behind
+an interactive SQLite transaction. It fails on the previous implementation and
+passes with the shared client. The smoke assertions remain unchanged; failure
+diagnostics redact credentials, cookies and authentication hashes.
