@@ -44,7 +44,9 @@ ARIA and disabled behavior. Both surfaces use one geometry: 40 × 20 track,
 
 The track uses the active accent, and the neutral thumb uses theme contrast
 colors. New Settings chrome uses semantic accent/selected variables. A legacy
-CSS override that suppressed switch focus rings was removed.
+CSS override that suppressed switch focus rings was removed. Legacy surface
+normalization now excludes switches so its important background cannot override
+the checked accent (caught by the rendered Blood-theme regression).
 
 ## Verification
 
