@@ -6,7 +6,7 @@ import sharp from "sharp"
 
 /** Runs against the real app in a fresh, unauthenticated Chrome profile.
  * No account settings, production data or credentials are read/written. */
-export async function verifyDesktopLayout({ command, evaluate, sessionId }) {
+export async function verifyDesktopLayout({ command, evaluate, sessionId, authenticated = false }) {
   const wait = async expression => {
     for (let attempt = 0; attempt < 100; attempt++) {
       if (await evaluate(expression)) return
@@ -60,6 +60,7 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId }) {
     measurements.push({ surface: "desktop", width, height, right: s.rect.right })
   }
   await command("Emulation.setDeviceMetricsOverride", { width:1366, height:768, deviceScaleFactor:1, mobile:false }, sessionId)
+  if (authenticated) {
   // The app's public launch event opens Settings without relying on desktop icon availability.
   await evaluate(`window.dispatchEvent(new CustomEvent('synnical-open-panel', {detail:{panel:'settings'}})); true`)
   await wait(`Boolean(document.querySelector('.synnical-settings-app [aria-label="Auto fullscreen"]'))`)
@@ -103,6 +104,7 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId }) {
     await capture(`legacy-${theme.toLowerCase()}-1366x768`)
     await click(".synnical-settings-app nav button", "System")
   }
+  } else console.log("UNVERIFIED live Settings switches/auto-hide: authenticated account required; no production account is created")
   // Explicit fullscreen and windowed use the same cover bounds.
   const fullscreen = await command("Runtime.evaluate", { expression:"document.documentElement.requestFullscreen().then(()=>true)", awaitPromise:true, returnByValue:true, userGesture:true }, sessionId)
   assert.ok(!fullscreen.exceptionDetails, "Browser fullscreen must be available")
@@ -114,6 +116,6 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId }) {
   await wait("Boolean(document.querySelector('.synnical-os-lock video'))")
   await checkSurface(".synnical-os-lock video")
   await capture("lock-1366x768")
-  if (evidenceDir) await writeFile(path.join(evidenceDir, "layout-results.json"), JSON.stringify({ measurements, switches:"contained in both states", themes:["Blood","Synnical","Forest"], fullscreen:"passed", lock:"passed" }, null, 2))
-  console.log("PASS desktop edge pixels/bounds at 1366x768, 1920x1080, 1440x900, 1280x720; theme switches; auto-hide; fullscreen; lock")
+  if (evidenceDir) await writeFile(path.join(evidenceDir, "layout-results.json"), JSON.stringify({ measurements, switches:authenticated ? "contained in both states" : "UNVERIFIED: authenticated account required", themes:authenticated ? ["Blood","Synnical","Forest"] : [], fullscreen:"passed", lock:"passed" }, null, 2))
+  console.log(`PASS desktop edge pixels/bounds at 1366x768, 1920x1080, 1440x900, 1280x720; fullscreen; lock${authenticated ? "; theme switches; auto-hide" : ""}`)
 }

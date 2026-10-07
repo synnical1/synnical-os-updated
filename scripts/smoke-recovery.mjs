@@ -76,10 +76,7 @@ try {
     if (attempt === 119) throw new Error("Server did not become ready")
   }
   await request("/")
-  if (process.env.SYNNICAL_WALLPAPER_BROWSER_TEST === "true") {
-    await verifyWallpaperAdvances(base)
-    pass("actual WebM advances with normal settings and automatic performance/battery hints")
-  }
+
   const stratusHealth = await request("/api/games/cloud/v1/health")
   assert.equal(stratusHealth.json.status, "ok")
   assert.equal(stratusHealth.json.service, "stratus")
@@ -108,6 +105,10 @@ try {
   const login = await request("/api/auth/login", { data: { username: a.username, password: testPassword } })
   noSecrets(login.json); assert.equal(login.json.user.id, a.id)
   pass("registration and login with sanitized account responses")
+  if (process.env.SYNNICAL_WALLPAPER_BROWSER_TEST === "true") {
+    await verifyWallpaperAdvances(base, { cookie: a.cookie })
+    pass("actual WebM advances with normal settings and automatic performance/battery hints; wallpaper and switch layout verified")
+  }
   const defaultWallpaper = "/brand/wallpapers/synnical-default-wallpaper.webm"
   const freshOs = (await request("/api/features/os", { cookie: a.cookie })).json
   assert.equal(freshOs.settings.desktopWallpaper, defaultWallpaper)

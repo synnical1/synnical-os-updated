@@ -10,7 +10,7 @@ import { setTimeout as delay } from "node:timers/promises"
 import WebSocket from "ws"
 
 /** Exercise the actual production React component/video decoder, not a simulated clock. */
-export async function verifyWallpaperAdvances(base) {
+export async function verifyWallpaperAdvances(base, { cookie } = {}) {
   const executable = [process.env.SYNNICAL_BROWSER_EXECUTABLE, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"].filter(Boolean).find(existsSync)
   assert.ok(executable, "Chrome/Chromium is required for the wallpaper browser regression")
   const profile = await mkdtemp(path.join(tmpdir(), "synnical-wallpaper-browser-"))
@@ -47,8 +47,13 @@ export async function verifyWallpaperAdvances(base) {
       pending.set(key, { resolve, reject, timer })
       ws.send(JSON.stringify({ id: key, method, params, ...(sessionId ? { sessionId } : {}) }))
     })
-    const { targetId } = await command("Target.createTarget", { url: base })
+    const { targetId } = await command("Target.createTarget", { url: "about:blank" })
     const { sessionId } = await command("Target.attachToTarget", { targetId, flatten: true })
+    if (cookie) {
+      assert.equal(new URL(base).hostname, "127.0.0.1", "Disposable smoke cookies must never be sent to production")
+      await command("Network.setCookies", {cookies:cookie.split('; ').map(part => { const at=part.indexOf('='); return {name:part.slice(0,at),value:part.slice(at+1),url:base,httpOnly:true,sameSite:"Lax"} })}, sessionId)
+    }
+    await command("Page.navigate", {url:base}, sessionId)
     await command("Page.bringToFront", {}, sessionId)
     const evaluate = async expression => {
       const result = await command("Runtime.evaluate", { expression, returnByValue: true }, sessionId)
@@ -90,7 +95,7 @@ export async function verifyWallpaperAdvances(base) {
       assert.ok(elapsed > 0.15, `${mode}: actual WebM currentTime must advance`)
       assert.ok(after.frames > before.frames, `${mode}: decoded video frames must advance`)
     }
-    await verifyDesktopLayout({ command, evaluate, sessionId })
+    await verifyDesktopLayout({ command, evaluate, sessionId, authenticated: Boolean(cookie) })
   } finally {
     for (const task of pending.values()) { clearTimeout(task.timer); task.reject(new Error("Wallpaper browser closed")) }
     // Ask Chrome to flush/close its helpers before deleting their profile.

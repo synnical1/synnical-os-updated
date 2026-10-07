@@ -56,9 +56,12 @@ states for Auto fullscreen, chat notifications, Battery Saver, taskbar auto-hide
 and legacy notification sound under Blood, Synnical and Forest; fullscreen,
 lock and fresh-navigation boot bounds are checked too.
 
-The normal deployment workflow repeats the browser checks against live production
-after PM2/runtime verification and retains guest-only screenshots as an artifact.
-No account is authenticated and no production account preferences are modified.
+The normal deployment workflow repeats public wallpaper/fullscreen/lock checks
+against live production after PM2/runtime verification and retains guest-only
+screenshots as an artifact. CI switch/auto-hide checks authenticate only against
+the disposable smoke database. Live Settings checks need separate secure browser
+sign-in and are explicitly UNVERIFIED when that is unavailable. No production
+account is created and no production credentials enter the test runner.
 
 Games/Stratus and TMDB runtime configuration are outside this patch. Their
 preflight/security behavior is preserved; missing credentials/malq remain
