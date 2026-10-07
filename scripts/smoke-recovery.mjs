@@ -13,6 +13,7 @@ import sharp from "sharp"
 import { io } from "socket.io-client"
 import WebSocket from "ws"
 import { verifyWallpaperAdvances } from "./wallpaper-browser-regression.mjs"
+import { createSmokeDiagnostics } from "./smoke-diagnostics.mjs"
 
 const root = await mkdtemp(path.join(tmpdir(), "synnical-smoke-"))
 const databaseUrl = `file:${path.join(root, "test.db")}`
@@ -28,6 +29,7 @@ const env = { ...process.env, NODE_ENV: "production", DATABASE_URL: databaseUrl,
   SYNNICAL_NL_SOCKS5_URL: "", TEXT_MODERATION_MODE: "local", TMDB_API_KEY: "", TMDB_API_READ_TOKEN: "", TMDB_READ_TOKEN: "", MEDIA_PLAYBACK_MANIFEST: path.join(root, "playback-fixture.json"), MEDIA_PLAYBACK_ALLOWED_ORIGINS: "https://licensed-media.example",
   OPENAI_API_KEY: "", OPENROUTER_API_KEY: "", GROQ_API_KEY: "", GEMINI_API_KEY: "", PIPED_API_BASE: "", INVIDIOUS_API_BASE: "", COBALT_API_BASE: "" }
 const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
+const diagnostics = createSmokeDiagnostics(env)
 let child
 let log = ""
 const sockets = []
@@ -35,10 +37,13 @@ let checks = 0
 const pass = (name) => { checks++; console.log(`PASS ${name}`) }
 const noSecrets = (value) => assert.doesNotMatch(JSON.stringify(value), /passwordHash|securityAnswerHash|lockPinHash/)
 async function request(route, { cookie, data, method, body, headers = {}, status = 200 } = {}) {
+  diagnostics.remember({ cookie, data, headers })
   const response = await fetch(base + route, { method: method || (data !== undefined || body ? "POST" : "GET"),
     headers: { ...(cookie ? { Cookie: cookie } : {}), ...(data !== undefined ? { "Content-Type": "application/json" } : {}), ...headers },
     body: data !== undefined ? JSON.stringify(data) : body })
   const text = await response.text()
+  for (const cookie of response.headers.getSetCookie()) diagnostics.remember({ cookie })
+  if (response.status !== status) console.error("SMOKE server failure diagnostics (redacted):\n" + diagnostics.redact(log).slice(-12000))
   assert.equal(response.status, status, `${route}: ${text.slice(0, 300)}`)
   let json; try { json = JSON.parse(text) } catch {}
   return { response, json, text }
