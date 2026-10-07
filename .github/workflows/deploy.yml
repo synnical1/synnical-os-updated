@@ -50,6 +50,7 @@ jobs:
         env:
           DATABASE_URL: file:./prisma/ci.db
           SYNNICAL_WALLPAPER_BROWSER_TEST: "true"
+          SYNNICAL_LAYOUT_EVIDENCE_DIR: pr-layout-evidence
         run: npm run test:smoke
 
       - name: Run single-core production smoke regression
@@ -58,6 +59,15 @@ jobs:
         run: |
           smoke_cpu="$(awk '/^Cpus_allowed_list:/ { split($2, cpus, /[-,]/); print cpus[1] }' /proc/self/status)"
           taskset --cpu-list "$smoke_cpu" npm run test:smoke
+
+      - name: Preserve verified browser layout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-desktop-layout
+          path: pr-layout-evidence
+          if-no-files-found: ignore
+          retention-days: 7
 
   deploy:
     name: Deploy to Oracle ARM64
@@ -153,3 +163,29 @@ jobs:
           echo "Synnical or bundled Stratus did not become healthy after deployment." >&2
           exit 1
           REMOTE
+
+      - name: Check out deployed commit for visual verification
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22 for live visual verification
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install browser verification dependencies
+        run: npm ci --include=dev --include=optional
+
+      - name: Verify live desktop rendering
+        env:
+          SYNNICAL_LAYOUT_EVIDENCE_DIR: live-layout-evidence
+        run: node scripts/wallpaper-browser-regression.mjs https://www.synnical.co.uk
+
+      - name: Preserve live visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-desktop-layout
+          path: live-layout-evidence
+          if-no-files-found: ignore
+          retention-days: 7

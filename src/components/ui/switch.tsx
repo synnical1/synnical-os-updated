@@ -5,6 +5,8 @@ import * as SwitchPrimitive from "@radix-ui/react-switch"
 
 import { cn } from "@/lib/utils"
 
+// Border-box 40×20; 1px border + 2px anchor = 3px outer inset.
+// 40 - 14 - 2×3 = 20px travel, with equal insets in both states.
 function Switch({
   className,
   ...props
@@ -13,7 +15,7 @@ function Switch({
     <SwitchPrimitive.Root
       data-slot="switch"
       className={cn(
-        "peer data-[state=checked]:bg-white data-[state=unchecked]:bg-[#161616] focus-visible:border-white focus-visible:ring-white/30 inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-[#303030] shadow-none transition-colors outline-none focus-visible:ring-[2px] disabled:cursor-not-allowed disabled:opacity-50",
+        "peer relative inline-flex h-[20px] w-[40px] shrink-0 rounded-full border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] shadow-none outline-none transition-colors data-[state=checked]:border-[var(--synnical-accent)] data-[state=checked]:bg-[var(--synnical-accent)] focus-visible:ring-2 focus-visible:ring-[var(--synnical-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--synnical-surface)] disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}
@@ -21,7 +23,7 @@ function Switch({
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
         className={cn(
-          "bg-[#707070] data-[state=checked]:bg-black pointer-events-none block size-4 rounded-full ring-0 transition-transform data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0"
+          "pointer-events-none absolute left-[2px] top-[2px] block size-[14px] rounded-full bg-[var(--synnical-text)] data-[state=checked]:bg-[var(--primary-foreground)] ring-0 transition-transform duration-150 data-[state=checked]:translate-x-[20px] data-[state=unchecked]:translate-x-0 motion-reduce:transition-none"
         )}
       />
     </SwitchPrimitive.Root>
