@@ -74,10 +74,14 @@ export async function verifyWallpaperAdvances(base) {
     }
   } finally {
     for (const task of pending.values()) { clearTimeout(task.timer); task.reject(new Error("Wallpaper browser closed")) }
-    ws?.close()
-    child.kill("SIGTERM")
-    await Promise.race([new Promise(resolve => child.exitCode !== null ? resolve() : child.once("exit", resolve)), delay(3000)])
-    if (child.exitCode === null) child.kill("SIGKILL")
-    await rm(profile, { recursive: true, force: true })
+    // Ask Chrome to flush/close its helpers before deleting their profile.
+    const exited = () => child.exitCode !== null || child.signalCode !== null
+    const waitForExit = () => Promise.race([new Promise(resolve => exited() ? resolve() : child.once("exit", resolve)), delay(3000)])
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ id: ++id, method: "Browser.close" }))
+    await waitForExit()
+    if (!exited()) { child.kill("SIGTERM"); await waitForExit() }
+    if (!exited()) { child.kill("SIGKILL"); await waitForExit() }
+    ws?.terminate()
+    await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 }
