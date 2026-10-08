@@ -1,0 +1,82 @@
+name: One-time production configuration
+
+on:
+  workflow_dispatch:
+    inputs:
+      approve_production_changes:
+        description: 'I reviewed this workflow and approve one-time Oracle configuration'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synnical-production-maintenance
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    if: github.ref == 'refs/heads/main' && inputs.approve_production_changes
+    name: Approved production maintenance
+    environment:
+      name: production-maintenance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out approved main revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Prepare pinned and TLS-hardened malq (no upstream execution)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git clone --no-checkout https://github.com/VillainsRule/malq.git "$RUNNER_TEMP/malq"
+          git -C "$RUNNER_TEMP/malq" checkout --detach e3a85150b6113f555b1d3a2c2148f45b3d768460
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-aarch64.zip \
+            --output "$RUNNER_TEMP/bun.zip"
+          python3 scripts/maintenance/prepare-malq.py "$RUNNER_TEMP/malq" "$RUNNER_TEMP/bun.zip"
+          cp scripts/maintenance/malq-package-lock.json "$RUNNER_TEMP/malq/package-lock.json"
+          tar --create --gzip --file "$RUNNER_TEMP/malq.tar.gz" \
+            --exclude=.git --exclude=node_modules --exclude=.env --exclude=vectors --exclude=tests -C "$RUNNER_TEMP/malq" .
+
+      - name: Configure approved Oracle host over pinned-host SSH
+        shell: bash
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SYNNICAL_DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.SYNNICAL_DEPLOY_KNOWN_HOSTS }}
+          TMDB_API_READ_TOKEN: ${{ secrets.TMDB_API_READ_TOKEN }}
+          MALQ_PROXY_URL: ${{ secrets.MALQ_PROXY_URL }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          # Never enable shell tracing or interpolate secret expressions into shell source.
+          test -n "$DEPLOY_SSH_PRIVATE_KEY" || { echo '::error::Deployment SSH key is not configured'; exit 1; }
+          test -n "$DEPLOY_KNOWN_HOSTS" || { echo '::error::Pinned SSH known_hosts secret is not configured'; exit 1; }
+          test -n "$TMDB_API_READ_TOKEN" || { echo '::error::TMDB read token secret is not configured'; exit 1; }
+          ssh_dir="$(mktemp -d "$RUNNER_TEMP/maintenance-ssh.XXXXXX")"
+          remote_dir=''
+          cleanup() {
+            if [ -n "$remote_dir" ]; then
+              ssh -F /dev/null -i "$ssh_dir/key" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+                -o UserKnownHostsFile="$ssh_dir/known_hosts" -o ConnectTimeout=20 \
+                ubuntu@140.238.87.247 "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+            fi
+            rm -rf -- "$ssh_dir"
+          }
+          trap cleanup EXIT
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          unset DEPLOY_SSH_PRIVATE_KEY DEPLOY_KNOWN_HOSTS
+          ssh_opts=(-F /dev/null -i "$ssh_dir/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$ssh_dir/known_hosts" -o ConnectTimeout=20)
+          ssh "${ssh_opts[@]}" ubuntu@140.238.87.247 'hostname; whoami; sudo -n true'
+          remote_dir="$(ssh "${ssh_opts[@]}" ubuntu@140.238.87.247 'umask 077; mktemp -d /tmp/synnical-maintenance.XXXXXXXX')"
+          [[ "$remote_dir" =~ ^/tmp/synnical-maintenance\.[[:alnum:]]{8}$ ]] || exit 1
+          scp "${ssh_opts[@]}" scripts/maintenance/production-config.py "$RUNNER_TEMP/malq.tar.gz" "$RUNNER_TEMP/bun.zip" "ubuntu@140.238.87.247:$remote_dir/"
+          # JSON travels only through the encrypted SSH stdin, not arguments or remote files.
+          python3 -c 'import json,os,sys; json.dump({"tmdb":os.environ["TMDB_API_READ_TOKEN"],"proxy":os.environ.get("MALQ_PROXY_URL","")},sys.stdout)' | \
+            ssh "${ssh_opts[@]}" ubuntu@140.238.87.247 "sudo -n python3 '$remote_dir/production-config.py' '$remote_dir'"
