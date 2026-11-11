@@ -1,7 +1,7 @@
 "use client"
 
-import { SynnFlixUnavailablePanel } from "@/components/synnflix-unavailable-panel"
+import { MovyEmbedPanel } from "@/components/movy-embed-panel"
 
 export function SynnimePanel() {
-  return <SynnFlixUnavailablePanel appName="Synnime" />
+  return <MovyEmbedPanel mode="anime" />
 }
