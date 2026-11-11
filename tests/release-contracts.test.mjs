@@ -88,7 +88,11 @@ test(
     assert.match(synnime, /MovyEmbedPanel mode="anime"/)
     assert.match(embed, /https:\/\/www\.movy\.sx\//)
     assert.match(embed, /https:\/\/www\.movy\.sx\/browse\/anime/)
+    assert.match(embed, /useScramjetController/)
+    assert.match(embed, /useScramjetFrame/)
+    assert.match(embed, /navigate\(src\)/)
     assert.match(embed, /<iframe/)
+    assert.doesNotMatch(embed, /src=\{?src\}?/)
     assert.match(embed, /allowFullScreen/)
 
     const legacyPanel = read("src/components/synnflix-panel.tsx")
