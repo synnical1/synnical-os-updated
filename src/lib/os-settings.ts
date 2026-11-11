@@ -55,7 +55,7 @@ export const OS_DEFAULTS = {
   nightLight: false,
   nightLightStrength: 28,
   osBrightness: 100,
-  uiSoundVolume: 70,
+  uiSoundVolume: 0,
   notificationsEnabled: true,
   cursorTheme: "system" as "system" | "light" | "dark" | "crosshair",
   cursorSize: 100,
