@@ -26,7 +26,7 @@ test("mounted Stratus health cannot mark Games ready without both server key and
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve))
     const address = server.address() as { port: number }
     try {
-      const [a, b] = await Promise.all([1, 2].map(async () => (await fetch(\`http://127.0.0.1:\${address.port}/cloud/v1/health\`)).json()))
+      const [a, b] = await Promise.all([1, 2].map(async () => (await fetch("http://127.0.0.1:" + address.port + "/cloud/v1/health")).json()))
       for (const body of [a, b]) {
         assert.equal(body.status, "ok")
         assert.equal(body.provider.configured, configured)
