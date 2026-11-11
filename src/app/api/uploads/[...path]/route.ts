@@ -24,10 +24,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
     if (privateChatMedia) {
       const url = `/api/uploads/${name}`
       const record = name.includes("-chat-image-")
-        ? await db.chatImageUpload.findUnique({ where: { url }, select: { expiresAt: true } })
-        : await db.voiceUpload.findUnique({ where: { url }, select: { expiresAt: true } })
+        ? await db.chatImageUpload.findUnique({ where: { url }, select: { userId: true, expiresAt: true } })
+        : await db.voiceUpload.findUnique({ where: { url }, select: { userId: true, expiresAt: true } })
       if (!record || record.expiresAt.getTime() <= Date.now()) {
         return new Response("Not found", { status: 404 })
+      }
+
+      // The uploader can preview their own pending attachment. After it is
+      // attached to a message, only that channel's members (or its author)
+      // may retrieve it.
+      if (record.userId !== user.id) {
+        const message = await db.message.findFirst({
+          where: name.includes("-chat-image-") ? { imageUrl: url } : { voiceUrl: url },
+          select: {
+            userId: true,
+            channel: { select: { memberships: { where: { userId: user.id }, select: { id: true } } } },
+          },
+        })
+        const isMember = Boolean(message?.channel.memberships.length)
+        if (!message || (!isMember && message.userId !== user.id && user.role !== "OWNER")) {
+          return new Response("Not found", { status: 404 })
+        }
       }
     }
 
