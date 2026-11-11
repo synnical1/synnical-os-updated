@@ -47,12 +47,12 @@ test("oversized GIFs are rejected consistently before upload", async () => {
   assert.match(read("src/app/api/profile/upload/route.ts"), /hasGifSignature/)
 })
 
-test("native video catalogues preserve unavailable playback without loading website providers", () => {
+test("SynnFlix and Synnime stay paused until an authorised media provider is selected", () => {
   const shell = read("src/components/app-shell.tsx")
   const anime = read("src/components/synnime-panel.tsx")
   const player = read("src/components/media-player.tsx")
-  assert.match(shell, /import\("@\/components\/synnflix-panel"\)/)
-  assert.match(anime, /catalogMode="anime"/)
+  assert.match(shell, /import\("@\/components\/synnflix-unavailable-panel"\)/)
+  assert.match(anime, /SynnFlixUnavailablePanel appName="Synnime"/)
   assert.match(player, /Playback unavailable/)
   assert.match(player, /Under Construction/)
   assert.doesNotMatch(shell, /provider-web-view/)
@@ -198,7 +198,7 @@ test("Games is cloud-only and bundled Stratus cannot be disabled by stale legacy
   assert.match(smoke, /\/api\/games\/cloud\/v1\/health/)
   assert.match(smoke, /\/api\/games\/cloud\/v1\/games/)
   const deploy = read(".github/workflows/deploy.yml")
-  assert.match(deploy, /Games\/TMDB readiness is reported separately/)
+  assert.match(deploy, /Games readiness is reported separately/)
   assert.match(deploy, /node scripts\/runtime-preflight\.mjs --runtime/)
   const preflight = read("scripts/runtime-preflight.mjs")
   assert.match(preflight, /games\.length < 200/)
