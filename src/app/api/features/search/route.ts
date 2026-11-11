@@ -6,7 +6,6 @@ import { getCurrentUser } from "@/lib/auth-server"
 import { canAccessPublicChannel } from "@/lib/channel-permissions"
 import { SYNN_BOT_COMMANDS } from "@/lib/synn-bot"
 import { SHOP_CATALOG } from "@/lib/shop"
-import { searchSynnFlix } from "@/lib/synnflix-tmdb"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -46,14 +45,11 @@ export async function GET(req: NextRequest) {
   const commands = SYNN_BOT_COMMANDS.filter((command) => `${command.name} ${command.description} ${command.category}`.toLowerCase().includes(needle)).slice(0, 12)
   const shop = SHOP_CATALOG.filter((item) => `${item.name} ${item.description} ${item.rarity}`.toLowerCase().includes(needle)).slice(0, 12)
   const settings = REAL_SETTINGS.filter(([label, id]) => `${label} ${id}`.toLowerCase().includes(needle)).map(([label, id]) => ({ label, id })).slice(0, 12)
-  let movies: any[] = []
-  try { movies = (await searchSynnFlix(q)).slice(0, 10) } catch {}
 
   const results = [
     ...users.map((user) => ({ type: "user", id: user.id, title: user.displayName, subtitle: `@${user.username}`, data: user })),
     ...messages.map((message) => ({ type: "message", id: message.id, title: message.username, subtitle: message.content.slice(0, 180), data: message })),
     ...games.map((game) => ({ type: "game", id: game.game_key, title: game.name, subtitle: (game.tags || []).join(" · "), data: game })),
-    ...movies.map((movie) => ({ type: "movie", id: `${movie.mediaType}:${movie.id}`, title: movie.title, subtitle: movie.mediaType === "movie" ? "SynnFlix movie" : "SynnFlix TV", data: movie })),
     ...playlistTracks.map((track) => ({ type: "music", id: track.id, title: track.title, subtitle: track.artist, data: track })),
     ...commands.map((command) => ({ type: "command", id: command.name, title: `/${command.name}`, subtitle: command.description, data: command })),
     ...settings.map((setting) => ({ type: "setting", id: setting.id, title: setting.label, subtitle: "Settings", data: setting })),

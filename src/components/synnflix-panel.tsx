@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * @deprecated LEGACY UI ARCHIVE. AppShell deliberately does not import this
+ * panel while SynnFlix and Synnime wait for an authorised catalogue/provider.
+ * Keep the account/profile/list UX source for a future provider migration.
+ */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowLeft,
