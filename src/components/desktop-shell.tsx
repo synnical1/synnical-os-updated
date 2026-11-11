@@ -741,11 +741,11 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
         height: Math.max(MIN_HEIGHT, window.innerHeight - taskbarMetric.height),
         z: zRef.current, minimized: false, maximized: true, restore, workspace, snapGroup: null,
       }
-      onActivePanel?.(panel); recordRecent(panel); playTone("open")
+      onActivePanel?.(panel); recordRecent(panel)
       const next = [...current, nextWindow]; try { localStorage.setItem(WINDOW_KEY, JSON.stringify(next)) } catch {}; return next
     })
     setStartOpen(false); setQuickOpen(false); setNoticeOpen(false); setWidgetsOpen(false); setTaskViewOpen(false); setContextMenu(null)
-  }, [allowed, workspace, onActivePanel, recordRecent, playTone, taskbarMetric.height])
+  }, [allowed, workspace, onActivePanel, recordRecent, taskbarMetric.height])
 
   useEffect(() => {
     const usable = windows.filter((win) => allowed.has(win.panel))
