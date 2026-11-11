@@ -66,25 +66,37 @@ test(
 )
 
 test(
-  "Rich Presence effect cleanup never returns dispatchEvent boolean",
+  "Games Rich Presence effect cleanup never returns dispatchEvent boolean",
   () => {
-    for (
-      const file of [
-        "src/components/games-panel.tsx",
-        "src/components/synnflix-panel.tsx",
-      ]
-    ) {
-      const source = read(file)
+    const source = read("src/components/games-panel.tsx")
+    assert.doesNotMatch(source, /return \(\) => window\.dispatchEvent\(/)
+    assert.match(source, /return \(\) => \{ window\.dispatchEvent\(/)
+  }
+)
 
-      assert.doesNotMatch(
-        source,
-        /return \(\) => window\.dispatchEvent\(/
-      )
+test(
+  "SynnFlix and Synnime stay closed until an authorised media provider is selected",
+  () => {
+    const appShell = read("src/components/app-shell.tsx")
+    assert.match(appShell, /@\/components\/synnflix-unavailable-panel/)
+    assert.doesNotMatch(appShell, /@\/components\/synnflix-panel/)
 
-      assert.match(
-        source,
-        /return \(\) => \{ window\.dispatchEvent\(/
-      )
+    const synnime = read("src/components/synnime-panel.tsx")
+    assert.match(synnime, /SynnFlixUnavailablePanel appName="Synnime"/)
+
+    const unavailable = read("src/components/synnflix-unavailable-panel.tsx")
+    assert.match(unavailable, /properly authorised provider/)
+
+    for (const path of [
+      "src/components/synnflix-panel.tsx",
+      "src/lib/synnflix-tmdb.ts",
+      "src/lib/server/tmdb-credentials.mjs",
+      "src/app/api/synnflix/home/route.ts",
+      "src/app/api/synnflix/search/route.ts",
+      "src/app/api/synnflix/details/route.ts",
+      "src/app/api/synnflix/season/route.ts",
+    ]) {
+      assert.throws(() => read(path), { code: "ENOENT" })
     }
   }
 )
