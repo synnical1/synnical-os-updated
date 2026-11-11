@@ -75,17 +75,22 @@ test(
 )
 
 test(
-  "SynnFlix and Synnime stay closed until an authorised media provider is selected",
+  "SynnFlix and Synnime use Movy directly without restoring the retired TMDB catalogue",
   () => {
     const appShell = read("src/components/app-shell.tsx")
     assert.match(appShell, /@\/components\/synnflix-unavailable-panel/)
     assert.doesNotMatch(appShell, /@\/components\/synnflix-panel/)
 
+    const movies = read("src/components/synnflix-unavailable-panel.tsx")
     const synnime = read("src/components/synnime-panel.tsx")
-    assert.match(synnime, /SynnFlixUnavailablePanel appName="Synnime"/)
+    const embed = read("src/components/movy-embed-panel.tsx")
+    assert.match(movies, /MovyEmbedPanel mode="movies"/)
+    assert.match(synnime, /MovyEmbedPanel mode="anime"/)
+    assert.match(embed, /https:\/\/www\.movy\.sx\//)
+    assert.match(embed, /https:\/\/www\.movy\.sx\/browse\/anime/)
+    assert.match(embed, /<iframe/)
+    assert.match(embed, /allowFullScreen/)
 
-    const unavailable = read("src/components/synnflix-unavailable-panel.tsx")
-    assert.match(unavailable, /properly authorised provider/)
     const legacyPanel = read("src/components/synnflix-panel.tsx")
     assert.match(legacyPanel, /LEGACY UI ARCHIVE/)
     const globalSearch = read("src/app/api/features/search/route.ts")
