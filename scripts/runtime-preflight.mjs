@@ -58,9 +58,9 @@ export async function runPreflight({ env = process.env, fetcher = globalThis.fet
   const report = await inspectRuntimeReadiness({
     env,
     fetcher,
-    runtimeBase: runtime ? \`http://127.0.0.1:\${env.PORT || "3000"}\` : undefined,
+    runtimeBase: runtime ? "http://127.0.0.1:" + (env.PORT || "3000") : undefined,
   })
-  write(\`[runtime-preflight:\${runtime ? "after-reload" : "before-reload"}] \${JSON.stringify(report)}\`)
+  write("[runtime-preflight:" + (runtime ? "after-reload" : "before-reload") + "] " + JSON.stringify(report))
   if (report.stratus.readiness !== "ready") {
     write("WARNING: Games readiness is degraded; mounted routes do not prove gameplay readiness.")
   }
