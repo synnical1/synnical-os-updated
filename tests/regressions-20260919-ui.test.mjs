@@ -47,14 +47,18 @@ test("oversized GIFs are rejected consistently before upload", async () => {
   assert.match(read("src/app/api/profile/upload/route.ts"), /hasGifSignature/)
 })
 
-test("SynnFlix and Synnime stay paused until an authorised media provider is selected", () => {
+test("SynnFlix and Synnime render the in-app Movy catalogue", () => {
   const shell = read("src/components/app-shell.tsx")
+  const movies = read("src/components/synnflix-unavailable-panel.tsx")
   const anime = read("src/components/synnime-panel.tsx")
-  const player = read("src/components/media-player.tsx")
+  const embed = read("src/components/movy-embed-panel.tsx")
   assert.match(shell, /import\("@\/components\/synnflix-unavailable-panel"\)/)
-  assert.match(anime, /SynnFlixUnavailablePanel appName="Synnime"/)
-  assert.match(player, /Playback unavailable/)
-  assert.match(player, /Under Construction/)
+  assert.match(movies, /MovyEmbedPanel mode="movies"/)
+  assert.match(anime, /MovyEmbedPanel mode="anime"/)
+  assert.match(embed, /https:\/\/www\.movy\.sx\//)
+  assert.match(embed, /https:\/\/www\.movy\.sx\/browse\/anime/)
+  assert.match(embed, /<iframe/)
+  assert.match(embed, /allowFullScreen/)
   assert.doesNotMatch(shell, /provider-web-view/)
 })
 
