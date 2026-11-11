@@ -11,7 +11,7 @@ const MIME: Record<string, string> = {
 }
 
 /** Serve only media files in the upload root, never nested paths or symlinks. */
-export async function serveUpload(root: string, segments: string[], req: Request): Promise<Response> {
+export async function serveUpload(root: string, segments: string[], req: Request, cacheControl = "public, max-age=31536000, immutable"): Promise<Response> {
   const name = segments[0] || ""
   const mime = MIME[path.extname(name).toLowerCase()]
   if (segments.length !== 1 || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/.test(name) || name.includes("..") || !mime) {
@@ -24,7 +24,7 @@ export async function serveUpload(root: string, segments: string[], req: Request
     if (!info.isFile()) { await file.close(); return new Response("Not found", { status: 404 }) }
     const headers = new Headers({
       "Content-Type": mime, "Accept-Ranges": "bytes",
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": cacheControl,
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; sandbox",
       "Content-Disposition": `inline; filename="${name}"`,
