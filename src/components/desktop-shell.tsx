@@ -860,15 +860,6 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
   }, [os.desktopWeatherWidget])
 
   useEffect(() => {
-    if (!user) return
-    const key = `synnical:os:startup-sound:${user.id}`
-    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1") } catch {}
-    const onGesture = () => { playTone("open"); window.removeEventListener("pointerdown", onGesture, true); window.removeEventListener("keydown", onGesture, true) }
-    window.addEventListener("pointerdown", onGesture, true); window.addEventListener("keydown", onGesture, true)
-    return () => { window.removeEventListener("pointerdown", onGesture, true); window.removeEventListener("keydown", onGesture, true) }
-  }, [user?.id, playTone])
-
-  useEffect(() => {
     if (!focusEndAt) return
     const remaining = focusEndAt - Date.now()
     if (remaining <= 0) {
