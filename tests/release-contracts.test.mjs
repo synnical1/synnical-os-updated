@@ -86,11 +86,12 @@ test(
 
     const unavailable = read("src/components/synnflix-unavailable-panel.tsx")
     assert.match(unavailable, /properly authorised provider/)
+    const legacyPanel = read("src/components/synnflix-panel.tsx")
+    assert.match(legacyPanel, /LEGACY UI ARCHIVE/)
     const globalSearch = read("src/app/api/features/search/route.ts")
     assert.doesNotMatch(globalSearch, /synnflix-tmdb|searchSynnFlix/)
 
     for (const path of [
-      "src/components/synnflix-panel.tsx",
       "src/lib/synnflix-tmdb.ts",
       "src/lib/server/tmdb-credentials.mjs",
       "src/app/api/synnflix/home/route.ts",
