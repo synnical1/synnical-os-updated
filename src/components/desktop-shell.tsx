@@ -741,11 +741,11 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
         height: Math.max(MIN_HEIGHT, window.innerHeight - taskbarMetric.height),
         z: zRef.current, minimized: false, maximized: true, restore, workspace, snapGroup: null,
       }
-      onActivePanel?.(panel); recordRecent(panel); playTone("open")
+      onActivePanel?.(panel); recordRecent(panel)
       const next = [...current, nextWindow]; try { localStorage.setItem(WINDOW_KEY, JSON.stringify(next)) } catch {}; return next
     })
     setStartOpen(false); setQuickOpen(false); setNoticeOpen(false); setWidgetsOpen(false); setTaskViewOpen(false); setContextMenu(null)
-  }, [allowed, workspace, onActivePanel, recordRecent, playTone, taskbarMetric.height])
+  }, [allowed, workspace, onActivePanel, recordRecent, taskbarMetric.height])
 
   useEffect(() => {
     const usable = windows.filter((win) => allowed.has(win.panel))
@@ -858,15 +858,6 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
     }, () => { if (!cancelled) setWeather({ error: "Allow location access to show local weather." }) }, { maximumAge: 15 * 60_000, timeout: 8_000 })
     return () => { cancelled = true }
   }, [os.desktopWeatherWidget])
-
-  useEffect(() => {
-    if (!user) return
-    const key = `synnical:os:startup-sound:${user.id}`
-    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1") } catch {}
-    const onGesture = () => { playTone("open"); window.removeEventListener("pointerdown", onGesture, true); window.removeEventListener("keydown", onGesture, true) }
-    window.addEventListener("pointerdown", onGesture, true); window.addEventListener("keydown", onGesture, true)
-    return () => { window.removeEventListener("pointerdown", onGesture, true); window.removeEventListener("keydown", onGesture, true) }
-  }, [user?.id, playTone])
 
   useEffect(() => {
     if (!focusEndAt) return

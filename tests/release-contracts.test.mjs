@@ -88,7 +88,11 @@ test(
     assert.match(synnime, /MovyEmbedPanel mode="anime"/)
     assert.match(embed, /https:\/\/www\.movy\.sx\//)
     assert.match(embed, /https:\/\/www\.movy\.sx\/browse\/anime/)
+    assert.match(embed, /useScramjetController/)
+    assert.match(embed, /useScramjetFrame/)
+    assert.match(embed, /navigate\(src\)/)
     assert.match(embed, /<iframe/)
+    assert.doesNotMatch(embed, /src=\{?src\}?/)
     assert.match(embed, /allowFullScreen/)
 
     const legacyPanel = read("src/components/synnflix-panel.tsx")
@@ -106,5 +110,33 @@ test(
     ]) {
       assert.throws(() => read(path), { code: "ENOENT" })
     }
+  }
+)
+
+test(
+  "private uploads require an authenticated owner or channel member and disable shared caching",
+  () => {
+    const route = read("src/app/api/uploads/[...path]/route.ts")
+    const serving = read("src/lib/upload-serving.ts")
+    assert.match(route, /getCurrentUser\(\)/)
+    assert.match(route, /privateWallpaper/)
+    assert.match(route, /privateChatMedia/)
+    assert.match(route, /expiresAt\.getTime\(\) <= Date\.now\(\)/)
+    assert.match(route, /channel: \{ select: \{ memberships:/)
+    assert.match(route, /"private, no-store"/)
+    assert.match(serving, /cacheControl = "public/)
+    assert.match(serving, /"Cache-Control": cacheControl/)
+  }
+)
+
+test(
+  "temporary mail creation and inbox polling have request limits",
+  () => {
+    const session = read("src/app/api/tempmail/session/route.ts")
+    const inbox = read("src/app/api/tempmail/inbox/[token]/route.ts")
+    assert.match(session, /consumeRequestLimit\(req, "tempmail-session", 3, 60 \* 60_000\)/)
+    assert.match(inbox, /consumeRequestLimit\(_req, "tempmail-inbox", 30, 60_000\)/)
+    assert.match(session, /status: 429/)
+    assert.match(inbox, /status: 429/)
   }
 )
