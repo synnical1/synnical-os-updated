@@ -12,7 +12,7 @@ export function SynnFlixUnavailablePanel({ appName = "SynnFlix" }: { appName?: s
     <UnderConstructionPanel
       appName={appName}
       eyebrow={subject}
-      description={\`We’re lining up a dependable, properly authorised provider before bringing \${subject} back online.\`}
+      description={"We’re lining up a dependable, properly authorised provider before bringing " + subject + " back online."}
     />
   )
 }
