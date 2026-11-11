@@ -86,6 +86,8 @@ test(
 
     const unavailable = read("src/components/synnflix-unavailable-panel.tsx")
     assert.match(unavailable, /properly authorised provider/)
+    const globalSearch = read("src/app/api/features/search/route.ts")
+    assert.doesNotMatch(globalSearch, /synnflix-tmdb|searchSynnFlix/)
 
     for (const path of [
       "src/components/synnflix-panel.tsx",
