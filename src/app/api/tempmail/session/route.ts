@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { randomInt } from "node:crypto"
 import { consumeRequestLimit } from "@/lib/request-rate-limit"
 
 // ---------------------------------------------------------------------------
@@ -43,7 +44,7 @@ async function fetchDomains(): Promise<string[]> {
 function randomString(len: number): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
   let result = ""
-  for (let i = 0; i < len; i++) result += chars[Math.floor(Math.random() * chars.length)]
+  for (let i = 0; i < len; i++) result += chars[randomInt(chars.length)]
   return result
 }
 
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS * 2)
   try {
     const domains = await fetchDomains()
-    const domain = domains[Math.floor(Math.random() * domains.length)]
+    const domain = domains[randomInt(domains.length)]
     const username = `s${randomString(10)}`
     const address = `${username}@${domain}`
     const password = randomString(16)
