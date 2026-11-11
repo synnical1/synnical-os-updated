@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { consumeRequestLimit } from "@/lib/request-rate-limit"
 
 // ---------------------------------------------------------------------------
 // Temp-mail inbox — powered by mail.tm / mail.gw API
@@ -42,6 +43,13 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
+  const limit = consumeRequestLimit(_req, "tempmail-inbox", 30, 60_000)
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many inbox refreshes. Please wait a moment." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds), "Cache-Control": "no-store" } },
+    )
+  }
   if (!token || !TOKEN_RE.test(token)) {
     return NextResponse.json(
       { error: "Invalid session token." },
