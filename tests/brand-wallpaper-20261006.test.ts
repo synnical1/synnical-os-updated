@@ -26,7 +26,7 @@ test("every accent theme resolves OLED surfaces; light palettes and accents surv
 
 test("wallpaper migration globally resets old desktop, lock and workspace choices once", () => {
   assert.equal(sanitizeOsSettings({}).desktopWallpaper, DEFAULT_OS_WALLPAPER)
-  for (const old of ["thorfinn.webp", "synnical-static-ink-wallpaper.png", "synnical-default-wallpaper.mp4"]) {
+  for (const old of ["thorfinn.webp", "synnical-static-ink-wallpaper.png", "synnical-default-wallpaper.mp4", "synnical-default-wallpaper.webm"]) {
     const migrated = sanitizeOsSettings({ desktopWallpaper: `/brand/wallpapers/${old}`, lockWallpaper: `/brand/wallpapers/${old}` })
     assert.equal(migrated.desktopWallpaper, DEFAULT_OS_WALLPAPER)
     assert.equal(migrated.lockWallpaper, DEFAULT_OS_WALLPAPER)
@@ -46,7 +46,7 @@ test("wallpaper migration globally resets old desktop, lock and workspace choice
   assert.equal(deliberate.lockWallpaper, "https://example.com/after-migration.mp4")
   assert.equal(deliberate.workspaces[0].wallpaper, "/api/uploads/workspace.webp")
   assert.equal(sanitizeOsSettings({ wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION, desktopWallpaper: "/brand/wallpapers/thorfinn.webp" }).desktopWallpaper, "/brand/wallpapers/thorfinn.webp")
-  assert.equal(DEFAULT_OS_WALLPAPER, "https://livewallpapers4free.com/download/21316/")
+  assert.equal(DEFAULT_OS_WALLPAPER, "/brand/wallpapers/sakura-samurai-4k.mp4")
   assert.ok(existsSync(new URL(`../public${DEFAULT_OS_WALLPAPER_POSTER}`, import.meta.url)))
 })
 
