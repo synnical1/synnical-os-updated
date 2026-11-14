@@ -60,7 +60,7 @@ export async function verifyWallpaperAdvances(base, { cookie } = {}) {
       assert.ok(!result.exceptionDetails, "Wallpaper browser evaluation failed")
       return result.result.value
     }
-    const snapshot = `(() => { const v = document.querySelector('video.synnical-live-wallpaper[src="/brand/wallpapers/synnical-default-wallpaper.webm"]'); return v ? { time: v.currentTime, duration: v.duration, frames: v.getVideoPlaybackQuality().totalVideoFrames, paused: v.paused, ready: v.readyState, error: v.error?.code || null } : null })()`
+    const snapshot = `(() => { const v = document.querySelector('video.synnical-live-wallpaper[src="/brand/wallpapers/sakura-samurai-4k.mp4"]'); return v ? { time: v.currentTime, duration: v.duration, frames: v.getVideoPlaybackQuality().totalVideoFrames, paused: v.paused, ready: v.readyState, error: v.error?.code || null } : null })()`
     let initial
     let bootChecked = false
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -82,7 +82,7 @@ export async function verifyWallpaperAdvances(base, { cookie } = {}) {
     }
     assert.ok(bootChecked, "Fresh browser navigation exercises boot wallpaper bounds")
     const dimensions = await evaluate(`(() => { const v=document.querySelector("video.synnical-live-wallpaper"); return [v.videoWidth,v.videoHeight] })()`)
-    assert.deepEqual(dimensions, [1920,1080], "Default WebM display dimensions match clean poster")
+    assert.deepEqual(dimensions, [3840,2160], "Default Sakura wallpaper must decode at native 4K resolution")
     assert.ok(initial?.ready >= 2 && !initial.paused, "Default wallpaper must load and play with normal settings")
     for (const mode of ["normal", "automatic-performance", "automatic-low-battery"]) {
       if (mode !== "normal") await evaluate(`document.documentElement.classList.add('${mode === "automatic-performance" ? "synnical-perf-mode" : "synnical-battery-perf"}'); true`)
@@ -92,7 +92,7 @@ export async function verifyWallpaperAdvances(base, { cookie } = {}) {
       const elapsed = (after.time - before.time + after.duration) % after.duration
       assert.equal(after.error, null, `${mode}: video decode succeeds`)
       assert.equal(after.paused, false, `${mode}: automatic hints cannot pause the default wallpaper`)
-      assert.ok(elapsed > 0.15, `${mode}: actual WebM currentTime must advance`)
+      assert.ok(elapsed > 0.15, `${mode}: actual 4K MP4 currentTime must advance`)
       assert.ok(after.frames > before.frames, `${mode}: decoded video frames must advance`)
     }
     await verifyDesktopLayout({ command, evaluate, sessionId, authenticated: Boolean(cookie) })
