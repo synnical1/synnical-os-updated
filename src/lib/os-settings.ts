@@ -1,16 +1,10 @@
 export type WallpaperFit = "fill" | "fit" | "stretch" | "center" | "tile"
 
 export const LEGACY_OS_WALLPAPER = "/brand/wallpapers/samurai-cherry-blossom.png"
-export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/synnical-default-wallpaper.webm"
-export const DEFAULT_OS_WALLPAPER_POSTER = "/brand/wallpapers/synnical-default-wallpaper-poster.webp"
-export const WALLPAPER_DEFAULT_VERSION = 1
+export const DEFAULT_OS_WALLPAPER = "https://livewallpapers4free.com/download/21316/"
+export const DEFAULT_OS_WALLPAPER_POSTER = "/brand/wallpapers/sakura-samurai-4k-poster.webp"
+export const WALLPAPER_DEFAULT_VERSION = 2
 export const BUILTIN_OS_WALLPAPERS = [] as const
-const PREVIOUS_DEFAULT_WALLPAPERS = new Set([
-  "/brand/wallpapers/thorfinn.webp",
-  LEGACY_OS_WALLPAPER,
-  "/brand/wallpapers/synnical-static-ink-wallpaper.png",
-  "/brand/wallpapers/synnical-default-wallpaper.mp4",
-])
 
 export const OS_DEFAULTS = {
   wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION,
@@ -133,9 +127,13 @@ export function sanitizeOsSettings(input: unknown): OsSettings {
   const bool = (key: keyof OsSettings) => typeof value[key] === "boolean" ? value[key] as boolean : OS_DEFAULTS[key] as boolean
   const widgetDefaultsVersion = num(value.widgetDefaultsVersion, 0, 1, 0)
   const widgetBool = (key: keyof OsSettings) => widgetDefaultsVersion >= 1 ? bool(key) : false
+  // Version 2 is an intentional global wallpaper reset. Everyone's
+  // existing desktop and lock-screen choices are replaced once; after the
+  // version is saved, future personal choices are preserved.
+  const wallpaperDefaultsNeedReset = Number(value.wallpaperDefaultVersion || 0) < WALLPAPER_DEFAULT_VERSION
   const migrateDefault = (wallpaper: unknown, fallback: string) => {
-    const clean = wallpaperValue(wallpaper, fallback)
-    return Number(value.wallpaperDefaultVersion || 0) < WALLPAPER_DEFAULT_VERSION && PREVIOUS_DEFAULT_WALLPAPERS.has(clean) ? DEFAULT_OS_WALLPAPER : clean
+    if (wallpaperDefaultsNeedReset) return DEFAULT_OS_WALLPAPER
+    return wallpaperValue(wallpaper, fallback)
   }
   return {
     wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION,
@@ -299,7 +297,7 @@ export function sanitizeOsSettings(input: unknown): OsSettings {
         if (!Number.isSafeInteger(id) || id < 1 || id > 9999 || seen.has(id)) continue
         seen.add(id)
         const name = typeof row.name === "string" && row.name.trim() ? row.name.trim().slice(0, 40) : `Desktop ${id}`
-        const wallpaper = wallpaperValue(row.wallpaper, "")
+        const wallpaper = wallpaperDefaultsNeedReset ? "" : wallpaperValue(row.wallpaper, "")
         result.push({ id, name, wallpaper })
       }
       return result.length ? result : [{ id: 1, name: "Desktop 1", wallpaper: "" }]
@@ -354,6 +352,7 @@ export function readOsSettings(): OsSettings {
         raw.wallpaperDefaultVersion = WALLPAPER_DEFAULT_VERSION
         raw.desktopWallpaper = settings.desktopWallpaper
         raw.lockWallpaper = settings.lockWallpaper
+        raw.workspaces = settings.workspaces
         changed = true
       }
       delete raw.desktopContinueWatchingWidget
