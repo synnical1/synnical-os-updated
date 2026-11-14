@@ -34,16 +34,17 @@ function run(command, args) {
   if (result.status !== 0) throw new Error(`${command} exited with status ${result.status}`)
 }
 
-await mkdir(path.dirname(output), { recursive: true })
-await mkdir(path.dirname(source), { recursive: true })
+async function prepare() {
+  await mkdir(path.dirname(output), { recursive: true })
+  await mkdir(path.dirname(source), { recursive: true })
 
-try {
+  try {
   const existing = await stat(output).catch(() => null)
   if (existing?.size > 2_000_000) {
     const info = inspect(output)
     if (info.codec === "h264" && info.width === 3840 && info.height === 2160 && info.fps <= 30.1) {
       process.stdout.write(`Using cached 4K/30fps wallpaper (${existing.size.toLocaleString()} bytes).\\n`)
-      process.exit(0)
+      return
     }
   }
 
@@ -93,8 +94,11 @@ try {
   await rename(temporaryOutput, output)
   process.stdout.write(`Prepared local 4K H.264 wallpaper at 30 fps (${prepared.size.toLocaleString()} bytes).\\n`)
 } finally {
-  await Promise.all([
-    rm(source, { force: true }),
-    rm(temporaryOutput, { force: true }),
-  ])
+    await Promise.all([
+      rm(source, { force: true }),
+      rm(temporaryOutput, { force: true }),
+    ])
+  }
 }
+
+await prepare()
