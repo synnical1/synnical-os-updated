@@ -88,7 +88,7 @@ const TASKBAR_HEIGHT = 48
 const MIN_WIDTH = 420
 const MIN_HEIGHT = 280
 const DESKTOP_GRID_COLUMNS = { normal: 4, fullscreen: 3 }
-const WALLPAPER_VIDEO_RE = /\.(?:mp4|webm|mov)(?:\?|$)/i
+const WALLPAPER_VIDEO_RE = /\.(?:mp4|webm|mov)(?:[?#]|$)|^https:\/\/livewallpapers4free\.com\/download\/21316\/?(?:[?#].*)?$/i
 
 function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)) }
 function uid(prefix = "id") { return crypto.randomUUID?.() || `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}` }
@@ -1566,7 +1566,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
             const progressValues = rows.map((win) => taskbarProgress[win.panel]).filter((value) => value !== undefined)
             const progress = progressValues.length ? (progressValues.some((value) => value === null) ? null : Math.max(...progressValues.map((value) => Number(value)))) : undefined
             return <button key={`group:${group}`} onClick={() => activateSnapGroup(group)} className={cn("synnical-taskbar-app relative flex items-center justify-center rounded-xl px-1", groupActive && "is-active")} style={{ height: taskbarMetric.button, minWidth: Math.max(46, taskbarMetric.button + 8) }} title={`Snap group · ${rows.map((win) => allowed.get(win.panel)?.label || win.panel).join(" + ")}`}>
-              <span className="flex -space-x-1">{rows.slice(0,3).map((win) => { const GroupIcon = allowed.get(win.panel)?.icon; return GroupIcon ? <span key={win.id} className="grid h-6 w-6 place-items-center rounded-lg border border-white/15 bg-black/35"><GroupIcon className="h-3.5 w-3.5" /></span> : null })}</span>
+              <span className="flex -space-x-1">{rows.slice(0,3).map((win) => { const GroupIcon = allowed.get(win.panel)?.icon; return GroupIcon ? <span key={win.id} className="synnical-taskbar-group-icon grid h-6 w-6 place-items-center"><GroupIcon className="h-3.5 w-3.5" /></span> : null })}</span>
               {badge > 0 ? <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[8px] font-bold">{badge > 99 ? "99+" : badge}</span> : null}
               {progress !== undefined ? <span className="absolute inset-x-1 bottom-0 h-0.5 overflow-hidden rounded bg-white/15"><span className={cn("block h-full bg-sky-300", progress === null && "animate-pulse")} style={{ width: `${progress === null ? 35 : progress}%` }} /></span> : <span className={cn("absolute bottom-0 h-0.5 rounded bg-sky-300 transition-all", groupActive ? "w-7" : "w-4 opacity-70")} />}
             </button>
