@@ -43,12 +43,12 @@ async function prepare() {
   if (existing?.size > 2_000_000) {
     const info = inspect(output)
     if (info.codec === "h264" && info.width === 3840 && info.height === 2160 && info.fps <= 30.1) {
-      process.stdout.write(`Using cached 4K/30fps wallpaper (${existing.size.toLocaleString()} bytes).\\n`)
+      process.stdout.write(`Using cached 4K/30fps wallpaper (${existing.size.toLocaleString()} bytes).\n`)
       return
     }
   }
 
-  process.stdout.write("Fetching the source 4K Sakura Samurai MP4…\\n")
+  process.stdout.write("Fetching the source 4K Sakura Samurai MP4…\n")
   const response = await fetch(sourceUrl, {
     redirect: "follow",
     headers: { referer, "user-agent": "SynnicalOS-WallpaperBuilder/1.0" },
@@ -56,7 +56,7 @@ async function prepare() {
   })
   if (!response.ok || !response.body) throw new Error(`Wallpaper source returned HTTP ${response.status}`)
   const contentType = response.headers.get("content-type") || ""
-  if (!/video\\/(?:mp4|x-m4v)|application\\/octet-stream/i.test(contentType)) {
+  if (!/video\/(?:mp4|x-m4v)|application\/octet-stream/i.test(contentType)) {
     throw new Error(`Wallpaper source did not return an MP4 (content-type: ${contentType || "missing"})`)
   }
 
@@ -68,7 +68,7 @@ async function prepare() {
   if (inputInfo.width !== 3840 || inputInfo.height !== 2160) {
     throw new Error(`Wallpaper source is ${inputInfo.width}x${inputInfo.height}, expected native 3840x2160`)
   }
-  process.stdout.write(`Downloaded native 4K source (${downloaded.size.toLocaleString()} bytes, ${inputInfo.fps} fps).\\n`)
+  process.stdout.write(`Downloaded native 4K source (${downloaded.size.toLocaleString()} bytes, ${inputInfo.fps} fps).\n`)
 
   await rm(temporaryOutput, { force: true })
   run("ffmpeg", [
@@ -92,7 +92,7 @@ async function prepare() {
   const prepared = await stat(temporaryOutput)
   if (prepared.size > 90_000_000) throw new Error(`Prepared wallpaper exceeds the 90 MB deployment limit (${prepared.size} bytes)`)
   await rename(temporaryOutput, output)
-  process.stdout.write(`Prepared local 4K H.264 wallpaper at 30 fps (${prepared.size.toLocaleString()} bytes).\\n`)
+  process.stdout.write(`Prepared local 4K H.264 wallpaper at 30 fps (${prepared.size.toLocaleString()} bytes).\n`)
 } finally {
     await Promise.all([
       rm(source, { force: true }),
