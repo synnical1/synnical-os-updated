@@ -1050,3 +1050,33 @@ video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--s
     background: rgba(18,24,38,.94) !important;
   }
 }
+
+/* r13.2: keep the taskbar material, remove the individual icon tiles. */
+.synnical-os-root .synnical-taskbar-app,
+.synnical-os-root .synnical-taskbar-app:hover,
+.synnical-os-root .synnical-taskbar-app.is-active {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.synnical-os-root .synnical-taskbar-app {
+  transition: transform .16s ease, filter .16s ease, opacity .16s ease;
+}
+.synnical-os-root .synnical-taskbar-app > svg,
+.synnical-os-root .synnical-taskbar-app > span {
+  transition: transform .16s ease, filter .16s ease, opacity .16s ease;
+}
+.synnical-os-root .synnical-taskbar-app:hover > svg,
+.synnical-os-root .synnical-taskbar-app:hover > span {
+  filter: drop-shadow(0 0 7px rgba(255,255,255,.42));
+  transform: translateY(-1px) scale(1.06);
+}
+.synnical-os-root .synnical-taskbar-app.is-active > svg,
+.synnical-os-root .synnical-taskbar-app.is-active > span {
+  filter: drop-shadow(0 0 6px rgba(255,255,255,.30));
+}
+.synnical-os-root .synnical-taskbar-app > span > span {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
