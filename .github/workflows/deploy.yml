@@ -164,7 +164,6 @@ jobs:
           install -d -m 755 "$app_dir/public/brand/wallpapers"
           test -s /tmp/synnical-sakura-samurai-4k.mp4
           install -m 644 /tmp/synnical-sakura-samurai-4k.mp4 "$app_dir/public/brand/wallpapers/sakura-samurai-4k.mp4"
-          rm -f /tmp/synnical-sakura-samurai-4k.mp4
 
           npm ci --include=dev --include=optional
           node scripts/runtime-preflight.mjs
@@ -208,6 +207,14 @@ jobs:
           echo "Synnical or bundled Stratus did not become healthy after deployment." >&2
           exit 1
           REMOTE
+
+          # SCP created this temporary file as the ubuntu SSH user. Clean it
+          # up as that same owner, not as the restricted synnical app user.
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "rm -f /tmp/synnical-sakura-samurai-4k.mp4"
 
       - name: Check out deployed commit for visual verification
         uses: actions/checkout@v4
