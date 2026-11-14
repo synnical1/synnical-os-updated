@@ -35,7 +35,7 @@ test("new/default wallpaper migrates retired assets and preserves custom choices
   assert.equal(DEFAULT_OS_WALLPAPER, "https://livewallpapers4free.com/download/21316/")
   assert.equal(sanitizeOsSettings({}).desktopWallpaper, DEFAULT_OS_WALLPAPER)
   assert.equal(sanitizeOsSettings({desktopWallpaper:"/brand/wallpapers/synnical-static-ink-wallpaper.png"}).desktopWallpaper,DEFAULT_OS_WALLPAPER)
-  assert.equal(sanitizeOsSettings({desktopWallpaper:"/api/uploads/custom.webp"}).desktopWallpaper,"/api/uploads/custom.webp")
+  assert.equal(sanitizeOsSettings({wallpaperDefaultVersion:WALLPAPER_DEFAULT_VERSION,desktopWallpaper:"/api/uploads/custom.webp"}).desktopWallpaper,"/api/uploads/custom.webp")
   assert.equal("enabled" in sanitizeOsSettings({enabled:false}),false)
 })
 test("recognition badge aliases normalize and never duplicate DEV", () => {
