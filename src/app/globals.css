@@ -1045,7 +1045,7 @@ video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--s
   background: linear-gradient(180deg, rgba(255,255,255,.28), rgba(255,255,255,.12)) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.30), 0 0 18px rgba(140,190,255,.13);
 }
-@supports not ((backdrop-filter: blur(1px))) {
+@supports not (backdrop-filter: blur(1px)) {
   .synnical-os-root .synnical-taskbar {
     background: rgba(18,24,38,.94) !important;
   }
