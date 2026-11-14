@@ -114,24 +114,23 @@ try {
     await verifyWallpaperAdvances(base, { cookie: a.cookie })
     pass("actual WebM advances with normal settings and automatic performance/battery hints; wallpaper and switch layout verified")
   }
-  const defaultWallpaper = "/brand/wallpapers/synnical-default-wallpaper.webm"
+  const defaultWallpaper = "/brand/wallpapers/sakura-samurai-4k.mp4"
   const freshOs = (await request("/api/features/os", { cookie: a.cookie })).json
   assert.equal(freshOs.settings.desktopWallpaper, defaultWallpaper)
-  assert.equal(freshOs.settings.wallpaperDefaultVersion, 1)
+  assert.equal(freshOs.settings.wallpaperDefaultVersion, 2)
   const legacyOs = { desktopWallpaper: "/brand/wallpapers/thorfinn.webp", lockWallpaper: "https://example.com/lock.webp", workspaces: [{ id: 1, name: "Custom", wallpaper: "/api/uploads/custom.webp" }, { id: 2, name: "Inherited", wallpaper: "" }] }
   await db.userPreference.upsert({ where: { userId_key: { userId: a.id, key: "os.settings" } }, create: { userId: a.id, key: "os.settings", value: JSON.stringify(legacyOs) }, update: { value: JSON.stringify(legacyOs) } })
   const migratedOs = (await request("/api/features/os", { cookie: a.cookie })).json
   assert.equal(migratedOs.needsWallpaperMigration, true)
   assert.equal(migratedOs.settings.desktopWallpaper, defaultWallpaper)
-  assert.equal(migratedOs.settings.lockWallpaper, legacyOs.lockWallpaper)
-  assert.equal(migratedOs.settings.workspaces[0].wallpaper, legacyOs.workspaces[0].wallpaper)
-  assert.equal(migratedOs.settings.workspaces[1].wallpaper, "")
+  assert.equal(migratedOs.settings.lockWallpaper, defaultWallpaper)
+  assert.deepEqual(migratedOs.settings.workspaces.map((row) => row.wallpaper), ["", ""])
   await request("/api/features/os", { cookie: b.cookie, data: { accountId: a.id, settings: { desktopWallpaper: "https://example.com/foreign.webp" } }, status: 409 })
   await request("/api/features/os", { cookie: a.cookie, data: { accountId: a.id, settings: migratedOs.settings } })
   assert.equal((await request("/api/features/os", { cookie: a.cookie })).json.needsWallpaperMigration, false)
   assert.equal((await request("/api/features/os", { cookie: b.cookie })).json.hasSaved, false)
   for (const asset of [defaultWallpaper, "/brand/wallpapers/synnical-default-wallpaper-poster.webp", "/brand/synnical/synnical-mark-base.webp"]) assert.ok((await fetch(base + asset)).ok)
-  pass("versioned wallpaper migration persists once, preserves custom/workspace choices and rejects foreign writes")
+  pass("versioned wallpaper migration resets previous custom/workspace choices once and rejects foreign writes")
   const dailyBefore = (await db.user.findUnique({ where: { id: a.id } })).coins
   const daily = await Promise.all(Array.from({ length: 6 }, () => request("/api/shop/daily", { cookie: a.cookie, data: {} })))
   assert.equal(daily.filter(row => row.json.success).length, 1)
