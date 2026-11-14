@@ -88,7 +88,7 @@ const TASKBAR_HEIGHT = 48
 const MIN_WIDTH = 420
 const MIN_HEIGHT = 280
 const DESKTOP_GRID_COLUMNS = { normal: 4, fullscreen: 3 }
-const WALLPAPER_VIDEO_RE = /\.(?:mp4|webm|mov)(?:[?#]|$)|^https:\/\/livewallpapers4free\.com\/download\/21316\/?(?:[?#].*)?$/i
+const WALLPAPER_VIDEO_RE = /\.(?:mp4|webm|mov)(?:[?#]|$)/i
 
 function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)) }
 function uid(prefix = "id") { return crypto.randomUUID?.() || `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}` }
