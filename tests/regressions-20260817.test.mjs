@@ -865,7 +865,7 @@ test("r11.3 wallpaper personalization is account-backed for desktop and lock scr
   const route = read("src/app/api/features/os/wallpaper/route.ts")
   const settings = read("src/components/synnical-settings-app.tsx")
   const desktop = read("src/components/desktop-shell.tsx")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/synnical-default-wallpaper\.webm"/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER = "https:\/\/livewallpapers4free\.com\/download\/21316\//)
   assert.match(os, /desktopWallpaperFit/)
   assert.match(os, /lockUseDesktopWallpaper/)
   assert.match(os, /lockWallpaperFit/)
@@ -1014,10 +1014,12 @@ test("r11.4 recognition badges are visible beside roles but never grant permissi
 
 
 // August 25 deliberately removed the Sakura gallery and introduced these assets.
-test("current wallpapers preserve the August 25 video and static fallback", () => {
+test("current wallpapers use the Sakura 4K stream and local poster fallback", () => {
   const os = read("src/lib/os-settings.ts")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/synnical-default-wallpaper\.webm"/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER = "https:\/\/livewallpapers4free\.com\/download\/21316\//)
   assert.match(os, /BUILTIN_OS_WALLPAPERS = \[\] as const/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER_POSTER = "\/brand\/wallpapers\/sakura-samurai-4k-poster\.webp"/)
+  assert.equal(existsSync(new URL("../public/brand/wallpapers/sakura-samurai-4k-poster.webp", import.meta.url)), true)
   for (const asset of ["synnical-default-wallpaper.mp4", "synnical-static-ink-wallpaper.png"]) {
     assert.equal(existsSync(new URL(`../public/brand/wallpapers/${asset}`, import.meta.url)), true)
   }
