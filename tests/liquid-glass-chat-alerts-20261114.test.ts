@@ -27,6 +27,7 @@ test("chat sound plays for incoming non-mention messages only", () => {
   assert.match(chat, /pref\?\.notificationLevel !== "mute"/)
   assert.match(chat, /pref\?\.notificationLevel !== "mentions"/)
   assert.match(chat, /if \(shouldPlayMessageSound && soundRef\.current\) playMessageSound/)
+  assert.ok(chat.includes("const unlockMessageAudio = () =>"))
   assert.match(chat, /<option value="all">All messages<\/option>/)
   const toggleStart = chat.indexOf("const toggleSound = useCallback(() => {")
   const toggleEnd = chat.indexOf("  }, [setSoundEnabled])", toggleStart)
