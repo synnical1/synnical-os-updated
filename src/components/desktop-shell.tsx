@@ -628,15 +628,15 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
   // that destructive setting.  Keep the saved records; closing a window is
   // the explicit way to remove one.
 
-  const playTone = useCallback((kind: "open" | "notify" | "snap") => {
+  // UI interactions stay silent. This tone is reserved for OS notifications.
+  const playTone = useCallback(() => {
     if (os.uiSoundVolume <= 0) return
     try {
       const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext
       if (!AudioContextCtor) return
       const ctx = new AudioContextCtor()
       const osc = ctx.createOscillator(), gain = ctx.createGain()
-      const frequency = kind === "notify" ? 660 : kind === "snap" ? 460 : 540
-      osc.frequency.value = frequency
+      osc.frequency.value = 660
       gain.gain.setValueAtTime(Math.min(.08, os.uiSoundVolume / 1600), ctx.currentTime)
       gain.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + .09)
       osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + .1)
@@ -673,7 +673,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
     const next: Notice = { id: uid("notice"), title: title.slice(0, 120), body: body.slice(0, 500), createdAt: Date.now(), panel, app, priority: effectivePriority }
     setNotices((current) => { const rows = [next, ...current].slice(0, 80); try { localStorage.setItem(NOTICES_KEY, JSON.stringify(rows)) } catch {}; return rows })
     if (panel && panel !== "chat") setTaskbarBadges((current) => ({ ...current, [panel]: Math.min(999, (current[panel] || 0) + 1) }))
-    setToastNotice(next); playTone("notify")
+    setToastNotice(next); playTone()
   }, [os.focusAssist, os.notificationRules, os.notificationsEnabled, playTone])
   const cycleQuickPresence = useCallback(async () => {
     const modes=["online","available_to_play","looking_to_talk","busy"] as const
@@ -928,8 +928,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
       try { localStorage.setItem(WINDOW_KEY, JSON.stringify(next)) } catch {}
       return next
     })
-    playTone("snap")
-  }, [os.snapGroups, os.snapWindows, playTone])
+  }, [os.snapGroups, os.snapWindows])
   const snapZone = useCallback((id: string, zone: "left" | "right" | "max" | "tl" | "tr" | "bl" | "br" | "wide" | "narrow") => {
     const w = window.innerWidth, h = Math.max(MIN_HEIGHT, window.innerHeight - taskbarMetric.height), half = Math.floor(w / 2), halfH = Math.floor(h / 2)
     if (zone === "max") return snapWindowRect(id, 0, 0, w, h)
@@ -1570,7 +1569,7 @@ export function DesktopShell({ apps, renderPanel, onActivePanel }: {
 
 
 
-    <footer className={cn("synnical-taskbar absolute inset-x-0 bottom-0 z-[50000] backdrop-blur-2xl", !os.transparency && "synnical-taskbar-opaque")} style={{ height: taskbarMetric.height }} onMouseDown={(e)=>e.stopPropagation()}>
+    <footer className="synnical-taskbar absolute inset-x-0 bottom-0 z-[50000]" style={{ height: taskbarMetric.height }} onMouseDown={(e)=>e.stopPropagation()}>
       <div className="relative flex h-full items-center px-2">
         {os.showWidgets ? <button onClick={() => { const next=!widgetsOpen; closeFlyouts(); setWidgetsOpen(next) }} className={cn("absolute left-2 grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10", widgetsOpen && "bg-white/10")} title="Widgets"><PanelTop className="h-4.5 w-4.5 text-sky-300" /></button> : null}
         <div className={cn("flex items-center gap-1", taskbarCenter ? "absolute left-1/2 -translate-x-1/2" : "ml-10")}>
