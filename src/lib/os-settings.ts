@@ -1,7 +1,7 @@
 export type WallpaperFit = "fill" | "fit" | "stretch" | "center" | "tile"
 
 export const LEGACY_OS_WALLPAPER = "/brand/wallpapers/samurai-cherry-blossom.png"
-export const DEFAULT_OS_WALLPAPER = "https://livewallpapers4free.com/download/21316/"
+export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/sakura-samurai-4k.mp4"
 export const DEFAULT_OS_WALLPAPER_POSTER = "/brand/wallpapers/sakura-samurai-4k-poster.webp"
 export const WALLPAPER_DEFAULT_VERSION = 2
 export const BUILTIN_OS_WALLPAPERS = [] as const
