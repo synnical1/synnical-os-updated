@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url"
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const output = path.join(root, "public/brand/wallpapers/sakura-samurai-4k.mp4")
 const source = path.join(root, ".cache/sakura-samurai-source.mp4")
-const temporaryOutput = output + ".tmp"
+const temporaryOutput = output.replace(/\.mp4$/i, ".tmp.mp4")
 const sourceUrl = "https://livewallpapers4free.com/download/21316/"
 const referer = "https://livewallpapers4free.com/old-japanese-samurai-sakura-leaf-fall/"
 
