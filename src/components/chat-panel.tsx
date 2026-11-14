@@ -429,6 +429,24 @@ export function ChatPanel() {
     } catch { /* ignore */ }
   }, [setSoundEnabled])
 
+  // Let the browser activate audio silently on the first real user gesture.
+  // Incoming message sounds can then play later without a click-preview beep.
+  useEffect(() => {
+    if (!soundEnabled) return
+    const unlockMessageAudio = () => {
+      window.removeEventListener("pointerdown", unlockMessageAudio)
+      window.removeEventListener("keydown", unlockMessageAudio)
+      const ctx = getAudioCtx()
+      if (ctx?.state === "suspended") void ctx.resume().catch(() => { /* ignore */ })
+    }
+    window.addEventListener("pointerdown", unlockMessageAudio)
+    window.addEventListener("keydown", unlockMessageAudio)
+    return () => {
+      window.removeEventListener("pointerdown", unlockMessageAudio)
+      window.removeEventListener("keydown", unlockMessageAudio)
+    }
+  }, [soundEnabled])
+
   const toggleSound = useCallback(() => {
     setSoundEnabled(!soundRef.current)
   }, [setSoundEnabled])
