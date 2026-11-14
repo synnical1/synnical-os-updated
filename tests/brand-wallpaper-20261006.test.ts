@@ -24,7 +24,7 @@ test("every accent theme resolves OLED surfaces; light palettes and accents surv
   } finally { Object.assign(globalThis, { document: previous }) }
 })
 
-test("wallpaper migration changes old defaults once and preserves deliberate choices/workspace inheritance", () => {
+test("wallpaper migration globally resets old desktop, lock and workspace choices once", () => {
   assert.equal(sanitizeOsSettings({}).desktopWallpaper, DEFAULT_OS_WALLPAPER)
   for (const old of ["thorfinn.webp", "synnical-static-ink-wallpaper.png", "synnical-default-wallpaper.mp4"]) {
     const migrated = sanitizeOsSettings({ desktopWallpaper: `/brand/wallpapers/${old}`, lockWallpaper: `/brand/wallpapers/${old}` })
@@ -34,15 +34,20 @@ test("wallpaper migration changes old defaults once and preserves deliberate cho
     assert.deepEqual(sanitizeOsSettings(migrated), migrated)
   }
   for (const custom of ["/api/uploads/custom.webp", "https://example.com/custom.webm", "/brand/wallpapers/sakura-samurai-1.png"]) {
-    const settings = sanitizeOsSettings({ desktopWallpaper: custom, lockWallpaper: custom, workspaces: [{ id: 1, name: "A", wallpaper: custom }, { id: 2, name: "B", wallpaper: "" }] })
-    assert.equal(settings.desktopWallpaper, custom)
-    assert.equal(settings.lockWallpaper, custom)
-    assert.equal(settings.workspaces[0].wallpaper, custom)
-    assert.equal(settings.workspaces[1].wallpaper, "")
+    const settings = sanitizeOsSettings({ wallpaperDefaultVersion: 1, desktopWallpaper: custom, lockWallpaper: custom, workspaces: [{ id: 1, name: "A", wallpaper: custom }, { id: 2, name: "B", wallpaper: "" }] })
+    assert.equal(settings.desktopWallpaper, DEFAULT_OS_WALLPAPER)
+    assert.equal(settings.lockWallpaper, DEFAULT_OS_WALLPAPER)
+    assert.deepEqual(settings.workspaces.map((row) => row.wallpaper), ["", ""])
     assert.equal(settings.lockUseDesktopWallpaper, true)
+    assert.equal(sanitizeOsSettings(settings).desktopWallpaper, DEFAULT_OS_WALLPAPER, "migration must only happen once")
   }
+  const deliberate = sanitizeOsSettings({ wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION, desktopWallpaper: "/api/uploads/after-migration.webp", lockWallpaper: "https://example.com/after-migration.mp4", workspaces: [{ id: 1, name: "A", wallpaper: "/api/uploads/workspace.webp" }] })
+  assert.equal(deliberate.desktopWallpaper, "/api/uploads/after-migration.webp")
+  assert.equal(deliberate.lockWallpaper, "https://example.com/after-migration.mp4")
+  assert.equal(deliberate.workspaces[0].wallpaper, "/api/uploads/workspace.webp")
   assert.equal(sanitizeOsSettings({ wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION, desktopWallpaper: "/brand/wallpapers/thorfinn.webp" }).desktopWallpaper, "/brand/wallpapers/thorfinn.webp")
-  for (const path of [DEFAULT_OS_WALLPAPER, DEFAULT_OS_WALLPAPER_POSTER]) assert.ok(existsSync(new URL(`../public${path}`, import.meta.url)))
+  assert.equal(DEFAULT_OS_WALLPAPER, "https://livewallpapers4free.com/download/21316/")
+  assert.ok(existsSync(new URL(`../public${DEFAULT_OS_WALLPAPER_POSTER}`, import.meta.url)))
 })
 
 test("layered assets retain neutral whites and intensity detail without an opaque rectangle", async () => {
