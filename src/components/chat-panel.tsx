@@ -429,10 +429,26 @@ export function ChatPanel() {
     } catch { /* ignore */ }
   }, [setSoundEnabled])
 
+  // Let the browser activate audio silently on the first real user gesture.
+  // Incoming message sounds can then play later without a click-preview beep.
+  useEffect(() => {
+    if (!soundEnabled) return
+    const unlockMessageAudio = () => {
+      window.removeEventListener("pointerdown", unlockMessageAudio)
+      window.removeEventListener("keydown", unlockMessageAudio)
+      const ctx = getAudioCtx()
+      if (ctx?.state === "suspended") void ctx.resume().catch(() => { /* ignore */ })
+    }
+    window.addEventListener("pointerdown", unlockMessageAudio)
+    window.addEventListener("keydown", unlockMessageAudio)
+    return () => {
+      window.removeEventListener("pointerdown", unlockMessageAudio)
+      window.removeEventListener("keydown", unlockMessageAudio)
+    }
+  }, [soundEnabled])
+
   const toggleSound = useCallback(() => {
-    const next = !soundRef.current
-    setSoundEnabled(next)
-    if (next) playMessageSound()
+    setSoundEnabled(!soundRef.current)
   }, [setSoundEnabled])
 
   const loadChannelPreferences = useCallback(async () => {
@@ -651,7 +667,11 @@ export function ChatPanel() {
       const active = activeChannelRef.current
       const pref = prefsRef.current[msg.channelId]
       const mentionedMe = messageNotification(msg, myId || "")
-      const shouldNotify = mentionedMe && pref?.notificationLevel !== "mute"
+      // Mentions already get the red taskbar alert; keep the sound for regular
+      // incoming messages only, respecting per-channel mentions-only and mute settings.
+      const shouldPlayMessageSound = !fromSelf && !mentionedMe
+        && pref?.notificationLevel !== "mute"
+        && pref?.notificationLevel !== "mentions"
       // Append to active channel view only if it belongs to the active channel
       if (msg.channelId === active) {
         const el = scrollRef.current
@@ -670,7 +690,7 @@ export function ChatPanel() {
           return prev.some((candidate) => candidate.id === msg.id) ? prev : [...prev, msg]
         })
       }
-      if (shouldNotify && soundRef.current) playMessageSound(pref?.notificationSound || "default")
+      if (shouldPlayMessageSound && soundRef.current) playMessageSound(pref?.notificationSound || "default")
 
     }
     socket.on("message", onMessage)
@@ -1935,7 +1955,7 @@ function ChatToolsPanel({ open, onClose, activeChannel, activeName, draft, setDr
       <div className="min-h-0 flex-1 overflow-y-auto p-4 custom-scroll">
         {loading && <div className="mb-3 flex items-center gap-2 text-xs text-[#777]"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading…</div>}
         {tab === "channel" && <div className="space-y-5">
-          <section><h3 className="text-sm font-semibold">Notifications & draft sync</h3><div className="mt-2 grid gap-2 sm:grid-cols-3"><label className="text-xs text-[#777]">Level<select value={channelPreference?.notificationLevel || "all"} onChange={(e) => void setPreference({ notificationLevel: e.target.value }).catch((x) => toast.error(x.message))} className="mt-1 h-9 w-full rounded-md border border-[#222] bg-black px-2 text-white"><option value="all">Mentions</option><option value="mentions">Mentions only</option><option value="mute">Muted</option></select></label><label className="text-xs text-[#777]">Sound<select value={channelPreference?.notificationSound || "default"} onChange={(e) => void setPreference({ notificationSound: e.target.value }).catch((x) => toast.error(x.message))} className="mt-1 h-9 w-full rounded-md border border-[#222] bg-black px-2 text-white"><option value="default">Default</option><option value="soft">Soft</option><option value="bright">Bright</option><option value="low">Low</option><option value="pulse">Pulse</option></select></label>{canManageChannels(currentUser.role) && !activeChannel?.startsWith("dm-") && <label className="text-xs text-[#777]">Slow mode seconds<div className="mt-1 flex gap-1"><Input type="number" min={0} max={21600} value={slowMode} onChange={(e) => setSlowMode(e.target.value)} /><Button size="sm" onClick={() => activeChannel && void post({ action: "set-slowmode", channelId: activeChannel, seconds: Number(slowMode) }).then(() => toast.success("Slow mode saved")).catch((e) => toast.error(e.message))}>Set</Button></div></label>}</div><p className="mt-2 text-[11px] text-[#555]">Your current composer draft is synced to this account automatically.</p></section>
+          <section><h3 className="text-sm font-semibold">Notifications & draft sync</h3><div className="mt-2 grid gap-2 sm:grid-cols-3"><label className="text-xs text-[#777]">Level<select value={channelPreference?.notificationLevel || "all"} onChange={(e) => void setPreference({ notificationLevel: e.target.value }).catch((x) => toast.error(x.message))} className="mt-1 h-9 w-full rounded-md border border-[#222] bg-black px-2 text-white"><option value="all">All messages</option><option value="mentions">Mentions only</option><option value="mute">Muted</option></select></label><label className="text-xs text-[#777]">Sound<select value={channelPreference?.notificationSound || "default"} onChange={(e) => void setPreference({ notificationSound: e.target.value }).catch((x) => toast.error(x.message))} className="mt-1 h-9 w-full rounded-md border border-[#222] bg-black px-2 text-white"><option value="default">Default</option><option value="soft">Soft</option><option value="bright">Bright</option><option value="low">Low</option><option value="pulse">Pulse</option></select></label>{canManageChannels(currentUser.role) && !activeChannel?.startsWith("dm-") && <label className="text-xs text-[#777]">Slow mode seconds<div className="mt-1 flex gap-1"><Input type="number" min={0} max={21600} value={slowMode} onChange={(e) => setSlowMode(e.target.value)} /><Button size="sm" onClick={() => activeChannel && void post({ action: "set-slowmode", channelId: activeChannel, seconds: Number(slowMode) }).then(() => toast.success("Slow mode saved")).catch((e) => toast.error(e.message))}>Set</Button></div></label>}</div><p className="mt-2 text-[11px] text-[#555]">Your current composer draft is synced to this account automatically.</p></section>
           <section><div className="flex items-center gap-2"><h3 className="mr-auto text-sm font-semibold">Conversation organisation</h3><Button size="sm" variant="outline" onClick={() => void exportConversation()}>Export archive</Button></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="text-xs text-[#777]">Private conversation note<Textarea className="mt-1" value={channelPreference?.privateNote || ""} onChange={(e)=>void setPreference({privateNote:e.target.value}).catch(()=>{})} rows={2} placeholder="Only you can see this note" /></label><div className="rounded-lg border border-[#222] bg-black/30 p-3 text-xs"><p><strong>{conversationStats?.count ?? 0}</strong> messages · <strong>{conversationStats?.mediaCount ?? 0}</strong> media</p>{conversationStats?.firstMessage && <p className="mt-1 text-[#666]">First message: {new Date(conversationStats.firstMessage.createdAt).toLocaleDateString()}</p>}{channelPreference?.catchUpMessageId ? <Button size="sm" variant="ghost" className="mt-2" onClick={()=>onJumpToMessage(channelPreference.catchUpMessageId!)}>Jump to my catch-up marker</Button> : null}</div></div>{conversationStats?.topWords?.length ? <div className="mt-2 flex flex-wrap gap-1">{conversationStats.topWords.slice(0,12).map((row:any)=><span key={row.word} className="rounded-full border border-[#222] px-2 py-1 text-[10px] text-[#777]">{row.word} · {row.count}</span>)}</div> : null}</section>
           <section><h3 className="flex items-center gap-2 text-sm font-semibold"><ImageIcon className="h-4 w-4" />Shared media</h3><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{(gallery.media || []).slice(0,24).map((item:any)=><button key={`${item.messageId}:${item.type}`} onClick={() => onJumpToMessage(item.messageId)} className="rounded-lg border border-[#222] bg-black/40 p-2 text-left text-xs"><p className="truncate">{item.type === "gif" ? "GIF" : item.type === "image" ? "Image" : "Voice"} · @{item.username}</p>{item.transcript && <p className="mt-1 line-clamp-2 text-[10px] text-[#666]">{item.transcript}</p>}</button>)}</div></section>
           <section><h3 className="flex items-center gap-2 text-sm font-semibold"><Link2 className="h-4 w-4" />Shared links</h3><div className="mt-2 space-y-1">{(gallery.links || []).slice(0,40).map((item:any)=><a key={`${item.messageId}:${item.url}`} href={item.url} target="_blank" rel="noreferrer" className="block truncate rounded-md border border-[#222] bg-black/40 px-2 py-1.5 text-xs text-[var(--synnical-accent)]">{item.url}</a>)}</div></section>
