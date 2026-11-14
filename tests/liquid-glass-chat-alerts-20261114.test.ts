@@ -12,6 +12,7 @@ test("taskbar keeps its liquid-glass material even in opaque OS mode", () => {
   assert.match(css, /\.synnical-os-root \.synnical-taskbar-app\.is-active/)
   assert.match(desktop, /className="synnical-taskbar absolute inset-x-0 bottom-0 z-\[50000\]"/)
   assert.doesNotMatch(desktop, /synnical-taskbar-opaque/)
+  assert.match(source("src/components/synnical-settings-app.tsx"), /Desktop interactions are silent · chat and media sounds are controlled in their apps/)
 })
 
 test("desktop interactions and system notices stay silent", () => {
