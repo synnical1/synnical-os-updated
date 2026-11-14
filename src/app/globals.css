@@ -1003,3 +1003,50 @@ video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--s
 
 /* The neutral default profile card is a base surface, not custom artwork. */
 :root[data-appearance="dark"] [data-profile-base="true"] { background:#000000 !important; }
+
+/* r13.1: persistent liquid-glass taskbar. The taskbar keeps its glass
+   material even when the rest of the OS is set to opaque mode. */
+.synnical-os-root .synnical-taskbar {
+  isolation: isolate;
+  overflow: visible;
+  background:
+    radial-gradient(115% 180% at 50% -85%, rgba(255,255,255,.34), transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,.23) 0%, rgba(255,255,255,.105) 24%, rgba(255,255,255,.025) 58%, rgba(8,13,24,.30) 100%),
+    rgba(14,20,34,.38) !important;
+  border-top: 1px solid rgba(255,255,255,.34) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.34),
+    inset 0 -1px 0 rgba(255,255,255,.10),
+    0 -14px 42px rgba(0,0,0,.24),
+    0 -2px 12px rgba(135,190,255,.08) !important;
+  -webkit-backdrop-filter: blur(42px) saturate(225%) contrast(112%) brightness(1.10) !important;
+  backdrop-filter: blur(42px) saturate(225%) contrast(112%) brightness(1.10) !important;
+}
+.synnical-os-root .synnical-taskbar::before {
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 2%, rgba(255,255,255,.28) 16%, rgba(255,255,255,.72) 50%, rgba(255,255,255,.28) 84%, transparent 98%);
+  opacity: .95;
+}
+.synnical-os-root .synnical-taskbar-app {
+  border: 1px solid rgba(255,255,255,.12) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.13), rgba(255,255,255,.035)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.08);
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.synnical-os-root .synnical-taskbar-app:hover {
+  border-color: rgba(255,255,255,.30) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.27), rgba(255,255,255,.105)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 5px 18px rgba(0,0,0,.22), 0 0 14px rgba(140,190,255,.10);
+  transform: translateY(-2px);
+}
+.synnical-os-root .synnical-taskbar-app.is-active {
+  border-color: rgba(255,255,255,.34) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.28), rgba(255,255,255,.12)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.30), 0 0 18px rgba(140,190,255,.13);
+}
+@supports not ((backdrop-filter: blur(1px))) {
+  .synnical-os-root .synnical-taskbar {
+    background: rgba(18,24,38,.94) !important;
+  }
+}
