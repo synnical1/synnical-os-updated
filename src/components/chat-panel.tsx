@@ -430,9 +430,7 @@ export function ChatPanel() {
   }, [setSoundEnabled])
 
   const toggleSound = useCallback(() => {
-    const next = !soundRef.current
-    setSoundEnabled(next)
-    if (next) playMessageSound()
+    setSoundEnabled(!soundRef.current)
   }, [setSoundEnabled])
 
   const loadChannelPreferences = useCallback(async () => {
