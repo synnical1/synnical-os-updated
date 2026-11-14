@@ -32,7 +32,7 @@ test("mentions match full tokens, never email/substring; notifications require r
   assert.deepEqual(parseMentionIds('{"bad":true}'),[])
 })
 test("new/default wallpaper migrates retired assets and preserves custom choices", () => {
-  assert.equal(DEFAULT_OS_WALLPAPER, "https://livewallpapers4free.com/download/21316/")
+  assert.equal(DEFAULT_OS_WALLPAPER, "/brand/wallpapers/sakura-samurai-4k.mp4")
   assert.equal(sanitizeOsSettings({}).desktopWallpaper, DEFAULT_OS_WALLPAPER)
   assert.equal(sanitizeOsSettings({desktopWallpaper:"/brand/wallpapers/synnical-static-ink-wallpaper.png"}).desktopWallpaper,DEFAULT_OS_WALLPAPER)
   assert.equal(sanitizeOsSettings({wallpaperDefaultVersion:WALLPAPER_DEFAULT_VERSION,desktopWallpaper:"/api/uploads/custom.webp"}).desktopWallpaper,"/api/uploads/custom.webp")
