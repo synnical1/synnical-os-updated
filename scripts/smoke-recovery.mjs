@@ -112,7 +112,7 @@ try {
   pass("registration and login with sanitized account responses")
   if (process.env.SYNNICAL_WALLPAPER_BROWSER_TEST === "true") {
     await verifyWallpaperAdvances(base, { cookie: a.cookie })
-    pass("actual WebM advances with normal settings and automatic performance/battery hints; wallpaper and switch layout verified")
+    pass("actual 4K MP4 advances with normal settings and automatic performance/battery hints; wallpaper and switch layout verified")
   }
   const defaultWallpaper = "/brand/wallpapers/sakura-samurai-4k.mp4"
   const freshOs = (await request("/api/features/os", { cookie: a.cookie })).json
