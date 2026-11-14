@@ -24,7 +24,7 @@ test("default fill keeps cover semantics; video, poster and lock surfaces cannot
 })
 
 test("inspected default poster is 16:9 and has no padded black edge", async () => {
-  const image = sharp(new URL("../public/brand/wallpapers/synnical-default-wallpaper-poster.webp", import.meta.url).pathname)
+  const image = sharp(new URL("../public/brand/wallpapers/sakura-samurai-4k-poster.webp", import.meta.url).pathname)
   const metadata = await image.metadata()
   assert.equal(metadata.width, 1920); assert.equal(metadata.height, 1080)
   const { data, info } = await image.removeAlpha().raw().toBuffer({ resolveWithObject: true })
