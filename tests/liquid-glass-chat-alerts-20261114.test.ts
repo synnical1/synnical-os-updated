@@ -16,8 +16,8 @@ test("taskbar keeps its liquid-glass material even in opaque OS mode", () => {
 
 test("desktop interactions do not emit open or snap sounds", () => {
   const desktop = source("src/components/desktop-shell.tsx")
-  assert.doesNotMatch(desktop, /playTone\("(?:open|snap)"\)/)
-  assert.match(desktop, /setToastNotice\(next\); playTone\(\)/)
+  assert.doesNotMatch(desktop, /playTone|uiSoundVolume|Volume2|VolumeX/)
+  assert.match(desktop, /setToastNotice\\(next\\)/)
 })
 
 test("chat sound plays for incoming non-mention messages only", () => {
