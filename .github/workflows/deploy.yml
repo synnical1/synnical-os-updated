@@ -36,6 +36,17 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=dev --include=optional
 
+      - name: Cache prepared Sakura wallpaper
+        uses: actions/cache@v4
+        with:
+          path: public/brand/wallpapers/sakura-samurai-4k.mp4
+          key: synnical-sakura-wallpaper-4k-30fps-v1
+
+      - name: Prepare browser-friendly 4K wallpaper
+        run: |
+          ffmpeg -version
+          node scripts/prepare-default-wallpaper.mjs
+
       - name: Create isolated CI database
         env:
           DATABASE_URL: file:./prisma/ci.db
@@ -62,6 +73,15 @@ jobs:
         run: |
           smoke_cpu="$(awk '/^Cpus_allowed_list:/ { split($2, cpus, /[-,]/); print cpus[1] }' /proc/self/status)"
           taskset --cpu-list "$smoke_cpu" npm run test:smoke
+
+      - name: Upload prepared Sakura wallpaper for Oracle
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-wallpaper-4k
+          path: public/brand/wallpapers/sakura-samurai-4k.mp4
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
 
       - name: Preserve verified browser layout evidence
         if: always()
@@ -91,6 +111,12 @@ jobs:
             exit 1
           fi
 
+      - name: Download prepared Sakura wallpaper
+        uses: actions/download-artifact@v4
+        with:
+          name: sakura-wallpaper-4k
+          path: deploy-wallpaper
+
       - name: Configure SSH
         run: |
           install -d -m 700 "$HOME/.ssh"
@@ -102,6 +128,12 @@ jobs:
         env:
           DEPLOY_SHA: ${{ github.sha }}
         run: |
+          scp -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            deploy-wallpaper/sakura-samurai-4k.mp4 \
+            "$DEPLOY_USER@$DEPLOY_HOST:/tmp/synnical-sakura-samurai-4k.mp4"
+
           ssh -i "$HOME/.ssh/id_ed25519" \
             -o BatchMode=yes \
             -o ConnectTimeout=20 \
@@ -123,6 +155,11 @@ jobs:
           git fetch --no-tags origin main
           git cat-file -e "$deploy_sha^{commit}"
           git reset --hard "$deploy_sha"
+
+          install -d -m 755 "$app_dir/public/brand/wallpapers"
+          test -s /tmp/synnical-sakura-samurai-4k.mp4
+          install -m 644 /tmp/synnical-sakura-samurai-4k.mp4 "$app_dir/public/brand/wallpapers/sakura-samurai-4k.mp4"
+          rm -f /tmp/synnical-sakura-samurai-4k.mp4
 
           npm ci --include=dev --include=optional
           node scripts/runtime-preflight.mjs
