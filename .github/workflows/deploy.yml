@@ -42,6 +42,11 @@ jobs:
           path: public/brand/wallpapers/sakura-samurai-4k.mp4
           key: synnical-sakura-wallpaper-4k-30fps-v1
 
+      - name: Install FFmpeg for wallpaper preparation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Prepare browser-friendly 4K wallpaper
         run: |
           ffmpeg -version
