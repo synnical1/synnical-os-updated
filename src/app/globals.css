@@ -1075,3 +1075,8 @@ video::cue { font-size: var(--synnical-caption-scale, 100%); background: var(--s
 .synnical-os-root .synnical-taskbar-app.is-active > span {
   filter: drop-shadow(0 0 6px rgba(255,255,255,.30));
 }
+.synnical-os-root .synnical-taskbar-app > span > span {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
