@@ -5,12 +5,6 @@ export const DEFAULT_OS_WALLPAPER = "https://livewallpapers4free.com/download/21
 export const DEFAULT_OS_WALLPAPER_POSTER = "/brand/wallpapers/sakura-samurai-4k-poster.webp"
 export const WALLPAPER_DEFAULT_VERSION = 2
 export const BUILTIN_OS_WALLPAPERS = [] as const
-const PREVIOUS_DEFAULT_WALLPAPERS = new Set([
-  "/brand/wallpapers/thorfinn.webp",
-  LEGACY_OS_WALLPAPER,
-  "/brand/wallpapers/synnical-static-ink-wallpaper.png",
-  "/brand/wallpapers/synnical-default-wallpaper.mp4",
-])
 
 export const OS_DEFAULTS = {
   wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION,
@@ -139,8 +133,7 @@ export function sanitizeOsSettings(input: unknown): OsSettings {
   const wallpaperDefaultsNeedReset = Number(value.wallpaperDefaultVersion || 0) < WALLPAPER_DEFAULT_VERSION
   const migrateDefault = (wallpaper: unknown, fallback: string) => {
     if (wallpaperDefaultsNeedReset) return DEFAULT_OS_WALLPAPER
-    const clean = wallpaperValue(wallpaper, fallback)
-    return Number(value.wallpaperDefaultVersion || 0) < WALLPAPER_DEFAULT_VERSION && PREVIOUS_DEFAULT_WALLPAPERS.has(clean) ? DEFAULT_OS_WALLPAPER : clean
+    return wallpaperValue(wallpaper, fallback)
   }
   return {
     wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION,
