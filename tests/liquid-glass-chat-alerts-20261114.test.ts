@@ -17,6 +17,7 @@ test("taskbar keeps its liquid-glass material even in opaque OS mode", () => {
   assert.match(finalIconStyle, /background: transparent !important/)
   assert.match(finalIconStyle, /box-shadow: none !important/)
   assert.match(finalIconStyle, /border-color: transparent !important/)
+  assert.match(finalIconStyle, /\.synnical-taskbar-app > span > span/)
   assert.match(source("src/components/synnical-settings-app.tsx"), /Desktop interactions are silent · chat and media sounds are controlled in their apps/)
 })
 
