@@ -4,7 +4,7 @@ import { mentionNames, messageNotification, parseMentionIds } from "../src/lib/c
 import { mayModerate } from "../src/lib/moderation-service"
 import { parseModerationCommand } from "../src/lib/bot-moderation"
 import { recognitionTags } from "../src/lib/recognition-tags"
-import { sanitizeOsSettings, DEFAULT_OS_WALLPAPER } from "../src/lib/os-settings"
+import { sanitizeOsSettings, DEFAULT_OS_WALLPAPER, WALLPAPER_DEFAULT_VERSION } from "../src/lib/os-settings"
 import { mediaProviderStatus, providerUrl } from "../src/lib/media-providers"
 import { readFileSync } from "node:fs"
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8")
