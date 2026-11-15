@@ -13,15 +13,18 @@ test("wallpaper cleanup removes only generated desktop and lock wallpaper upload
       "user2-os-lock-wallpaper-456.mp4",
       "user3-os-desktop-wallpaper-789.webm",
       "user4-os-lock-wallpaper-101.mov",
-      "user5-profile-avatar-123.webp",
+      "user5-os-desktop-wallpaper-321.png",
+      "user6-os-lock-wallpaper-654.jpeg",
+      "user7-os-desktop-wallpaper-987.avif",
+      "user8-profile-avatar-123.webp",
       "unrelated-os-desktop-wallpaper-not-a-timestamp.webp",
       "user6-os-desktop-wallpaper-123.gif",
     ]
     await Promise.all(files.map((name) => writeFile(path.join(directory, name), "fixture")))
-    assert.equal(await clearWallpaperUploads(directory), 4)
+    assert.equal(await clearWallpaperUploads(directory), 7)
     assert.deepEqual((await readdir(directory)).sort(), [
       "unrelated-os-desktop-wallpaper-not-a-timestamp.webp",
-      "user5-profile-avatar-123.webp",
+      "user8-profile-avatar-123.webp",
       "user6-os-desktop-wallpaper-123.gif",
     ].sort())
   } finally {
