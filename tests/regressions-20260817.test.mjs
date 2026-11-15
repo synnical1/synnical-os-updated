@@ -865,7 +865,7 @@ test("r11.3 wallpaper personalization is account-backed for desktop and lock scr
   const route = read("src/app/api/features/os/wallpaper/route.ts")
   const settings = read("src/components/synnical-settings-app.tsx")
   const desktop = read("src/components/desktop-shell.tsx")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/sakura-samurai-4k\.mp4"/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER = ""/)
   assert.match(os, /desktopWallpaperFit/)
   assert.match(os, /lockUseDesktopWallpaper/)
   assert.match(os, /lockWallpaperFit/)
@@ -1013,20 +1013,27 @@ test("r11.4 recognition badges are visible beside roles but never grant permissi
 })
 
 
-// August 25 deliberately removed the Sakura gallery and introduced these assets.
-test("current wallpapers use the local optimized Sakura 4K video and poster fallback", () => {
+test("all legacy wallpaper assets are removed and the OS starts with no selection", () => {
   const os = read("src/lib/os-settings.ts")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/sakura-samurai-4k\.mp4"/)
-  assert.equal(existsSync(new URL("../public/brand/wallpapers/sakura-samurai-4k.mp4", import.meta.url)), true)
-  assert.match(os, /BUILTIN_OS_WALLPAPERS = \[\] as const/)
-  assert.match(os, /DEFAULT_OS_WALLPAPER_POSTER = "\/brand\/wallpapers\/sakura-samurai-4k-poster\.webp"/)
-  assert.equal(existsSync(new URL("../public/brand/wallpapers/sakura-samurai-4k-poster.webp", import.meta.url)), true)
-  for (const asset of ["synnical-default-wallpaper.mp4", "synnical-static-ink-wallpaper.png"]) {
-    assert.equal(existsSync(new URL(`../public/brand/wallpapers/${asset}`, import.meta.url)), true)
-  }
-  for (let index = 1; index <= 4; index += 1) assert.equal(existsSync(new URL(`../public/brand/wallpapers/sakura-samurai-${index}.png`, import.meta.url)), false)
+  const page = read("src/app/page.tsx")
+  const boot = read("src/app/boot.css")
+  assert.match(os, /DEFAULT_OS_WALLPAPER = ""/)
+  assert.match(os, /WALLPAPER_DEFAULT_VERSION = 3/)
+  assert.match(os, /BUILTIN_OS_WALLPAPERS = \\[\\] as const/)
+  assert.match(page, /DEFAULT_OS_WALLPAPER \\? <WallpaperVideo/)
+  assert.doesNotMatch(boot, /wallpapers\\//)
+  const retiredAssets = [
+    "sakura-samurai-4k-poster.webp",
+    "synnical-default-wallpaper-poster.webp",
+    "synnical-default-wallpaper.mp4",
+    "synnical-default-wallpaper.webm",
+    "synnical-static-ink-wallpaper.png",
+    "thorfinn.webp",
+  ]
+  for (const asset of retiredAssets) assert.equal(existsSync(new URL(`../public/brand/wallpapers/${asset}`, import.meta.url)), false)
+  assert.doesNotMatch(read(".github/workflows/deploy.yml"), /FFmpeg|sakura-samurai-4k\\.mp4|prepared Sakura wallpaper/)
+  assert.match(read("scripts/clear-wallpaper-uploads.mjs"), /-os-\\(\\?:desktop\\|lock\\)-wallpaper-/)
 })
-
 
 test("r11.4 chat quote, inline polls and hot-row callbacks are wired for real chat use", () => {
   const chat = read("src/components/chat-panel.tsx")
