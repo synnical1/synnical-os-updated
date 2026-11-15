@@ -124,9 +124,8 @@ jobs:
           git cat-file -e "$deploy_sha^{commit}"
           git reset --hard "$deploy_sha"
 
-          node scripts/clear-wallpaper-uploads.mjs
-
           npm ci --include=dev --include=optional
+          node scripts/clear-wallpaper-uploads.mjs
           node scripts/runtime-preflight.mjs
           npx prisma generate
           npm run db:init
