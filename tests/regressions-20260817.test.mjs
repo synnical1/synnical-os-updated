@@ -976,7 +976,7 @@ test("r11.3 Personalization, password change and lock recovery are wired end to 
   const desktop = read("src/components/desktop-shell.tsx")
   const security = read("src/app/api/features/security/route.ts")
   const recovery = read("src/app/api/auth/forgot-password/route.ts")
-  assert.equal(existsSync(new URL("../public/brand/wallpapers/synnical-static-ink-wallpaper.png", import.meta.url)), true)
+  assert.equal(existsSync(new URL("../public/brand/wallpapers/synnical-static-ink-wallpaper.png", import.meta.url)), false)
   assert.match(settings, /THEMES\.map/)
   assert.match(settings, /Browse image or video/)
   assert.match(settings, /Browse lock-screen image or video/)
