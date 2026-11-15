@@ -129,6 +129,7 @@ jobs:
           node scripts/runtime-preflight.mjs
           npx prisma generate
           npm run db:init
+          node_modules/.bin/tsx scripts/clear-saved-wallpaper-preferences.ts
           npm run build
           npm run test:smoke
 
