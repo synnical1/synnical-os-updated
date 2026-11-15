@@ -85,12 +85,12 @@ export async function verifyDesktopRenders(base, { cookie } = {}) {
     let state = null
     for (let attempt = 0; attempt < 150; attempt++) {
       state = await evaluate("(" + snapshot + ")()")
-      if (state && state.wallpaperVersion >= 3 && !state.desktopWallpaper && !state.liveWallpaper && !state.bootWallpaper) break
+      if (state && state.wallpaperVersion >= 4 && state.desktopWallpaper === "/brand/wallpapers/samurai-blossom.png" && !state.liveWallpaper && !state.bootWallpaper) break
       await delay(100)
     }
     assert.ok(state, "Synnical desktop became available")
-    assert.equal(state.wallpaperVersion, 3, "Local settings completed the wallpaper v3 migration")
-    assert.equal(state.desktopWallpaper, "", "Desktop wallpaper preference is empty")
+    assert.equal(state.wallpaperVersion, 4, "Local settings completed the shared wallpaper v4 migration")
+    assert.equal(state.desktopWallpaper, "/brand/wallpapers/samurai-blossom.png", "Desktop uses the shared static wallpaper")
     assert.equal(state.liveWallpaper, false, "No old video wallpaper is rendered")
     assert.equal(state.bootWallpaper, false, "No boot wallpaper is rendered")
     assert.notEqual(state.background, "rgba(0, 0, 0, 0)", "Desktop shows its solid Synnical theme surface")
@@ -98,7 +98,7 @@ export async function verifyDesktopRenders(base, { cookie } = {}) {
     if (evidenceDir) {
       await mkdir(evidenceDir, { recursive: true })
       const { data } = await command("Page.captureScreenshot", { format: "png", fromSurface: true }, sessionId)
-      await writeFile(path.join(evidenceDir, cookie ? "authenticated-empty-desktop.png" : "guest-empty-desktop.png"), Buffer.from(data, "base64"))
+      await writeFile(path.join(evidenceDir, cookie ? "authenticated-shared-wallpaper.png" : "guest-shared-wallpaper.png"), Buffer.from(data, "base64"))
     }
     await verifyDesktopLayout({ command, evaluate, sessionId, authenticated: Boolean(cookie) })
   } finally {
