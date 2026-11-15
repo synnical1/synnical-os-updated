@@ -1032,7 +1032,7 @@ test("all legacy wallpaper assets are removed and the OS starts with no selectio
   ]
   for (const asset of retiredAssets) assert.equal(existsSync(new URL(`../public/brand/wallpapers/${asset}`, import.meta.url)), false)
   assert.doesNotMatch(read(".github/workflows/deploy.yml"), /FFmpeg|sakura-samurai-4k\\.mp4|prepared Sakura wallpaper/)
-  assert.match(read("scripts/clear-wallpaper-uploads.mjs"), /-os-\\(\\?:desktop\\|lock\\)-wallpaper-/)
+  assert.ok(read("scripts/clear-wallpaper-uploads.mjs").includes("-os-(?:desktop|lock)-wallpaper-"))
 })
 
 test("r11.4 chat quote, inline polls and hot-row callbacks are wired for real chat use", () => {
