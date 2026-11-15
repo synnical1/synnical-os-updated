@@ -6,9 +6,9 @@ import { OS_DEFAULTS, wallpaperCss } from "../src/lib/os-settings"
 
 const read = (file: string) => readFileSync(new URL(`../${file}`, import.meta.url), "utf8")
 
-test("wallpaper clear-out leaves a neutral surface and selected videos always play", () => {
-  assert.equal(OS_DEFAULTS.desktopWallpaper, "")
-  assert.equal(OS_DEFAULTS.lockWallpaper, "")
+test("static shared default is installed while user-selected videos always play", () => {
+  assert.equal(OS_DEFAULTS.desktopWallpaper, "/brand/wallpapers/samurai-blossom.png")
+  assert.equal(OS_DEFAULTS.lockWallpaper, "/brand/wallpapers/samurai-blossom.png")
   assert.equal(wallpaperCss("", "fill").backgroundImage, undefined)
   assert.equal(wallpaperCss("/api/uploads/new-wallpaper.webp", "fill").backgroundSize, "cover")
   const video = read("src/components/wallpaper-video.tsx")
@@ -25,9 +25,9 @@ test("wallpaper clear-out leaves a neutral surface and selected videos always pl
   assert.ok(shell.includes("synnical-live-wallpaper"))
   assert.ok(shell.includes("WallpaperVideo className="))
   const page = read("src/app/page.tsx")
-  assert.ok(page.includes("DEFAULT_OS_WALLPAPER ? <WallpaperVideo"))
+  assert.ok(page.includes('DEFAULT_OS_WALLPAPER ? <div className="synnical-boot-wallpaper"'))
   const boot = read("src/app/boot.css")
-  assert.ok(!boot.includes("/brand/wallpapers/"))
+  assert.ok(boot.includes("background-size:cover"))
 })
 test("Radix and local Settings toggle share the same accessible geometry and theme chrome", () => {
   const settings = read("src/components/synnical-settings-app.tsx")
