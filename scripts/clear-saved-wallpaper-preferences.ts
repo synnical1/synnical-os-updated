@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@prisma/client"
 import { sanitizeOsSettings, WALLPAPER_DEFAULT_VERSION } from "../src/lib/os-settings"
 
 type PreferenceClient = Pick<PrismaClient, "userPreference">
