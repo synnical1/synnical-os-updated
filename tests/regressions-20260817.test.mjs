@@ -1019,9 +1019,9 @@ test("all legacy wallpaper assets are removed and the OS starts with no selectio
   const boot = read("src/app/boot.css")
   assert.match(os, /DEFAULT_OS_WALLPAPER = ""/)
   assert.match(os, /WALLPAPER_DEFAULT_VERSION = 3/)
-  assert.match(os, /BUILTIN_OS_WALLPAPERS = \\[\\] as const/)
-  assert.match(page, /DEFAULT_OS_WALLPAPER \\? <WallpaperVideo/)
-  assert.doesNotMatch(boot, /wallpapers\\//)
+  assert.ok(os.includes("BUILTIN_OS_WALLPAPERS = [] as const"))
+  assert.ok(page.includes("DEFAULT_OS_WALLPAPER ? <WallpaperVideo"))
+  assert.ok(!boot.includes("/brand/wallpapers/"))
   const retiredAssets = [
     "sakura-samurai-4k-poster.webp",
     "synnical-default-wallpaper-poster.webp",
@@ -1031,7 +1031,7 @@ test("all legacy wallpaper assets are removed and the OS starts with no selectio
     "thorfinn.webp",
   ]
   for (const asset of retiredAssets) assert.equal(existsSync(new URL(`../public/brand/wallpapers/${asset}`, import.meta.url)), false)
-  assert.doesNotMatch(read(".github/workflows/deploy.yml"), /FFmpeg|sakura-samurai-4k\\.mp4|prepared Sakura wallpaper/)
+  assert.doesNotMatch(read(".github/workflows/deploy.yml"), /FFmpeg|sakura-samurai-4k\.mp4|prepared Sakura wallpaper/)
   assert.ok(read("scripts/clear-wallpaper-uploads.mjs").includes("-os-(?:desktop|lock)-wallpaper-"))
 })
 
