@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { mkdtemp, mkdir, writeFile, readdir, rm } from "node:fs/promises"
+import { mkdtemp, writeFile, readdir, rm } from "node:fs/promises"
 import path from "node:path"
 import { tmpdir } from "node:os"
 import { clearWallpaperUploads } from "../scripts/clear-wallpaper-uploads.mjs"
