@@ -37,7 +37,7 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId, authen
     }
     return bytes
   }
-  const surface = selector => `(() => { const root = document.querySelector(${JSON.stringify(selector)}); if (!root) return null; const rect = root.getBoundingClientRect(); return { rect:rect.toJSON(), background:getComputedStyle(root).backgroundColor, width:innerWidth, height:innerHeight, wallpaper:Boolean(document.querySelector(".synnical-live-wallpaper")) } })()`
+  const surface = selector => `(() => { const root = document.querySelector(${JSON.stringify(selector)}); if (!root) return null; const rect = root.getBoundingClientRect(); return { rect:rect.toJSON(), background:getComputedStyle(root).backgroundColor, width:innerWidth, height:innerHeight, wallpaper:Boolean(document.querySelector(".synnical-live-wallpaper, .synnical-boot-wallpaper, .synnical-os-lock video")) } })()`
   const checkSurface = async selector => {
     const s = await evaluate(surface(selector))
     assert.ok(s, selector)
