@@ -1,3 +1,4 @@
+import path from "node:path"
 import { readdir, unlink } from "node:fs/promises"
 
 /** Remove only files created by the OS desktop/lock wallpaper uploader. */
