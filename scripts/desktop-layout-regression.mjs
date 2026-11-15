@@ -44,7 +44,8 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId, authen
     assert.equal(s.wallpaper, false, "No retired wallpaper may remain visible")
     if (selector === ".synnical-os-lock") assert.equal(s.background, "rgb(0, 0, 0)", "The lock screen uses a clean black surface")
     else assert.notEqual(s.background, "rgba(0, 0, 0, 0)", "Desktop keeps its theme's solid page surface")
-    assert.equal(s.backgroundImage, "none", "The desktop/lock surface has no background image")
+    if (selector === ".synnical-os-lock") assert.match(s.backgroundImage, /samurai-blossom\\.png/, "Lock screen displays the shared static wallpaper")
+    else assert.equal(s.backgroundImage, "none", "Desktop root does not add a second wallpaper layer")
     assert.ok(Math.abs(s.rect.left) <= 0.5 && Math.abs(s.rect.top) <= 0.5, "Surface starts at viewport origin")
     assert.ok(s.rect.right >= s.width - 0.5 && s.rect.bottom >= s.height - 0.5, "Surface covers the viewport")
     return s
