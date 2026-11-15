@@ -41,26 +41,32 @@ test("mounted Stratus health cannot mark Games ready without both server key and
   }
 })
 
-test("wallpaper playback ignores automatic hints and respects only user pause, motion and visibility", async () => {
+test("wallpaper playback ignores all performance hints and pauses only while hidden", async () => {
   let plays = 0
   let pauses = 0
   const video = { play: async () => { plays++ }, pause: () => { pauses++ } }
-  const normal = { reduceMotion: false, hidden: false, userPaused: false }
-  syncWallpaperPlayback(video, normal)
-  syncWallpaperPlayback(video, normal)
+  const visible = { hidden: false }
+  syncWallpaperPlayback(video, visible)
+  syncWallpaperPlayback(video, visible)
   assert.equal(plays, 2)
   assert.equal(pauses, 0)
-  for (const flag of ["reduceMotion", "hidden", "userPaused"]) syncWallpaperPlayback(video, { ...normal, [flag]: true })
-  assert.equal(pauses, 3)
-  syncWallpaperPlayback(video, normal)
-  assert.equal(plays, 3, "resume after explicit pause clears")
-  syncWallpaperPlayback({ ...video, play: async () => { throw new Error("autoplay denied") } }, normal)
+  for (const flag of ["reduceMotion", "userPaused", "batterySaver", "lowEndMode", "performanceMode"]) {
+    const hinted = { ...visible, [flag]: true }
+    syncWallpaperPlayback(video, hinted)
+  }
+  assert.equal(plays, 7, "performance and motion hints never stop the video")
+  assert.equal(pauses, 0)
+  syncWallpaperPlayback(video, { hidden: true })
+  assert.equal(pauses, 1, "only a hidden document pauses playback")
+  syncWallpaperPlayback(video, visible)
+  assert.equal(plays, 8, "playback resumes when the document becomes visible")
+  syncWallpaperPlayback({ ...video, play: async () => { throw new Error("autoplay denied") } }, visible)
   await Promise.resolve()
   const source = readFileSync(new URL("../src/components/wallpaper-video.tsx", import.meta.url), "utf8")
-  assert.match(source, /syncWallpaperPlayback\(video/)
-  assert.doesNotMatch(source, /synnical-perf-mode|synnical-battery-perf/)
+  assert.match(source, /syncWallpaperPlayback\\(video, \\{ hidden: document\\.hidden \\}\\)/)
+  assert.match(source, /autoPlay muted loop playsInline preload="auto"/)
+  assert.doesNotMatch(source, /prefers-reduced-motion|batterySaver|reduceMotion|userPaused/)
 })
-
 test("malq probe rejects unsafe URLs/redirects and wrong services without creating mail sessions", async () => {
   let calls = 0
   for (const url of ["https://127.0.0.1:4400", "http://external.test", "http://127.0.0.1:4400/api/v1/session", "http://user:password@127.0.0.1:4400", "http://127.0.0.1:4400/?secret=value"]) {
@@ -118,7 +124,7 @@ test("deployment runs configuration preflight before build and live readiness af
   const workflow = readFileSync(new URL("../.github/workflows/deploy.yml", import.meta.url), "utf8")
   assert.ok(workflow.indexOf("node scripts/runtime-preflight.mjs\n") < workflow.indexOf("npm run build"))
   assert.ok(workflow.indexOf("node scripts/runtime-preflight.mjs --runtime") > workflow.indexOf("pm2 reload synnical --update-env"))
-  assert.match(workflow, /SYNNICAL_WALLPAPER_BROWSER_TEST: "true"/)
+  assert.match(workflow, /SYNNICAL_DESKTOP_BROWSER_TEST: "true"/)
   assert.doesNotMatch(workflow, /TMDB|Synnical \+ bundled Stratus deployment completed/)
 })
 
