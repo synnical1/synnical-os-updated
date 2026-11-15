@@ -31,11 +31,12 @@ test("mentions match full tokens, never email/substring; notifications require r
   assert.equal(messageNotification({userId:"sam",mentionedUserIds:["sam"]},"sam"),false)
   assert.deepEqual(parseMentionIds('{"bad":true}'),[])
 })
-test("new/default wallpaper migrates retired assets and preserves custom choices", () => {
-  assert.equal(DEFAULT_OS_WALLPAPER, "/brand/wallpapers/sakura-samurai-4k.mp4")
-  assert.equal(sanitizeOsSettings({}).desktopWallpaper, DEFAULT_OS_WALLPAPER)
-  assert.equal(sanitizeOsSettings({desktopWallpaper:"/brand/wallpapers/synnical-static-ink-wallpaper.png"}).desktopWallpaper,DEFAULT_OS_WALLPAPER)
-  assert.equal(sanitizeOsSettings({wallpaperDefaultVersion:WALLPAPER_DEFAULT_VERSION,desktopWallpaper:"/api/uploads/custom.webp"}).desktopWallpaper,"/api/uploads/custom.webp")
+test("wallpaper v3 clears previous defaults once and permits future selections", () => {
+  assert.equal(DEFAULT_OS_WALLPAPER, "")
+  assert.equal(sanitizeOsSettings({}).desktopWallpaper, "")
+  assert.equal(sanitizeOsSettings({ desktopWallpaper: "/brand/wallpapers/synnical-static-ink-wallpaper.png" }).desktopWallpaper, "")
+  assert.equal(sanitizeOsSettings({ wallpaperDefaultVersion: 2, desktopWallpaper: "/api/uploads/old-custom.webp" }).desktopWallpaper, "")
+  assert.equal(sanitizeOsSettings({ wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION, desktopWallpaper: "/api/uploads/new-custom.webp" }).desktopWallpaper, "/api/uploads/new-custom.webp")
   assert.equal("enabled" in sanitizeOsSettings({enabled:false}),false)
 })
 test("recognition badge aliases normalize and never duplicate DEV", () => {
