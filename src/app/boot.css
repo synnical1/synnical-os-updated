@@ -13,7 +13,7 @@
   inset: 0;
   min-height: 100dvh;
   overflow: hidden;
-  background: #000 url('/brand/wallpapers/synnical-default-wallpaper-poster.webp') center / cover no-repeat;
+  background: #000;
   color: var(--synnical-boot-fg);
 }
 .synnical-boot-wallpaper { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; }
