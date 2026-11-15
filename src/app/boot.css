@@ -1,4 +1,4 @@
-/* Wallpaper is painted before hydration; no video download blocks startup. */
+/* Static wallpaper is painted before hydration without media playback. */
 :root {
   --synnical-boot-bg: #edf2f8;
   --synnical-boot-panel: rgba(250,252,255,.72);
@@ -16,7 +16,7 @@
   background: #000;
   color: var(--synnical-boot-fg);
 }
-.synnical-boot-wallpaper { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; }
+.synnical-boot-wallpaper { position:absolute; inset:0; width:100%; height:100%; background-position:center; background-size:cover; background-repeat:no-repeat; pointer-events:none; }
 .synnical-boot-stage::after { content:""; position:absolute; inset:0; background:rgba(0,0,0,.18); pointer-events:none; }
 .synnical-boot-card { position:relative; z-index:1; display:grid; justify-items:center; gap:24px; padding:20px; }
 .synnical-boot-logo { width:min(58vw,360px); filter:drop-shadow(0 4px 18px rgba(0,0,0,.55)); animation:synnical-boot-mark 1.12s cubic-bezier(.18,.86,.18,1) .05s both; }

@@ -3,7 +3,6 @@
 import { useAuth } from "@/hooks/use-auth"
 import { AppShell } from "@/components/app-shell"
 import { SynnicalLogo } from "@/components/synnical-logo"
-import { WallpaperVideo } from "@/components/wallpaper-video"
 import { DEFAULT_OS_WALLPAPER } from "@/lib/os-settings"
 import { Loader2 } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react"
@@ -11,7 +10,7 @@ import { useEffect, useState, type ReactNode } from "react"
 type BootStage = "checking" | "playing" | "done"
 
 function BootSurface({ children, className = "", ariaHidden = false }: { children?: ReactNode; className?: string; ariaHidden?: boolean }) {
-  return <div className={`synnical-boot-stage ${className}`.trim()} aria-hidden={ariaHidden || undefined}>{DEFAULT_OS_WALLPAPER ? <WallpaperVideo src={DEFAULT_OS_WALLPAPER} className="synnical-boot-wallpaper" /> : null}{children}</div>
+  return <div className={`synnical-boot-stage ${className}`.trim()} aria-hidden={ariaHidden || undefined}>{DEFAULT_OS_WALLPAPER ? <div className="synnical-boot-wallpaper" style={{ backgroundImage: `url(${DEFAULT_OS_WALLPAPER})` }} /> : null}{children}</div>
 }
 
 function SynnicalBoot() {
