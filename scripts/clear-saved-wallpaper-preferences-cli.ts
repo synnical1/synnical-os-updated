@@ -6,7 +6,7 @@ async function main() {
   const db = new PrismaClient()
   try {
     const cleared = await clearSavedWallpaperPreferences(db)
-    process.stdout.write(`Cleared saved wallpaper preferences for ${cleared} account(s).\\n`)
+    process.stdout.write(`Cleared saved wallpaper preferences for ${cleared} account(s).\n`)
   } finally {
     await db.$disconnect()
   }
