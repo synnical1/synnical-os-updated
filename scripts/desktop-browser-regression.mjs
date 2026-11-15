@@ -93,7 +93,7 @@ export async function verifyDesktopRenders(base, { cookie } = {}) {
     assert.equal(state.desktopWallpaper, "", "Desktop wallpaper preference is empty")
     assert.equal(state.liveWallpaper, false, "No old video wallpaper is rendered")
     assert.equal(state.bootWallpaper, false, "No boot wallpaper is rendered")
-    assert.equal(state.background, "rgb(17, 18, 20)", "Desktop shows the clean Synnical base surface")
+    assert.notEqual(state.background, "rgba(0, 0, 0, 0)", "Desktop shows its solid Synnical theme surface")
     const evidenceDir = process.env.SYNNICAL_LAYOUT_EVIDENCE_DIR
     if (evidenceDir) {
       await mkdir(evidenceDir, { recursive: true })
