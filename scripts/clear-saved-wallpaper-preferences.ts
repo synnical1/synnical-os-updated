@@ -41,7 +41,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
   const db = new PrismaClient()
   try {
     const cleared = await clearSavedWallpaperPreferences(db)
-    process.stdout.write(`Cleared saved wallpaper preferences for ${cleared} account(s).\\n`)
+    process.stdout.write(`Cleared saved wallpaper preferences for ${cleared} account(s).\n`)
   } finally {
     await db.$disconnect()
   }
