@@ -110,10 +110,6 @@ try {
   const login = await request("/api/auth/login", { data: { username: a.username, password: testPassword } })
   noSecrets(login.json); assert.equal(login.json.user.id, a.id)
   pass("registration and login with sanitized account responses")
-  if (process.env.SYNNICAL_DESKTOP_BROWSER_TEST === "true") {
-    await verifyDesktopRenders(base, { cookie: a.cookie })
-    pass("authenticated desktop renders with the wallpaper cleared and layout verified")
-  }
   const freshOs = (await request("/api/features/os", { cookie: a.cookie })).json
   assert.equal(freshOs.settings.desktopWallpaper, "")
   assert.equal(freshOs.settings.lockWallpaper, "")
@@ -129,6 +125,10 @@ try {
   await request("/api/features/os", { cookie: a.cookie, data: { accountId: a.id, settings: migratedOs.settings } })
   assert.equal((await request("/api/features/os", { cookie: a.cookie })).json.needsWallpaperMigration, false)
   assert.equal((await request("/api/features/os", { cookie: b.cookie })).json.hasSaved, false)
+  if (process.env.SYNNICAL_DESKTOP_BROWSER_TEST === "true") {
+    await verifyDesktopRenders(base, { cookie: a.cookie })
+    pass("authenticated desktop renders with the wallpaper cleared and layout verified")
+  }
   for (const asset of [
     "/brand/wallpapers/sakura-samurai-4k-poster.webp",
     "/brand/wallpapers/synnical-default-wallpaper-poster.webp",
