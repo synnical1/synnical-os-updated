@@ -406,19 +406,20 @@ test('r12 final: Files Recycle Bin auto-clean and F2 rename are real behaviors',
   assert.match(files, /renameScreenshot/)
 })
 
-test('r12 final: live wallpapers respect deliberate Battery Saver while automatic low-end mode stays independent', () => {
+test('r12 final: future wallpaper videos always play regardless of Battery Saver or performance hints', () => {
   const shell = read('src/components/desktop-shell.tsx')
   const runtime = read('src/lib/settings-runtime.ts')
   const video = read('src/components/wallpaper-video.tsx')
+  const playback = read('src/lib/wallpaper-playback.ts')
   assert.match(shell, /<WallpaperVideo/)
-  assert.match(shell, /paused=\{os\.batterySaver\}/)
-  assert.doesNotMatch(video, /synnical-perf-mode|synnical-battery-perf/)
-  assert.match(video, /syncWallpaperPlayback\(video, \{ reduceMotion: !animate, userPaused: paused, hidden: document\.hidden \}\)/)
-  assert.match(video, /video\.pause\(\)/)
+  assert.ok(!shell.includes("paused={os.batterySaver}"))
+  assert.doesNotMatch(video, /prefers-reduced-motion|batterySaver|reduceMotion|userPaused/)
+  assert.match(video, /autoPlay muted loop playsInline preload="auto"/)
+  assert.ok(video.includes("syncWallpaperPlayback(video, { hidden: document.hidden })"))
+  assert.ok(playback.includes("if (state.hidden) video.pause()"))
   assert.match(runtime, /adaptiveLowEndDetected/)
   assert.match(runtime, /synnical-perf-mode/)
 })
-
 test('r12 final: Capture posts notifications through the real pushNotice signature', () => {
   const shell = read('src/components/desktop-shell.tsx')
   assert.match(shell, /pushNotice\("Screenshot copied", "Paste it into a supported Chat attachment field or another app\.", undefined, "normal"\)/)

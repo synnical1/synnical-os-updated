@@ -1,9 +1,7 @@
 export type WallpaperFit = "fill" | "fit" | "stretch" | "center" | "tile"
 
-export const LEGACY_OS_WALLPAPER = "/brand/wallpapers/samurai-cherry-blossom.png"
-export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/sakura-samurai-4k.mp4"
-export const DEFAULT_OS_WALLPAPER_POSTER = "/brand/wallpapers/sakura-samurai-4k-poster.webp"
-export const WALLPAPER_DEFAULT_VERSION = 2
+export const DEFAULT_OS_WALLPAPER = ""
+export const WALLPAPER_DEFAULT_VERSION = 3
 export const BUILTIN_OS_WALLPAPERS = [] as const
 
 export const OS_DEFAULTS = {
@@ -127,12 +125,11 @@ export function sanitizeOsSettings(input: unknown): OsSettings {
   const bool = (key: keyof OsSettings) => typeof value[key] === "boolean" ? value[key] as boolean : OS_DEFAULTS[key] as boolean
   const widgetDefaultsVersion = num(value.widgetDefaultsVersion, 0, 1, 0)
   const widgetBool = (key: keyof OsSettings) => widgetDefaultsVersion >= 1 ? bool(key) : false
-  // Version 2 is an intentional global wallpaper reset. Everyone's
-  // existing desktop and lock-screen choices are replaced once; after the
-  // version is saved, future personal choices are preserved.
+  // Version 3 removes every previous built-in and saved wallpaper. Each
+  // account is cleared once; wallpapers uploaded after this migration remain.
   const wallpaperDefaultsNeedReset = Number(value.wallpaperDefaultVersion || 0) < WALLPAPER_DEFAULT_VERSION
   const migrateDefault = (wallpaper: unknown, fallback: string) => {
-    if (wallpaperDefaultsNeedReset) return DEFAULT_OS_WALLPAPER
+    if (wallpaperDefaultsNeedReset) return ""
     return wallpaperValue(wallpaper, fallback)
   }
   return {

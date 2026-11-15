@@ -8,7 +8,6 @@ import { UserProfileProvider } from "@/components/user-profile-modal"
 import { ThemeApplier } from "@/components/theme-applier"
 import { SettingsApplier } from "@/components/settings-generic"
 import { AdInjector } from "@/components/ad-injector"
-import { DEFAULT_OS_WALLPAPER_POSTER } from "@/lib/os-settings"
 import { THEMES } from "@/lib/themes"
 import { proxyAsset } from "@/lib/proxy-runtime"
 // Test strings for regression test:
@@ -58,7 +57,6 @@ const PreloadLinks = () => (
   <>
     {/* Preload critical images */}
     <link rel="preload" href="/brand/google-classroom.png" as="image" type="image/png" />
-    <link rel="preload" href={DEFAULT_OS_WALLPAPER_POSTER} as="image" type="image/webp" />
     {/* Browser is part of the initial shell, so fetch its local proxy runtime
         immediately. This removes asset-download latency from the first search;
         repeat navigations reuse the already-warm singleton. */}

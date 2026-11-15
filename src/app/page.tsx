@@ -11,7 +11,7 @@ import { useEffect, useState, type ReactNode } from "react"
 type BootStage = "checking" | "playing" | "done"
 
 function BootSurface({ children, className = "", ariaHidden = false }: { children?: ReactNode; className?: string; ariaHidden?: boolean }) {
-  return <div className={`synnical-boot-stage ${className}`.trim()} aria-hidden={ariaHidden || undefined}><WallpaperVideo src={DEFAULT_OS_WALLPAPER} className="synnical-boot-wallpaper" />{children}</div>
+  return <div className={`synnical-boot-stage ${className}`.trim()} aria-hidden={ariaHidden || undefined}>{DEFAULT_OS_WALLPAPER ? <WallpaperVideo src={DEFAULT_OS_WALLPAPER} className="synnical-boot-wallpaper" /> : null}{children}</div>
 }
 
 function SynnicalBoot() {

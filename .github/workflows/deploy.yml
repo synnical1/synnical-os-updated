@@ -36,22 +36,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=dev --include=optional
 
-      - name: Cache prepared Sakura wallpaper
-        uses: actions/cache@v4
-        with:
-          path: public/brand/wallpapers/sakura-samurai-4k.mp4
-          key: synnical-sakura-wallpaper-4k-30fps-v1
-
-      - name: Install FFmpeg for wallpaper preparation
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-
-      - name: Prepare browser-friendly 4K wallpaper
-        run: |
-          ffmpeg -version
-          node scripts/prepare-default-wallpaper.mjs
-
       - name: Create isolated CI database
         env:
           DATABASE_URL: file:./prisma/ci.db
@@ -68,7 +52,7 @@ jobs:
       - name: Run production smoke suite
         env:
           DATABASE_URL: file:./prisma/ci.db
-          SYNNICAL_WALLPAPER_BROWSER_TEST: "true"
+          SYNNICAL_DESKTOP_BROWSER_TEST: "true"
           SYNNICAL_LAYOUT_EVIDENCE_DIR: pr-layout-evidence
         run: npm run test:smoke
 
@@ -78,15 +62,6 @@ jobs:
         run: |
           smoke_cpu="$(awk '/^Cpus_allowed_list:/ { split($2, cpus, /[-,]/); print cpus[1] }' /proc/self/status)"
           taskset --cpu-list "$smoke_cpu" npm run test:smoke
-
-      - name: Upload prepared Sakura wallpaper for Oracle
-        uses: actions/upload-artifact@v4
-        with:
-          name: sakura-wallpaper-4k
-          path: public/brand/wallpapers/sakura-samurai-4k.mp4
-          if-no-files-found: error
-          retention-days: 3
-          compression-level: 0
 
       - name: Preserve verified browser layout evidence
         if: always()
@@ -116,12 +91,6 @@ jobs:
             exit 1
           fi
 
-      - name: Download prepared Sakura wallpaper
-        uses: actions/download-artifact@v4
-        with:
-          name: sakura-wallpaper-4k
-          path: deploy-wallpaper
-
       - name: Configure SSH
         run: |
           install -d -m 700 "$HOME/.ssh"
@@ -133,12 +102,6 @@ jobs:
         env:
           DEPLOY_SHA: ${{ github.sha }}
         run: |
-          scp -i "$HOME/.ssh/id_ed25519" \
-            -o BatchMode=yes \
-            -o ConnectTimeout=20 \
-            deploy-wallpaper/sakura-samurai-4k.mp4 \
-            "$DEPLOY_USER@$DEPLOY_HOST:/tmp/synnical-sakura-samurai-4k.mp4"
-
           ssh -i "$HOME/.ssh/id_ed25519" \
             -o BatchMode=yes \
             -o ConnectTimeout=20 \
@@ -161,16 +124,16 @@ jobs:
           git cat-file -e "$deploy_sha^{commit}"
           git reset --hard "$deploy_sha"
 
-          install -d -m 755 "$app_dir/public/brand/wallpapers"
-          test -s /tmp/synnical-sakura-samurai-4k.mp4
-          install -m 644 /tmp/synnical-sakura-samurai-4k.mp4 "$app_dir/public/brand/wallpapers/sakura-samurai-4k.mp4"
-
           npm ci --include=dev --include=optional
           node scripts/runtime-preflight.mjs
           npx prisma generate
           npm run db:init
           npm run build
           npm run test:smoke
+
+          # Destructive wallpaper cleanup only after the new build and smoke pass.
+          node scripts/clear-wallpaper-uploads-cli.mjs
+          node_modules/.bin/tsx scripts/clear-saved-wallpaper-preferences-cli.ts
 
           reload_started_ms="$(node -p 'Date.now()')"
           pm2 reload synnical --update-env
@@ -208,14 +171,6 @@ jobs:
           exit 1
           REMOTE
 
-          # SCP created this temporary file as the ubuntu SSH user. Clean it
-          # up as that same owner, not as the restricted synnical app user.
-          ssh -i "$HOME/.ssh/id_ed25519" \
-            -o BatchMode=yes \
-            -o ConnectTimeout=20 \
-            "$DEPLOY_USER@$DEPLOY_HOST" \
-            "rm -f /tmp/synnical-sakura-samurai-4k.mp4"
-
       - name: Check out deployed commit for visual verification
         uses: actions/checkout@v4
 
@@ -231,7 +186,7 @@ jobs:
       - name: Verify live desktop rendering
         env:
           SYNNICAL_LAYOUT_EVIDENCE_DIR: live-layout-evidence
-        run: node scripts/wallpaper-browser-regression.mjs https://www.synnical.co.uk
+        run: node scripts/desktop-browser-regression.mjs https://www.synnical.co.uk
 
       - name: Preserve live visual evidence
         if: always()

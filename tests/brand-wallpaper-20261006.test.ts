@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync, existsSync } from "node:fs"
 import { THEMES, applyTheme } from "../src/lib/themes"
-import { DEFAULT_OS_WALLPAPER, DEFAULT_OS_WALLPAPER_POSTER, WALLPAPER_DEFAULT_VERSION, sanitizeOsSettings } from "../src/lib/os-settings"
+import { DEFAULT_OS_WALLPAPER, WALLPAPER_DEFAULT_VERSION, sanitizeOsSettings } from "../src/lib/os-settings"
 import sharp from "sharp"
 
 const source = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8")
@@ -24,30 +24,49 @@ test("every accent theme resolves OLED surfaces; light palettes and accents surv
   } finally { Object.assign(globalThis, { document: previous }) }
 })
 
-test("wallpaper migration globally resets old desktop, lock and workspace choices once", () => {
-  assert.equal(sanitizeOsSettings({}).desktopWallpaper, DEFAULT_OS_WALLPAPER)
-  for (const old of ["thorfinn.webp", "synnical-static-ink-wallpaper.png", "synnical-default-wallpaper.mp4", "synnical-default-wallpaper.webm"]) {
-    const migrated = sanitizeOsSettings({ desktopWallpaper: `/brand/wallpapers/${old}`, lockWallpaper: `/brand/wallpapers/${old}` })
-    assert.equal(migrated.desktopWallpaper, DEFAULT_OS_WALLPAPER)
-    assert.equal(migrated.lockWallpaper, DEFAULT_OS_WALLPAPER)
+test("wallpaper v3 clears every old saved selection and leaves a clean slate", () => {
+  assert.equal(DEFAULT_OS_WALLPAPER, "")
+  assert.equal(sanitizeOsSettings({}).desktopWallpaper, "")
+  assert.equal(sanitizeOsSettings({}).lockWallpaper, "")
+  const oldChoices = [
+    "/brand/wallpapers/thorfinn.webp",
+    "/brand/wallpapers/synnical-static-ink-wallpaper.png",
+    "/brand/wallpapers/synnical-default-wallpaper.mp4",
+    "/brand/wallpapers/synnical-default-wallpaper.webm",
+    "/brand/wallpapers/sakura-samurai-4k.mp4",
+    "/api/uploads/old-custom.webp",
+    "https://example.com/old-custom.mp4",
+  ]
+  for (const old of oldChoices) {
+    const migrated = sanitizeOsSettings({
+      wallpaperDefaultVersion: 2,
+      desktopWallpaper: old,
+      lockWallpaper: old,
+      workspaces: [{ id: 1, name: "Custom", wallpaper: old }, { id: 2, name: "Inherited", wallpaper: "" }],
+    })
+    assert.equal(migrated.desktopWallpaper, "")
+    assert.equal(migrated.lockWallpaper, "")
+    assert.deepEqual(migrated.workspaces.map((row) => row.wallpaper), ["", ""])
     assert.equal(migrated.wallpaperDefaultVersion, WALLPAPER_DEFAULT_VERSION)
-    assert.deepEqual(sanitizeOsSettings(migrated), migrated)
+    assert.deepEqual(sanitizeOsSettings(migrated), migrated, "migration only happens once")
   }
-  for (const custom of ["/api/uploads/custom.webp", "https://example.com/custom.webm", "/brand/wallpapers/sakura-samurai-1.png"]) {
-    const settings = sanitizeOsSettings({ wallpaperDefaultVersion: 1, desktopWallpaper: custom, lockWallpaper: custom, workspaces: [{ id: 1, name: "A", wallpaper: custom }, { id: 2, name: "B", wallpaper: "" }] })
-    assert.equal(settings.desktopWallpaper, DEFAULT_OS_WALLPAPER)
-    assert.equal(settings.lockWallpaper, DEFAULT_OS_WALLPAPER)
-    assert.deepEqual(settings.workspaces.map((row) => row.wallpaper), ["", ""])
-    assert.equal(settings.lockUseDesktopWallpaper, true)
-    assert.equal(sanitizeOsSettings(settings).desktopWallpaper, DEFAULT_OS_WALLPAPER, "migration must only happen once")
-  }
-  const deliberate = sanitizeOsSettings({ wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION, desktopWallpaper: "/api/uploads/after-migration.webp", lockWallpaper: "https://example.com/after-migration.mp4", workspaces: [{ id: 1, name: "A", wallpaper: "/api/uploads/workspace.webp" }] })
-  assert.equal(deliberate.desktopWallpaper, "/api/uploads/after-migration.webp")
-  assert.equal(deliberate.lockWallpaper, "https://example.com/after-migration.mp4")
-  assert.equal(deliberate.workspaces[0].wallpaper, "/api/uploads/workspace.webp")
-  assert.equal(sanitizeOsSettings({ wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION, desktopWallpaper: "/brand/wallpapers/thorfinn.webp" }).desktopWallpaper, "/brand/wallpapers/thorfinn.webp")
-  assert.equal(DEFAULT_OS_WALLPAPER, "/brand/wallpapers/sakura-samurai-4k.mp4")
-  assert.ok(existsSync(new URL(`../public${DEFAULT_OS_WALLPAPER_POSTER}`, import.meta.url)))
+  const afterMigration = sanitizeOsSettings({
+    wallpaperDefaultVersion: WALLPAPER_DEFAULT_VERSION,
+    desktopWallpaper: "/api/uploads/new-wallpaper.webm",
+    lockWallpaper: "/api/uploads/new-lock-wallpaper.webp",
+    workspaces: [{ id: 1, name: "New", wallpaper: "/api/uploads/new-workspace.webp" }],
+  })
+  assert.equal(afterMigration.desktopWallpaper, "/api/uploads/new-wallpaper.webm")
+  assert.equal(afterMigration.lockWallpaper, "/api/uploads/new-lock-wallpaper.webp")
+  assert.equal(afterMigration.workspaces[0].wallpaper, "/api/uploads/new-workspace.webp")
+  for (const asset of [
+    "sakura-samurai-4k-poster.webp",
+    "synnical-default-wallpaper-poster.webp",
+    "synnical-default-wallpaper.mp4",
+    "synnical-default-wallpaper.webm",
+    "synnical-static-ink-wallpaper.png",
+    "thorfinn.webp",
+  ]) assert.equal(existsSync(new URL(`../public/brand/wallpapers/${asset}`, import.meta.url)), false)
 })
 
 test("layered assets retain neutral whites and intensity detail without an opaque rectangle", async () => {
@@ -80,7 +99,7 @@ test("boot/start/auth share supplied logo, theme CSS and wallpaper; tab cloak re
   assert.match(css, /:root\[data-appearance="dark"\] \[data-profile-base="true"\] \{ background:#000000/);
   assert.match(css, /synnical-logo-accent[^}]*var\(--synnical-accent\)/)
   assert.match(page, /<SynnicalLogo variant="logo"/)
-  assert.match(page, /<WallpaperVideo src=\{DEFAULT_OS_WALLPAPER\}/)
+  assert.match(page, /DEFAULT_OS_WALLPAPER \? <WallpaperVideo/)
   assert.match(desktop, /aria-label="Start"><SynnicalLogo small decorative/)
   for (const path of ["src/app/page.tsx", "src/components/desktop-shell.tsx", "src/components/animated-brand-mark.tsx"]) assert.doesNotMatch(source(path), /\/logo.svg|\/brand\/rose.png/)
   assert.match(source("src/components/animated-brand-mark.tsx"), /<SynnicalLogo/)
@@ -88,8 +107,8 @@ test("boot/start/auth share supplied logo, theme CSS and wallpaper; tab cloak re
   for (const key of ["icon", "shortcut", "apple"]) assert.match(layout, new RegExp(`${key}: "/brand/google-classroom.png"`))
   assert.doesNotMatch(logo, /hue-rotate/)
   const video = source("src/components/wallpaper-video.tsx")
-  assert.match(video, /prefers-reduced-motion/)
+  assert.doesNotMatch(video, /prefers-reduced-motion|batterySaver|reduceMotion/)
   assert.match(video, /document.hidden/)
-  assert.match(video, /poster=\{poster\}/)
-  assert.match(video, /muted loop playsInline preload="metadata"/)
+  assert.match(video, /autoPlay muted loop playsInline preload="auto"/)
+  assert.match(source("src/lib/wallpaper-playback.ts"), /if \(state.hidden\) video.pause\(\)/)
 })
