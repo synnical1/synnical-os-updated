@@ -63,7 +63,7 @@ test("wallpaper playback ignores all performance hints and pauses only while hid
   syncWallpaperPlayback({ ...video, play: async () => { throw new Error("autoplay denied") } }, visible)
   await Promise.resolve()
   const source = readFileSync(new URL("../src/components/wallpaper-video.tsx", import.meta.url), "utf8")
-  assert.match(source, /syncWallpaperPlayback\\(video, \\{ hidden: document\\.hidden \\}\\)/)
+  assert.ok(source.includes("syncWallpaperPlayback(video, { hidden: document.hidden })"))
   assert.match(source, /autoPlay muted loop playsInline preload="auto"/)
   assert.doesNotMatch(source, /prefers-reduced-motion|batterySaver|reduceMotion|userPaused/)
 })
