@@ -82,9 +82,11 @@ const WALLPAPER_VIDEO_RE = /\.(?:mp4|webm|mov)(?:\?|$)/i
 
 function WallpaperPreview({ src }: { src: string }) {
   return <div className="aspect-video overflow-hidden rounded-lg border border-white/10 bg-black/30">
-    {src && WALLPAPER_VIDEO_RE.test(src)
-      ? <video src={src} muted loop playsInline autoPlay preload="metadata" className="h-full w-full object-cover" />
-      : <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: src ? `url(${JSON.stringify(src)})` : undefined }} />}
+    {src
+      ? WALLPAPER_VIDEO_RE.test(src)
+        ? <video src={src} muted loop playsInline autoPlay preload="auto" className="h-full w-full object-cover" />
+        : <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: "url(" + JSON.stringify(src) + ")" }} />
+      : <div className="grid h-full w-full place-items-center text-xs text-white/35">No wallpaper selected</div>}
   </div>
 }
 
