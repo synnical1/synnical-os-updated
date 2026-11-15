@@ -125,13 +125,15 @@ jobs:
           git reset --hard "$deploy_sha"
 
           npm ci --include=dev --include=optional
-          node scripts/clear-wallpaper-uploads.mjs
           node scripts/runtime-preflight.mjs
           npx prisma generate
           npm run db:init
-          node_modules/.bin/tsx scripts/clear-saved-wallpaper-preferences.ts
           npm run build
           npm run test:smoke
+
+          # Destructive wallpaper cleanup only after the new build and smoke pass.
+          node scripts/clear-wallpaper-uploads.mjs
+          node_modules/.bin/tsx scripts/clear-saved-wallpaper-preferences.ts
 
           reload_started_ms="$(node -p 'Date.now()')"
           pm2 reload synnical --update-env
