@@ -9,7 +9,7 @@ export async function clearWallpaperUploads(directory) {
     if (error?.code === "ENOENT") return []
     throw error
   })
-  const wallpaperFile = /-os-(?:desktop|lock)-wallpaper-\d+\.(?:webp|mp4|webm|mov)$/i
+  const wallpaperFile = /-os-(?:desktop|lock)-wallpaper-\d+\.(?:webp|png|jpe?g|avif|mp4|webm|mov)$/i
   let removed = 0
   for (const entry of entries) {
     if (!entry.isFile() || !wallpaperFile.test(entry.name)) continue
