@@ -1,7 +1,3 @@
-import "dotenv/config"
-import path from "node:path"
-import { fileURLToPath } from "node:url"
-import { PrismaClient } from "@prisma/client"
 import { sanitizeOsSettings, WALLPAPER_DEFAULT_VERSION } from "../src/lib/os-settings"
 
 type PreferenceClient = Pick<PrismaClient, "userPreference">
@@ -34,15 +30,4 @@ export async function clearSavedWallpaperPreferences(db: PreferenceClient): Prom
     cleared++
   }
   return cleared
-}
-
-const currentFile = fileURLToPath(import.meta.url)
-if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
-  const db = new PrismaClient()
-  try {
-    const cleared = await clearSavedWallpaperPreferences(db)
-    process.stdout.write(`Cleared saved wallpaper preferences for ${cleared} account(s).\n`)
-  } finally {
-    await db.$disconnect()
-  }
 }
