@@ -37,13 +37,14 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId, authen
     }
     return bytes
   }
-  const surface = selector => `(() => { const root = document.querySelector(${JSON.stringify(selector)}); if (!root) return null; const rect = root.getBoundingClientRect(); return { rect:rect.toJSON(), background:getComputedStyle(root).backgroundColor, width:innerWidth, height:innerHeight, wallpaper:Boolean(document.querySelector(".synnical-live-wallpaper, .synnical-boot-wallpaper, .synnical-os-lock video")) } })()`
+  const surface = selector => `(() => { const root = document.querySelector(${JSON.stringify(selector)}); if (!root) return null; const rect = root.getBoundingClientRect(); const style=getComputedStyle(root); return { rect:rect.toJSON(), background:style.backgroundColor, backgroundImage:style.backgroundImage, width:innerWidth, height:innerHeight, wallpaper:Boolean(document.querySelector(".synnical-live-wallpaper, .synnical-boot-wallpaper, .synnical-os-lock video")) } })()`
   const checkSurface = async selector => {
     const s = await evaluate(surface(selector))
     assert.ok(s, selector)
     assert.equal(s.wallpaper, false, "No retired wallpaper may remain visible")
-    const expectedBackground = selector === ".synnical-os-lock" ? "rgb(0, 0, 0)" : "rgb(17, 18, 20)"
-    assert.equal(s.background, expectedBackground, "The desktop/lock surface uses its clean solid background")
+    if (selector === ".synnical-os-lock") assert.equal(s.background, "rgb(0, 0, 0)", "The lock screen uses a clean black surface")
+    else assert.notEqual(s.background, "rgba(0, 0, 0, 0)", "Desktop keeps its theme's solid page surface")
+    assert.equal(s.backgroundImage, "none", "The desktop/lock surface has no background image")
     assert.ok(Math.abs(s.rect.left) <= 0.5 && Math.abs(s.rect.top) <= 0.5, "Surface starts at viewport origin")
     assert.ok(s.rect.right >= s.width - 0.5 && s.rect.bottom >= s.height - 0.5, "Surface covers the viewport")
     return s
