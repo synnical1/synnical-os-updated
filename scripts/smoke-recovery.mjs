@@ -111,15 +111,15 @@ try {
   noSecrets(login.json); assert.equal(login.json.user.id, a.id)
   pass("registration and login with sanitized account responses")
   const freshOs = (await request("/api/features/os", { cookie: a.cookie })).json
-  assert.equal(freshOs.settings.desktopWallpaper, "")
-  assert.equal(freshOs.settings.lockWallpaper, "")
-  assert.equal(freshOs.settings.wallpaperDefaultVersion, 3)
+  assert.equal(freshOs.settings.desktopWallpaper, "/brand/wallpapers/samurai-blossom.png")
+  assert.equal(freshOs.settings.lockWallpaper, "/brand/wallpapers/samurai-blossom.png")
+  assert.equal(freshOs.settings.wallpaperDefaultVersion, 4)
   const legacyOs = { wallpaperDefaultVersion: 2, desktopWallpaper: "/brand/wallpapers/thorfinn.webp", lockWallpaper: "https://example.com/lock.webp", workspaces: [{ id: 1, name: "Custom", wallpaper: "/api/uploads/custom.webp" }, { id: 2, name: "Inherited", wallpaper: "" }] }
   await db.userPreference.upsert({ where: { userId_key: { userId: a.id, key: "os.settings" } }, create: { userId: a.id, key: "os.settings", value: JSON.stringify(legacyOs) }, update: { value: JSON.stringify(legacyOs) } })
   const migratedOs = (await request("/api/features/os", { cookie: a.cookie })).json
   assert.equal(migratedOs.needsWallpaperMigration, true)
-  assert.equal(migratedOs.settings.desktopWallpaper, "")
-  assert.equal(migratedOs.settings.lockWallpaper, "")
+  assert.equal(migratedOs.settings.desktopWallpaper, "/brand/wallpapers/samurai-blossom.png")
+  assert.equal(migratedOs.settings.lockWallpaper, "/brand/wallpapers/samurai-blossom.png")
   assert.deepEqual(migratedOs.settings.workspaces.map((row) => row.wallpaper), ["", ""])
   await request("/api/features/os", { cookie: b.cookie, data: { accountId: a.id, settings: { desktopWallpaper: "https://example.com/foreign.webp" } }, status: 409 })
   await request("/api/features/os", { cookie: a.cookie, data: { accountId: a.id, settings: migratedOs.settings } })
@@ -127,7 +127,7 @@ try {
   assert.equal((await request("/api/features/os", { cookie: b.cookie })).json.hasSaved, false)
   if (process.env.SYNNICAL_DESKTOP_BROWSER_TEST === "true") {
     await verifyDesktopRenders(base, { cookie: a.cookie })
-    pass("authenticated desktop renders with the wallpaper cleared and layout verified")
+    pass("authenticated desktop renders with the shared wallpaper and layout verified")
   }
   for (const asset of [
     "/brand/wallpapers/sakura-samurai-4k-poster.webp",
