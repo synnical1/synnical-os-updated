@@ -24,5 +24,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
   const configured = process.env.UPLOAD_DIR || "./uploads"
   const directory = path.isAbsolute(configured) ? configured : path.resolve(process.cwd(), configured)
   const removed = await clearWallpaperUploads(directory)
-  process.stdout.write(`Cleared ${removed} saved wallpaper upload(s).\\n`)
+  process.stdout.write(`Cleared ${removed} saved wallpaper upload(s).\n`)
 }
