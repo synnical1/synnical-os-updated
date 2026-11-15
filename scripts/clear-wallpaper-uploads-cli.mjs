@@ -6,7 +6,7 @@ async function main() {
   const configured = process.env.UPLOAD_DIR || "./uploads"
   const directory = path.isAbsolute(configured) ? configured : path.resolve(process.cwd(), configured)
   const removed = await clearWallpaperUploads(directory)
-  process.stdout.write(`Cleared ${removed} saved wallpaper upload(s).\\n`)
+  process.stdout.write(`Cleared ${removed} saved wallpaper upload(s).\n`)
 }
 
 main().catch((error) => {
