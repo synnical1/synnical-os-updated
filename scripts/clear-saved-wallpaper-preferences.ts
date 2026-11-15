@@ -3,7 +3,7 @@ import { sanitizeOsSettings, WALLPAPER_DEFAULT_VERSION } from "../src/lib/os-set
 
 type PreferenceClient = Pick<PrismaClient, "userPreference">
 
-/** Clear v1/v2 account wallpapers once, preserving all other OS preferences. */
+/** Replace pre-v4 account wallpapers once, preserving all other OS preferences. */
 export async function clearSavedWallpaperPreferences(db: PreferenceClient): Promise<number> {
   const rows = await db.userPreference.findMany({
     where: { key: "os.settings" },

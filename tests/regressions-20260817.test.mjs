@@ -865,7 +865,7 @@ test("r11.3 wallpaper personalization is account-backed for desktop and lock scr
   const route = read("src/app/api/features/os/wallpaper/route.ts")
   const settings = read("src/components/synnical-settings-app.tsx")
   const desktop = read("src/components/desktop-shell.tsx")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = ""/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/samurai-blossom\.png"/)
   assert.match(os, /desktopWallpaperFit/)
   assert.match(os, /lockUseDesktopWallpaper/)
   assert.match(os, /lockWallpaperFit/)
@@ -1013,15 +1013,15 @@ test("r11.4 recognition badges are visible beside roles but never grant permissi
 })
 
 
-test("all legacy wallpaper assets are removed and the OS starts with no selection", () => {
+test("all legacy wallpaper assets are removed and the OS starts with the shared static default", () => {
   const os = read("src/lib/os-settings.ts")
   const page = read("src/app/page.tsx")
   const boot = read("src/app/boot.css")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = ""/)
-  assert.match(os, /WALLPAPER_DEFAULT_VERSION = 3/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/samurai-blossom\.png"/)
+  assert.match(os, /WALLPAPER_DEFAULT_VERSION = 4/)
   assert.ok(os.includes("BUILTIN_OS_WALLPAPERS = [] as const"))
-  assert.ok(page.includes("DEFAULT_OS_WALLPAPER ? <WallpaperVideo"))
-  assert.ok(!boot.includes("/brand/wallpapers/"))
+  assert.ok(page.includes('DEFAULT_OS_WALLPAPER ? <div className="synnical-boot-wallpaper"'))
+  assert.ok(boot.includes("background-size:cover"))
   const retiredAssets = [
     "sakura-samurai-4k-poster.webp",
     "synnical-default-wallpaper-poster.webp",

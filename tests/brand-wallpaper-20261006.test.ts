@@ -25,10 +25,10 @@ test("every accent theme resolves OLED surfaces; light palettes and accents surv
 })
 
 test("wallpaper v4 installs the shared static samurai blossom default and replaces old selections", () => {
-  assert.equal(DEFAULT_OS_WALLPAPER, "/brand/wallpapers/samurai-blossom.png")
+  assert.equal(DEFAULT_OS_WALLPAPER, "/ezmaker_f84281159fd1f114fe789393c7549a43.png")
   assert.equal(sanitizeOsSettings({}).desktopWallpaper, DEFAULT_OS_WALLPAPER)
   assert.equal(sanitizeOsSettings({}).lockWallpaper, DEFAULT_OS_WALLPAPER)
-  assert.equal(existsSync(new URL("../public/brand/wallpapers/samurai-blossom.png", import.meta.url)), true)
+  assert.equal(existsSync(new URL("../public/ezmaker_f84281159fd1f114fe789393c7549a43.png", import.meta.url)), true)
   const oldChoices = [
     "/brand/wallpapers/thorfinn.webp",
     "/brand/wallpapers/synnical-static-ink-wallpaper.png",
