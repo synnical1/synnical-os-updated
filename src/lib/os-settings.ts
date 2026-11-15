@@ -1,7 +1,7 @@
 export type WallpaperFit = "fill" | "fit" | "stretch" | "center" | "tile"
 
-export const DEFAULT_OS_WALLPAPER = ""
-export const WALLPAPER_DEFAULT_VERSION = 3
+export const DEFAULT_OS_WALLPAPER = "/ezmaker_f84281159fd1f114fe789393c7549a43.png"
+export const WALLPAPER_DEFAULT_VERSION = 4
 export const BUILTIN_OS_WALLPAPERS = [] as const
 
 export const OS_DEFAULTS = {
@@ -125,11 +125,11 @@ export function sanitizeOsSettings(input: unknown): OsSettings {
   const bool = (key: keyof OsSettings) => typeof value[key] === "boolean" ? value[key] as boolean : OS_DEFAULTS[key] as boolean
   const widgetDefaultsVersion = num(value.widgetDefaultsVersion, 0, 1, 0)
   const widgetBool = (key: keyof OsSettings) => widgetDefaultsVersion >= 1 ? bool(key) : false
-  // Version 3 removes every previous built-in and saved wallpaper. Each
-  // account is cleared once; wallpapers uploaded after this migration remain.
+  // Version 4 installs the new shared static wallpaper for every account.
+  // Existing wallpaper choices are replaced once; other OS preferences remain.
   const wallpaperDefaultsNeedReset = Number(value.wallpaperDefaultVersion || 0) < WALLPAPER_DEFAULT_VERSION
   const migrateDefault = (wallpaper: unknown, fallback: string) => {
-    if (wallpaperDefaultsNeedReset) return ""
+    if (wallpaperDefaultsNeedReset) return DEFAULT_OS_WALLPAPER
     return wallpaperValue(wallpaper, fallback)
   }
   return {

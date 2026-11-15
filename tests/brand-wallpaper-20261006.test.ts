@@ -24,10 +24,11 @@ test("every accent theme resolves OLED surfaces; light palettes and accents surv
   } finally { Object.assign(globalThis, { document: previous }) }
 })
 
-test("wallpaper v3 clears every old saved selection and leaves a clean slate", () => {
-  assert.equal(DEFAULT_OS_WALLPAPER, "")
-  assert.equal(sanitizeOsSettings({}).desktopWallpaper, "")
-  assert.equal(sanitizeOsSettings({}).lockWallpaper, "")
+test("wallpaper v4 installs the shared static samurai blossom default and replaces old selections", () => {
+  assert.equal(DEFAULT_OS_WALLPAPER, "/ezmaker_f84281159fd1f114fe789393c7549a43.png")
+  assert.equal(sanitizeOsSettings({}).desktopWallpaper, DEFAULT_OS_WALLPAPER)
+  assert.equal(sanitizeOsSettings({}).lockWallpaper, DEFAULT_OS_WALLPAPER)
+  assert.equal(existsSync(new URL("../public/ezmaker_f84281159fd1f114fe789393c7549a43.png", import.meta.url)), true)
   const oldChoices = [
     "/brand/wallpapers/thorfinn.webp",
     "/brand/wallpapers/synnical-static-ink-wallpaper.png",
@@ -39,13 +40,13 @@ test("wallpaper v3 clears every old saved selection and leaves a clean slate", (
   ]
   for (const old of oldChoices) {
     const migrated = sanitizeOsSettings({
-      wallpaperDefaultVersion: 2,
+      wallpaperDefaultVersion: 3,
       desktopWallpaper: old,
       lockWallpaper: old,
       workspaces: [{ id: 1, name: "Custom", wallpaper: old }, { id: 2, name: "Inherited", wallpaper: "" }],
     })
-    assert.equal(migrated.desktopWallpaper, "")
-    assert.equal(migrated.lockWallpaper, "")
+    assert.equal(migrated.desktopWallpaper, DEFAULT_OS_WALLPAPER)
+    assert.equal(migrated.lockWallpaper, DEFAULT_OS_WALLPAPER)
     assert.deepEqual(migrated.workspaces.map((row) => row.wallpaper), ["", ""])
     assert.equal(migrated.wallpaperDefaultVersion, WALLPAPER_DEFAULT_VERSION)
     assert.deepEqual(sanitizeOsSettings(migrated), migrated, "migration only happens once")
@@ -99,7 +100,8 @@ test("boot/start/auth share supplied logo, theme CSS and wallpaper; tab cloak re
   assert.match(css, /:root\[data-appearance="dark"\] \[data-profile-base="true"\] \{ background:#000000/);
   assert.match(css, /synnical-logo-accent[^}]*var\(--synnical-accent\)/)
   assert.match(page, /<SynnicalLogo variant="logo"/)
-  assert.match(page, /DEFAULT_OS_WALLPAPER \? <WallpaperVideo/)
+  assert.match(page, /DEFAULT_OS_WALLPAPER \? <div className="synnical-boot-wallpaper"/)
+  assert.doesNotMatch(page, /WallpaperVideo/)
   assert.match(desktop, /aria-label="Start"><SynnicalLogo small decorative/)
   for (const path of ["src/app/page.tsx", "src/components/desktop-shell.tsx", "src/components/animated-brand-mark.tsx"]) assert.doesNotMatch(source(path), /\/logo.svg|\/brand\/rose.png/)
   assert.match(source("src/components/animated-brand-mark.tsx"), /<SynnicalLogo/)
