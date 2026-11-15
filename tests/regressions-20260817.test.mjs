@@ -1013,11 +1013,11 @@ test("r11.4 recognition badges are visible beside roles but never grant permissi
 })
 
 
-test("all legacy wallpaper assets are removed and the OS starts with no selection", () => {
+test("all legacy wallpaper assets are removed and the OS starts with the shared static default", () => {
   const os = read("src/lib/os-settings.ts")
   const page = read("src/app/page.tsx")
   const boot = read("src/app/boot.css")
-  assert.match(os, /DEFAULT_OS_WALLPAPER = ""/)
+  assert.match(os, /DEFAULT_OS_WALLPAPER = "\/brand\/wallpapers\/samurai-blossom\.png"/)
   assert.match(os, /WALLPAPER_DEFAULT_VERSION = 4/)
   assert.ok(os.includes("BUILTIN_OS_WALLPAPERS = [] as const"))
   assert.ok(page.includes('DEFAULT_OS_WALLPAPER ? <div className="synnical-boot-wallpaper"'))
