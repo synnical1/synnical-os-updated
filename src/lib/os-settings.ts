@@ -1,6 +1,6 @@
 export type WallpaperFit = "fill" | "fit" | "stretch" | "center" | "tile"
 
-export const DEFAULT_OS_WALLPAPER = "/ezmaker_f84281159fd1f114fe789393c7549a43.png"
+export const DEFAULT_OS_WALLPAPER = "/brand/wallpapers/samurai-blossom.png"
 export const WALLPAPER_DEFAULT_VERSION = 4
 export const BUILTIN_OS_WALLPAPERS = [] as const
 
