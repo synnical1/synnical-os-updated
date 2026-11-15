@@ -2,13 +2,12 @@ import assert from "node:assert/strict"
 import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import sharp from "sharp"
 
 export async function verifyAuthenticatedLock({ authenticated, evaluate, wait, checkSurface, capture }) {
   if (!authenticated) return "UNVERIFIED: authenticated account required"
   await evaluate("window.dispatchEvent(new CustomEvent('synnical-os-lock')); true")
-  await wait("Boolean(document.querySelector('.synnical-os-lock video'))")
-  await checkSurface(".synnical-os-lock video")
+  await wait("Boolean(document.querySelector('.synnical-os-lock'))")
+  await checkSurface(".synnical-os-lock")
   await capture("lock-1366x768")
   return "passed"
 }
@@ -38,34 +37,24 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId, authen
     }
     return bytes
   }
-  const surface = selector => `(() => { const v = document.querySelector(${JSON.stringify(selector)}); if (!v) return null; return { rect:v.getBoundingClientRect().toJSON(), parent:v.parentElement.getBoundingClientRect().toJSON(), fit:getComputedStyle(v).objectFit, width:innerWidth, height:innerHeight } })()`
+  const surface = selector => `(() => { const root = document.querySelector(${JSON.stringify(selector)}); if (!root) return null; const rect = root.getBoundingClientRect(); return { rect:rect.toJSON(), background:getComputedStyle(root).backgroundColor, width:innerWidth, height:innerHeight, wallpaper:Boolean(document.querySelector(".synnical-live-wallpaper")) } })()`
   const checkSurface = async selector => {
     const s = await evaluate(surface(selector))
     assert.ok(s, selector)
-    assert.equal(s.fit, "cover")
-    for (const [edge, sign] of [["left", -1], ["top", -1], ["right", 1], ["bottom", 1]]) {
-      assert.ok(sign * (s.rect[edge] - s.parent[edge]) >= -0.5, `${selector}: ${edge} must cover parent`)
-    }
-    assert.ok(s.rect.right >= s.width - 0.5, "Wallpaper reaches viewport right edge")
+    assert.equal(s.wallpaper, false, "No retired wallpaper may remain visible")
+    const expectedBackground = selector === ".synnical-os-lock" ? "rgb(0, 0, 0)" : "rgb(17, 18, 20)"
+    assert.equal(s.background, expectedBackground, "The desktop/lock surface uses its clean solid background")
+    assert.ok(Math.abs(s.rect.left) <= 0.5 && Math.abs(s.rect.top) <= 0.5, "Surface starts at viewport origin")
+    assert.ok(s.rect.right >= s.width - 0.5 && s.rect.bottom >= s.height - 0.5, "Surface covers the viewport")
     return s
-  }
-  const checkRightPixels = async bytes => {
-    const { data, info } = await sharp(bytes).removeAlpha().raw().toBuffer({ resolveWithObject: true })
-    let nonBlack = 0
-    // Above the taskbar: a full-height black strip cannot be hidden by a good footer.
-    for (let y = 20; y < info.height - 100; y++) {
-      const offset = (y * info.width + info.width - 1) * info.channels
-      if (Math.max(...data.subarray(offset, offset + 3)) > 12) nonBlack++
-    }
-    assert.ok(nonBlack > (info.height - 120) * 0.5, "Rendered right edge must contain wallpaper, not a black strip")
   }
   const measurements = []
   for (const [width, height] of [[1366,768], [1920,1080], [1440,900], [1280,720]]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId)
     await delay(150)
-    const s = await checkSurface("video.synnical-live-wallpaper")
+    const s = await checkSurface(".synnical-os-root")
     assert.equal(s.width, width); assert.equal(s.height, height)
-    await checkRightPixels(await capture(`desktop-${width}x${height}`))
+    await capture(`desktop-${width}x${height}`)
     measurements.push({ surface: "desktop", width, height, right: s.rect.right })
   }
   await command("Emulation.setDeviceMetricsOverride", { width:1366, height:768, deviceScaleFactor:1, mobile:false }, sessionId)
@@ -96,9 +85,9 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId, authen
   for (const theme of ["Blood", "Synnical", "Forest"]) {
     await click(".synnical-settings-app nav button", "Appearance")
     await click(".synnical-settings-app main button", theme)
-    // Auto-hide belongs to Appearance and must not change wallpaper coverage.
+    // Auto-hide belongs to Appearance and must not change the clean desktop surface.
     await exerciseSwitch('[aria-label="Auto-hide taskbar"]')
-    await checkSurface("video.synnical-live-wallpaper")
+    await checkSurface(".synnical-os-root")
     await click(".synnical-settings-app nav button", "System")
     for (const label of ["Auto fullscreen", "chat notifications", "Battery Saver"]) await exerciseSwitch(`[aria-label="${label}"]`)
     await capture(`switches-${theme.toLowerCase()}-1366x768`)
@@ -114,15 +103,15 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId, authen
     await click(".synnical-settings-app nav button", "System")
   }
   } else console.log("UNVERIFIED live Settings switches/auto-hide: authenticated account required; no production account is created")
-  // Explicit fullscreen and windowed use the same cover bounds.
+  // Explicit fullscreen and windowed use the same clean surface bounds.
   const fullscreen = await command("Runtime.evaluate", { expression:"document.documentElement.requestFullscreen().then(()=>true)", awaitPromise:true, returnByValue:true, userGesture:true }, sessionId)
   assert.ok(!fullscreen.exceptionDetails, "Browser fullscreen must be available")
   assert.ok(await evaluate("Boolean(document.fullscreenElement)"))
-  await checkSurface("video.synnical-live-wallpaper")
+  await checkSurface(".synnical-os-root")
   await command("Runtime.evaluate", { expression:"document.exitFullscreen().then(()=>true)", awaitPromise:true, returnByValue:true }, sessionId)
-  await checkSurface("video.synnical-live-wallpaper")
+  await checkSurface(".synnical-os-root")
   const lock = await verifyAuthenticatedLock({ authenticated, evaluate, wait, checkSurface, capture })
   if (!authenticated) console.log(`UNVERIFIED live lock screen: authenticated account required`)
   if (evidenceDir) await writeFile(path.join(evidenceDir, "layout-results.json"), JSON.stringify({ measurements, switches:authenticated ? "contained in both states" : "UNVERIFIED: authenticated account required", themes:authenticated ? ["Blood","Synnical","Forest"] : [], fullscreen:"passed", lock }, null, 2))
-  console.log(`PASS desktop edge pixels/bounds at 1366x768, 1920x1080, 1440x900, 1280x720; fullscreen${authenticated ? "; lock; theme switches; auto-hide" : ""}`)
+  console.log(`PASS empty wallpaper surfaces at 1366x768, 1920x1080, 1440x900, 1280x720; fullscreen${authenticated ? "; lock; theme switches; auto-hide" : ""}`)
 }
