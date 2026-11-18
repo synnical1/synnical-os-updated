@@ -1338,10 +1338,35 @@ function NewTabPage({
 }) {
   const [query, setQuery] = useState("")
   const [now, setNow] = useState(() => new Date())
+  const [activity, setActivity] = useState<{ onlineCount: number; allTimePeak: number } | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    let timer: ReturnType<typeof window.setTimeout> | undefined
+    const refreshActivity = async () => {
+      try {
+        const response = await fetch("/api/community/activity", { cache: "no-store" })
+        if (!response.ok) throw new Error("Activity unavailable")
+        const data = await response.json()
+        if (!cancelled && Number.isInteger(data?.onlineCount) && Number.isInteger(data?.allTimePeak)) {
+          setActivity({ onlineCount: data.onlineCount, allTimePeak: data.allTimePeak })
+        }
+      } catch {
+        if (!cancelled) setActivity(null)
+      } finally {
+        if (!cancelled) {
+          const untilNextMinute = 60_000 - (Date.now() % 60_000) + 100
+          timer = window.setTimeout(refreshActivity, untilNextMinute)
+        }
+      }
+    }
+    void refreshActivity()
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer) }
   }, [])
 
   const time = new Intl.DateTimeFormat(undefined, {
@@ -1361,6 +1386,11 @@ function NewTabPage({
           <div className="text-center">
             <p className="browser-clock text-[clamp(3.6rem,10vw,7.2rem)] font-light leading-none tracking-[-0.065em] text-white">{time}</p>
             <p className="mt-2 text-[13px] text-[#777777]">{date}</p>
+            <div className="mt-4 flex flex-col items-center gap-1" aria-label="Simulated community activity. This is not a live user count.">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">Simulated community activity</span>
+              <span className="flex items-center gap-2 text-sm font-medium text-white/75"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />{activity ? activity.onlineCount.toLocaleString() : "—"} online</span>
+              <span className="text-[10px] text-white/35">All-time peak: {(activity?.allTimePeak ?? 1064).toLocaleString()} online at a time · simulated</span>
+            </div>
           </div>
 
           <form className="mx-auto mt-8 max-w-2xl" onSubmit={(event) => { event.preventDefault(); onNavigate(query) }}>
