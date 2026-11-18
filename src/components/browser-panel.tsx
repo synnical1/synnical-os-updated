@@ -1338,7 +1338,7 @@ function NewTabPage({
 }) {
   const [query, setQuery] = useState("")
   const [now, setNow] = useState(() => new Date())
-  const [onlineCount, setOnlineCount] = useState<number | null>(null)
+  const [activity, setActivity] = useState<{ onlineCount: number; allTimePeak: number } | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000)
@@ -1348,22 +1348,30 @@ function NewTabPage({
   useEffect(() => {
     let cancelled = false
     let timer: number | undefined
-    const refreshOnlineCount = async () => {
+    const refreshActivity = async () => {
       try {
         const response = await fetch("/api/community/activity", { cache: "no-store" })
-        if (!response.ok) throw new Error("Online count unavailable")
+        if (!response.ok) throw new Error("Community activity unavailable")
         const data = await response.json()
-        if (!Number.isSafeInteger(data?.onlineCount) || data.onlineCount < 0) {
-          throw new Error("Invalid online count")
+        if (
+          !Number.isInteger(data?.onlineCount) ||
+          data.onlineCount < 61 ||
+          data.onlineCount > 784 ||
+          data.allTimePeak !== 1064
+        ) {
+          throw new Error("Invalid community activity")
         }
-        if (!cancelled) setOnlineCount(data.onlineCount)
+        if (!cancelled) setActivity({ onlineCount: data.onlineCount, allTimePeak: data.allTimePeak })
       } catch {
-        if (!cancelled) setOnlineCount(null)
+        if (!cancelled) setActivity(null)
       } finally {
-        if (!cancelled) timer = window.setTimeout(refreshOnlineCount, 30_000)
+        if (!cancelled) {
+          const untilNextMinute = 60_000 - (Date.now() % 60_000) + 100
+          timer = window.setTimeout(refreshActivity, untilNextMinute)
+        }
       }
     }
-    void refreshOnlineCount()
+    void refreshActivity()
     return () => { cancelled = true; if (timer) window.clearTimeout(timer) }
   }, [])
 
@@ -1384,12 +1392,20 @@ function NewTabPage({
           <div className="text-center">
             <p className="browser-clock text-[clamp(3.6rem,10vw,7.2rem)] font-light leading-none tracking-[-0.065em] text-white">{time}</p>
             <p className="mt-2 text-[13px] text-[#777777]">{date}</p>
-            {onlineCount !== null && (
-              <p className="mt-3 flex items-center justify-center gap-2 text-xs text-white/45" role="status" aria-label={`${onlineCount.toLocaleString()} users online`}>
-                <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", onlineCount > 0 ? "bg-emerald-400" : "bg-white/30")} />
-                <span>{onlineCount.toLocaleString()} online</span>
-              </p>
-            )}
+            <div
+              className="mt-4 flex flex-col items-center gap-1"
+              aria-label="Illustrative community activity figures, not live user telemetry."
+              title="Illustrative community activity figures."
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">Community activity</span>
+              <span className="flex items-center gap-2 text-sm font-medium text-white/75">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />
+                {activity ? activity.onlineCount.toLocaleString() : "—"} online
+              </span>
+              <span className="text-[10px] text-white/35">
+                All-time peak: {(activity?.allTimePeak ?? 1064).toLocaleString()} online at a time
+              </span>
+            </div>
           </div>
 
           <form className="mx-auto mt-8 max-w-2xl" onSubmit={(event) => { event.preventDefault(); onNavigate(query) }}>
