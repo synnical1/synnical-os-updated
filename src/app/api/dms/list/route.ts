@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth-server"
 
 export const dynamic = "force-dynamic"
 
-const DISABLED_NOTICE = "Direct messaging is temporarily unavailable while Synnical reviews and strengthens its safety, safeguarding and moderation measures."
+const DISABLED_NOTICE = "Direct messages are off for now."
 
 export async function GET() {
   const me = await getCurrentUser()
