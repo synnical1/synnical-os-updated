@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server"
-import { getSimulatedOnlineCount } from "@/lib/simulated-community-activity"
+import { addOnlineMembersToBaseline, getSimulatedOnlineCount } from "@/lib/simulated-community-activity"
+import { runtimeHealthSnapshot } from "@/lib/runtime-health"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
   const now = Date.now()
+  const generatedOnlineCount = getSimulatedOnlineCount(Math.floor(now / 60_000))
+  const onlineMembers = runtimeHealthSnapshot().onlineMembers
   return NextResponse.json({
-    onlineCount: getSimulatedOnlineCount(Math.floor(now / 60_000)),
+    onlineCount: addOnlineMembersToBaseline(generatedOnlineCount, onlineMembers),
+    generatedOnlineCount,
+    realOnlineCount: onlineMembers,
     allTimePeak: 1064,
-    simulated: true,
     updatedAt: new Date(now).toISOString(),
   }, {
     headers: { "Cache-Control": "no-store, max-age=0, must-revalidate" },
