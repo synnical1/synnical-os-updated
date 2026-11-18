@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
-import { canModerate } from "@/lib/auth"
 import { consumeRequestLimit } from "@/lib/request-rate-limit"
 import { auditData } from "@/lib/audit-log"
 
@@ -125,7 +124,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const actor = await getCurrentUser()
-  if (!actor || !canModerate(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || actor.role !== "OWNER") return NextResponse.json({ error: "Only the owner can access User Management." }, { status: 403 })
   const requested = new URL(req.url).searchParams.get("status")?.toUpperCase()
   const status = requested && ["OPEN", "RESOLVED", "DISMISSED"].includes(requested) ? requested : "OPEN"
   const reports = await db.report.findMany({
@@ -145,7 +144,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const actor = await getCurrentUser()
-  if (!actor || !canModerate(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || actor.role !== "OWNER") return NextResponse.json({ error: "Only the owner can access User Management." }, { status: 403 })
   const body = await req.json().catch(() => ({}))
   const reportId = typeof body.reportId === "string" ? body.reportId : ""
   const status = typeof body.status === "string" ? body.status.toUpperCase() : ""
