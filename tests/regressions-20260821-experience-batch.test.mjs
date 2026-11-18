@@ -65,15 +65,16 @@ test("experience batch: desktop stays free-positioned while restoring saved wind
   assert.doesNotMatch(shell, /restoreWindows: false, desktopAlignGrid: false/)
 })
 
-test("experience batch: recognition tags include DEV and render icon metadata", () => {
+test("experience batch: recognition tags use readable text badges without decorative icons", () => {
   const tags = read("src/lib/recognition-tags.ts")
   const roleUi = read("src/components/role-ui.tsx")
   const settings = read("src/components/settings-panel.tsx")
   assert.match(tags, /DEV_TAG = "DEV"/)
   assert.match(tags, /canonicalRecognitionTag\(value\)/)
-  assert.match(roleUi, /BadgeCheck|Crown|Sparkles|Shield|Code2/)
   assert.match(roleUi, /recognitionMeta/)
-  assert.match(roleUi, /Tag className/)
+  assert.match(roleUi, /label: "Developer"/)
+  assert.match(roleUi, /customTagLabel/)
+  assert.doesNotMatch(roleUi, /BadgeCheck|Crown|Sparkles|Shield|Code2|Tag className/)
   assert.match(settings, /DEV_TAG/)
 })
 

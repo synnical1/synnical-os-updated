@@ -59,7 +59,8 @@ test("app visibility and custom tag visuals consume the persisted Owner controls
   assert.match(shell, /Owner-managed maintenance/)
   assert.match(shell, /BETA_TESTER/)
   assert.match(roles, /\^custom:/)
-  assert.match(roles, /shadow-\[0_0_11px/)
+  assert.match(roles, /border-pink-400\/20/)
+  assert.doesNotMatch(roles, /shadow-\[0_0/)
 })
 
 test("the command palette is concise and has real Owner entries", () => {

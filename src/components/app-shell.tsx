@@ -203,7 +203,7 @@ export function AppShell() {
     return (
     <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--synnical-accent)] border-t-transparent" /></div>}>
       {target === "discover" ? <ErrorBoundary name="Search"><DiscoveryPanel onPanel={openPanel} /></ErrorBoundary> : null}
-      {target === "chat" ? <ErrorBoundary name="Chat"><TemporarilyDisabledPanel title="Chat is temporarily unavailable" /></ErrorBoundary> : null}
+      {target === "chat" ? <ErrorBoundary name="Chat"><TemporarilyDisabledPanel title="Chat" /></ErrorBoundary> : null}
       {target === "friends" ? <ErrorBoundary name="Friends"><FriendsPanel /></ErrorBoundary> : null}
       {target === "spaces" ? <ErrorBoundary name="Spaces"><SpacesPanel /></ErrorBoundary> : null}
       {target === "moderation" && isOwner ? <ErrorBoundary name="User Management"><StaffAccountsPanel /></ErrorBoundary> : null}

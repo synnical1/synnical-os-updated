@@ -165,7 +165,7 @@ test("Synn Bot purge-all includes bot messages and leaves only an ephemeral ackn
   assert.match(server, /bot-command-result/)
 })
 
-test("Synn Bot understands natural custom-tag wording including thumbs-up and white glow", () => {
+test("Synn Bot custom tags keep their icon and colour choices while rendering as clean text labels", () => {
   const owner = read("src/lib/synn-bot-owner.ts")
   const roles = read("src/components/role-ui.tsx")
   const ai = read("src/lib/synn-bot-ai.ts")
@@ -173,8 +173,9 @@ test("Synn Bot understands natural custom-tag wording including thumbs-up and wh
   assert.match(owner, /that\\s\+says/)
   assert.match(owner, /thumbs\?\\s\*\[- \]\?up/)
   assert.match(roles, /thumbs-up/)
-  assert.match(roles, /ThumbsUp/)
-  assert.match(roles, /rgba\(255,255,255,.72\)/)
+  assert.ok(roles.includes('white: "border-white/20'))
+  assert.doesNotMatch(roles, /ThumbsUp|rgba\(255,255,255/)
+  assert.ok(!roles.includes("shadow-[0_0"))
   assert.match(ai, /Your product identity is Synn Bot/)
   assert.match(ai, /Never claim that you are LFM/)
 })

@@ -89,9 +89,10 @@ test("main batch: profile dialog keeps standard backdrop and Escape dismissal", 
 
 test("main batch: staff badges are compact", () => {
   const roles = read("src/components/role-ui.tsx")
-  assert.match(roles, /text-\[8px\]/)
-  assert.match(roles, /px-1 py-px/)
-  assert.match(roles, /leading-3/)
+  assert.match(roles, /text-\[10px\]/)
+  assert.match(roles, /px-1\.5 py-0\.5/)
+  assert.match(roles, /leading-none/)
+  assert.doesNotMatch(roles, /shadow-\[0_0/)
 })
 
 test("main batch: global async failures no longer crash the entire OS shell", () => {
