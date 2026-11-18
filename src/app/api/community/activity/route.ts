@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { runtimeHealthSnapshot } from "@/lib/runtime-health"
+import { getSimulatedOnlineCount } from "@/lib/simulated-community-activity"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -7,7 +7,9 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   const now = Date.now()
   return NextResponse.json({
-    onlineCount: runtimeHealthSnapshot().onlineUsers,
+    onlineCount: getSimulatedOnlineCount(Math.floor(now / 60_000)),
+    allTimePeak: 1064,
+    simulated: true,
     updatedAt: new Date(now).toISOString(),
   }, {
     headers: { "Cache-Control": "no-store, max-age=0, must-revalidate" },
