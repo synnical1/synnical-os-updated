@@ -1386,10 +1386,10 @@ function NewTabPage({
           <div className="text-center">
             <p className="browser-clock text-[clamp(3.6rem,10vw,7.2rem)] font-light leading-none tracking-[-0.065em] text-white">{time}</p>
             <p className="mt-2 text-[13px] text-[#777777]">{date}</p>
-            <div className="mt-4 flex flex-col items-center gap-1" aria-label="Simulated community activity. This is not a live user count.">
-              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">Simulated community activity</span>
+            <div className="mt-4 flex flex-col items-center gap-1" aria-label="Illustrative community activity figures, not live user telemetry." title="Illustrative activity figures, not a live online-user count.">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">Community activity</span>
               <span className="flex items-center gap-2 text-sm font-medium text-white/75"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />{activity ? activity.onlineCount.toLocaleString() : "—"} online</span>
-              <span className="text-[10px] text-white/35">All-time peak: {(activity?.allTimePeak ?? 1064).toLocaleString()} online at a time · simulated</span>
+              <span className="text-[10px] text-white/35">All-time peak: {(activity?.allTimePeak ?? 1064).toLocaleString()} online at a time</span>
             </div>
           </div>
 
