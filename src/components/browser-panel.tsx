@@ -1347,7 +1347,7 @@ function NewTabPage({
 
   useEffect(() => {
     let cancelled = false
-    let timer: ReturnType<typeof window.setTimeout> | undefined
+    let timer: number | undefined
     const refreshActivity = async () => {
       try {
         const response = await fetch("/api/community/activity", { cache: "no-store" })
