@@ -48,6 +48,6 @@ test("community activity exposes a combined count without the old illustrative t
   assert.match(route, /allTimePeak:\s*1064/)
   assert.match(route, /realOnlineCount:\s*onlineMembers/)
   assert.doesNotMatch(route, /simulated:\s*true/)
-  assert.match(browser, /title="Online members\\."/)
+  assert.ok(browser.includes('title="Online members."'))
   assert.doesNotMatch(browser, /Illustrative community activity figures/)
 })
