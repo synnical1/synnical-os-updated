@@ -1,5 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import { readFile } from "node:fs/promises"
 import { getSimulatedOnlineCount } from "../src/lib/simulated-community-activity"
 
 test("generated activity stays within the requested range and is stable per minute", () => {
@@ -19,6 +20,7 @@ test("generated activity changes gradually between minutes", () => {
   }
 })
 
-test("generated activity uses the same fixed community peak", () => {
-  assert.equal(1064, 1064)
+test("community activity endpoint keeps the requested all-time peak", async () => {
+  const route = await readFile(new URL("../src/app/api/community/activity/route.ts", import.meta.url), "utf8")
+  assert.match(route, /allTimePeak:\s*1064/)
 })
