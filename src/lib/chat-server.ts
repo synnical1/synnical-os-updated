@@ -26,7 +26,7 @@ import { isDmSendBlocked } from "./blocks"
 import { getSynnBotProfile, runSynnBotFeature } from "./synn-bot-features"
 import { runOwnerJarvisRequest } from "./synn-bot-owner"
 import { addXp, advanceChallenge, earnAchievement, logSystemEvent } from "./feature-platform"
-import { setSocketClientCount } from "./runtime-health"
+import { countUniqueOnlineUsers, setOnlineUserCount, setSocketClientCount } from "./runtime-health"
 import { normalizeRichPresenceActivity, presenceMode, presenceSection, type PresenceMode, type RichPresenceActivity } from "./presence"
 import { privacyViewFor } from "./privacy"
 import { isAccountLockedDown } from "./security-policy"
@@ -157,6 +157,10 @@ export function attachChat(httpServer: HTTPServer): IOServer {
 
   // socket.id -> user
   const online = new Map<string, ClientUser>()
+  function updateOnlineCounts() {
+    setSocketClientCount(online.size)
+    setOnlineUserCount(countUniqueOnlineUsers(online.values()))
+  }
   const onModeration = async ({ userId, action }: { userId: string; action: string }) => {
     io.emit("moderation-updated", { userId })
     for (const socket of io.sockets.sockets.values()) {
@@ -645,7 +649,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
         showOnlineDuration: false, connectedAt: Date.now(), activity: null,
       })
     }
-    setSocketClientCount(online.size)
+    updateOnlineCounts()
     void broadcastGlobalPresence()
     if (!wasUserAlreadyOnline) {
       void db.friendship.findMany({ where: { status: "ACCEPTED", OR: [{ requesterId: user.userId }, { receiverId: user.userId }] }, select: { requesterId: true, receiverId: true }, take: 500 })
@@ -1332,7 +1336,7 @@ export function attachChat(httpServer: HTTPServer): IOServer {
       online.delete(socket.id)
       activityBySocket.delete(socket.id)
       if (![...online.values()].some((entry) => entry.userId === user.userId)) presenceByUser.delete(user.userId)
-      setSocketClientCount(online.size)
+      updateOnlineCounts()
       for (const [channelId, ids] of channelRooms.entries()) {
         if (ids.delete(socket.id)) {
           void broadcastPresence(channelId)
