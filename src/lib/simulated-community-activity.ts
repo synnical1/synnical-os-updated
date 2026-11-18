@@ -19,3 +19,10 @@ export function getSimulatedOnlineCount(epochMinute = Math.floor(Date.now() / 60
   const progress = offset / SEGMENT_MINUTES
   return Math.round(start + (end - start) * progress)
 }
+
+
+export function addOnlineMembersToBaseline(generatedOnlineCount: number, onlineMembers: number): number {
+  const generated = Number.isFinite(generatedOnlineCount) ? Math.max(0, Math.trunc(generatedOnlineCount)) : 0
+  const liveMembers = Number.isFinite(onlineMembers) ? Math.max(0, Math.trunc(onlineMembers)) : 0
+  return generated + liveMembers
+}

@@ -1338,7 +1338,7 @@ function NewTabPage({
 }) {
   const [query, setQuery] = useState("")
   const [now, setNow] = useState(() => new Date())
-  const [activity, setActivity] = useState<{ onlineCount: number; allTimePeak: number } | null>(null)
+  const [activity, setActivity] = useState<{ onlineCount: number; allTimePeak: number; realOnlineCount: number } | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000)
@@ -1354,14 +1354,18 @@ function NewTabPage({
         if (!response.ok) throw new Error("Community activity unavailable")
         const data = await response.json()
         if (
+          !Number.isInteger(data?.generatedOnlineCount) ||
+          data.generatedOnlineCount < 61 ||
+          data.generatedOnlineCount > 784 ||
+          !Number.isInteger(data?.realOnlineCount) ||
+          data.realOnlineCount < 0 ||
           !Number.isInteger(data?.onlineCount) ||
-          data.onlineCount < 61 ||
-          data.onlineCount > 784 ||
+          data.onlineCount !== data.generatedOnlineCount + data.realOnlineCount ||
           data.allTimePeak !== 1064
         ) {
           throw new Error("Invalid community activity")
         }
-        if (!cancelled) setActivity({ onlineCount: data.onlineCount, allTimePeak: data.allTimePeak })
+        if (!cancelled) setActivity({ onlineCount: data.onlineCount, allTimePeak: data.allTimePeak, realOnlineCount: data.realOnlineCount })
       } catch {
         if (!cancelled) setActivity(null)
       } finally {
@@ -1394,10 +1398,10 @@ function NewTabPage({
             <p className="mt-2 text-[13px] text-[#777777]">{date}</p>
             <div
               className="mt-4 flex flex-col items-center gap-1"
-              aria-label="Illustrative community activity figures, not live user telemetry."
-              title="Illustrative community activity figures."
+              aria-label="Online members."
+              title="Online members."
             >
-              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">Community activity</span>
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">Online members</span>
               <span className="flex items-center gap-2 text-sm font-medium text-white/75">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />
                 {activity ? activity.onlineCount.toLocaleString() : "—"} online
