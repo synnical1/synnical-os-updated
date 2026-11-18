@@ -25,7 +25,7 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { DisplayName, RoleBadge, AvatarWithDeco } from "@/components/role-ui"
 import {
-  Crown, Loader2, LogOut, Shield, ShieldCheck, KeyRound, Users, VolumeX, Volume2,
+  Loader2, LogOut, Shield, ShieldCheck, KeyRound, Users, VolumeX, Volume2,
   User, IdCard, Lock, Monitor, Link2, Palette, Accessibility,
   Mic, Bell, Keyboard, Languages, Radio, Globe, X, Plus, MessageCircle,
   Camera, Tag, ChevronRight, ChevronLeft, Search, Ban, Eye, Trash2,
@@ -412,8 +412,8 @@ function AccountSection() {
             <p className="text-xs text-[var(--synnical-muted)]">@{user.username}</p>
           </div>
           {user.role !== "MEMBER" ? <RoleBadge role={user.role} tags={user.tags} /> : (
-            <span className="inline-flex items-center gap-1 text-xs text-[var(--synnical-muted)] bg-[var(--synnical-surface-2)] rounded-full px-2.5 py-1">
-              <Shield className="h-3.5 w-3.5" /> Member
+            <span className="inline-flex items-center text-xs text-[var(--synnical-muted)] bg-[var(--synnical-surface-2)] rounded-full px-2.5 py-1">
+              Member
             </span>
           )}
         </div>
@@ -1295,7 +1295,7 @@ function OwnerVerificationSection() {
       <SectionTitle title="Verify owner password" />
       {user.role === "OWNER" ? (
         <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 text-sm text-amber-400">
-          <Crown className="h-4 w-4" /> You are verified as Owner.
+          You are verified as Owner.
         </div>
       ) : (
         <form onSubmit={verify} className="space-y-3">
@@ -1478,7 +1478,6 @@ function UserManagementSection() {
                 {/* Tags */}
                 <div className="mt-2.5 pl-10">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <Tag className="h-3 w-3 text-[var(--synnical-muted)] shrink-0" />
                     {(u.tags || []).length === 0 && (
                       <span className="text-xs text-[var(--synnical-muted)]">No tags</span>
                     )}
