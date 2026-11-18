@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import type { Prisma } from "@prisma/client"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
-import { canModerate } from "@/lib/auth"
 
 export const dynamic = "force-dynamic"
 
@@ -17,7 +16,7 @@ function parseJson(value: string) {
 
 export async function GET(req: NextRequest) {
   const actor = await getCurrentUser()
-  if (!actor || !canModerate(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || actor.role !== "OWNER") return NextResponse.json({ error: "Only the owner can access User Management." }, { status: 403 })
 
   const url = new URL(req.url)
   const page = intParam(url.searchParams.get("page"), 1, 1, 100_000)

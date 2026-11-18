@@ -13,6 +13,7 @@ import { canonicalRecognitionTag, recognitionTags } from "@/lib/recognition-tags
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (me.role !== "OWNER") return NextResponse.json({ error: "Only the owner can access User Management." }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const { userId, role, tag, action } = body

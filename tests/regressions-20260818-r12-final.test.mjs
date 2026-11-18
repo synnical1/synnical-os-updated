@@ -474,12 +474,16 @@ test('r12 final: battery-aware effect reduction is automatic without overwriting
   assert.doesNotMatch(shell, /persistOsSettings\([^\n]*synnicalBatteryPerf/)
 })
 
-test('r12 final: Friends DM socket cleanup removes only its own handlers', () => {
+test('Friends retains presence while direct messaging is paused for safeguarding', () => {
   const friends = read('src/components/friends-panel.tsx')
-  assert.match(friends, /socket\.off\("message-history", onHistory\)/)
-  assert.match(friends, /socket\.off\("message", onMessage\)/)
-  assert.match(friends, /socket\.off\("message-deleted", onDeleted\)/)
-  assert.doesNotMatch(friends, /socket\.off\("message"\)\s*;?/)
+  assert.match(friends, /getChatSocket/)
+  assert.match(friends, /online-users/)
+  assert.match(friends, /Direct messaging is temporarily unavailable/)
+  assert.doesNotMatch(friends, /function DMConversation/)
+  assert.doesNotMatch(friends, /api\.listDMs|api\.createDM/)
+  const dmApi = read('src/app/api/dms/list/route.ts')
+  assert.match(dmApi, /status: 503/)
+  assert.match(dmApi, /DISABLED_NOTICE/)
 })
 
 

@@ -4,18 +4,18 @@ import { getCurrentUser } from "@/lib/auth-server"
 import { toSafeUser } from "@/lib/auth"
 import { moderateAccount, ModerationError } from "@/lib/moderation-service"
 import { auditData } from "@/lib/audit-log"
-import { canModerateTarget, isStaffRole } from "@/lib/roles"
+import { canModerateTarget } from "@/lib/roles"
 
 export async function GET() {
   const actor = await getCurrentUser()
-  if (!actor || !isStaffRole(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || actor.role !== "OWNER") return NextResponse.json({ error: "Only the owner can access User Management." }, { status: 403 })
   const users = await db.user.findMany({ orderBy: { username: "asc" } })
   return NextResponse.json({ users: users.map(toSafeUser) })
 }
 
 export async function DELETE(req: NextRequest) {
   const actor = await getCurrentUser()
-  if (!actor || !isStaffRole(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || actor.role !== "OWNER") return NextResponse.json({ error: "Only the owner can access User Management." }, { status: 403 })
   const { userId, action, reason } = await req.json().catch(() => ({}))
   if (typeof userId !== "string" || !["delete", "ban"].includes(action)) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   if (userId === actor.id) return NextResponse.json({ error: "You cannot remove your own account" }, { status: 409 })

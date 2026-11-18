@@ -12,12 +12,9 @@ export async function GET(
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { id } = await params
 
-  // Can view own infractions, or mod+ can view anyone's
-  if (id !== me.id) {
-    const rank = (r: string) => r === "OWNER" ? 5 : r === "HEAD_ADMIN" ? 4 : r === "ADMIN" ? 3 : r === "MOD" ? 2 : 1
-    if (rank(me.role) < 2) {
-      return NextResponse.json({ error: "Can't view others' infractions" }, { status: 403 })
-    }
+  // Members can view their own history; cross-account history is owner-only.
+  if (id !== me.id && me.role !== "OWNER") {
+    return NextResponse.json({ error: "Only the owner can view another account's moderation history." }, { status: 403 })
   }
 
   const infractions = await db.infraction.findMany({

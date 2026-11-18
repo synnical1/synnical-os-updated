@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
 import { toSafeUser } from "@/lib/auth"
-import { isStaffRole, canModerateTarget } from "@/lib/roles"
+import { canModerateTarget } from "@/lib/roles"
 import { auditData } from "@/lib/audit-log"
 
 const MAX_ADJUSTMENT = 1_000_000
@@ -10,7 +10,7 @@ const MAX_BALANCE = 2_000_000_000
 
 export async function POST(req: NextRequest) {
   const actor = await getCurrentUser()
-  if (!actor || !isStaffRole(actor.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || actor.role !== "OWNER") return NextResponse.json({ error: "Only the owner can access User Management." }, { status: 403 })
 
   const body = await req.json().catch(() => ({})) as { userId?: unknown; delta?: unknown; reason?: unknown }
   const userId = typeof body.userId === "string" ? body.userId : ""

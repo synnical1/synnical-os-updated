@@ -4,6 +4,7 @@ import { moderateAccount, ModerationError } from "@/lib/moderation-service"
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (me.role !== "OWNER") return NextResponse.json({ error: "Only the owner can access User Management." }, { status: 403 })
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   try {

@@ -131,9 +131,8 @@ jobs:
           npm run build
           npm run test:smoke
 
-          # Destructive wallpaper cleanup only after the new build and smoke pass.
-          node scripts/clear-wallpaper-uploads-cli.mjs
-          node_modules/.bin/tsx scripts/clear-saved-wallpaper-preferences-cli.ts
+          # Wallpaper uploads and saved preferences are persistent user data.
+          # Deployments must never delete wallpaper files or reset wallpaper selections.
 
           reload_started_ms="$(node -p 'Date.now()')"
           pm2 reload synnical --update-env

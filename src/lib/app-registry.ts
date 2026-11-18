@@ -1,5 +1,5 @@
 export const SYNNICAL_APPS = [
-  { id: "moderation", label: "User Management", aliases: ["staff", "moderation", "users"], authOnly: true, modOnly: true },
+  { id: "moderation", label: "User Management", aliases: ["staff", "moderation", "users"], authOnly: true, ownerOnly: true },
   { id: "discover", label: "Search", aliases: ["find", "global search"], authOnly: true },
   { id: "browser", label: "Browser", aliases: ["web", "proxy"] },
   { id: "games", label: "Games", aliases: ["gaming", "cloud games"] },

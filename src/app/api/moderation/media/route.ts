@@ -10,15 +10,13 @@ import { recordAuditLog } from "@/lib/audit-log"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-const staff = new Set(["OWNER", "HEAD_ADMIN", "ADMIN", "MOD"])
-
-async function requireStaff() {
+async function requireOwner() {
   const user = await getCurrentUser()
-  return user && staff.has(user.role) ? user : null
+  return user?.role === "OWNER" ? user : null
 }
 
 export async function GET(req: NextRequest) {
-  if (!await requireStaff()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!await requireOwner()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const previewId = req.nextUrl.searchParams.get("preview")
   if (previewId) {
     const pending = await readPendingMedia(previewId)
@@ -32,7 +30,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const actor = await requireStaff()
+  const actor = await requireOwner()
   if (!actor) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const { id, action } = await req.json().catch(() => ({}))
   if (typeof id !== "string" || !["approve", "decline"].includes(action)) return NextResponse.json({ error: "Invalid request" }, { status: 400 })

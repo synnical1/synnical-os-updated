@@ -70,9 +70,9 @@ test("normal UI avoids raw proxy timeout codes and unexplained watch-party ids",
   assert.doesNotMatch(movies, /Watch party ID/)
 })
 
-test("staff credit adjustments exist, obey hierarchy, and are audited", () => {
+test("credit adjustments remain audited and are accessible only to the owner", () => {
   const route = read("src/app/api/moderation/credits/route.ts")
-  assert.match(route, /isStaffRole\(actor\.role\)/)
+  assert.match(route, /actor\.role !== "OWNER"/)
   assert.match(route, /canModerateTarget\(actor\.role, target\.role\)/)
   assert.match(route, /type: "STAFF_ADJUSTMENT"/)
   assert.match(route, /creditAudit\.create/)
