@@ -1338,7 +1338,7 @@ function NewTabPage({
 }) {
   const [query, setQuery] = useState("")
   const [now, setNow] = useState(() => new Date())
-  const [activity, setActivity] = useState<{ onlineCount: number; allTimePeak: number; realOnlineCount: number } | null>(null)
+  const [activity, setActivity] = useState<{ onlineCount: number; allTimePeak: number } | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000)
@@ -1365,7 +1365,7 @@ function NewTabPage({
         ) {
           throw new Error("Invalid community activity")
         }
-        if (!cancelled) setActivity({ onlineCount: data.onlineCount, allTimePeak: data.allTimePeak, realOnlineCount: data.realOnlineCount })
+        if (!cancelled) setActivity({ onlineCount: data.onlineCount, allTimePeak: data.allTimePeak })
       } catch {
         if (!cancelled) setActivity(null)
       } finally {

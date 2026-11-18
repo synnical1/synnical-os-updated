@@ -45,9 +45,9 @@ test("online members count unique accounts rather than socket connections", () =
 test("community activity exposes a combined count without the old illustrative tooltip", async () => {
   const route = await readFile(new URL("../src/app/api/community/activity/route.ts", import.meta.url), "utf8")
   const browser = await readFile(new URL("../src/components/browser-panel.tsx", import.meta.url), "utf8")
-  assert.match(route, /allTimePeak:\\s*1064/)
-  assert.match(route, /realOnlineCount:\\s*onlineMembers/)
-  assert.doesNotMatch(route, /simulated:\\s*true/)
+  assert.match(route, /allTimePeak:\s*1064/)
+  assert.match(route, /realOnlineCount:\s*onlineMembers/)
+  assert.doesNotMatch(route, /simulated:\s*true/)
   assert.match(browser, /title="Online members\\."/)
   assert.doesNotMatch(browser, /Illustrative community activity figures/)
 })
