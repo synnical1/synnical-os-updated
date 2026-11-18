@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import type { Prisma } from "@prisma/client"
 import { db } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth-server"
-import { toSafeUser, canModerate } from "@/lib/auth"
+import { toSafeUser } from "@/lib/auth"
 
 const STAFF_ROLES = ["OWNER", "HEAD_ADMIN", "ADMIN", "MOD"]
 const PUBLIC_ROLES = ["OWNER", "ADMIN", "MOD", "MEMBER"]
@@ -16,8 +16,8 @@ const numberParam = (value: string | null, fallback: number, min: number, max: n
 export async function GET(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!canModerate(me.role)) {
-    return NextResponse.json({ error: "Only moderators can view user list" }, { status: 403 })
+  if (me.role !== "OWNER") {
+    return NextResponse.json({ error: "Only the owner can access User Management." }, { status: 403 })
   }
 
   const url = new URL(req.url)
