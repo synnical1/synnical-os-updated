@@ -6,7 +6,7 @@ import { api, type SafeUser, type FriendUser } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Users, UserPlus, Check, X, Loader2, ShieldAlert, Star, Heart, Cake, Pencil, HeartHandshake } from "lucide-react"
+import { Users, UserPlus, Check, X, Loader2, Star, Heart, Cake, Pencil, HeartHandshake } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { DisplayName, RoleBadge, AvatarWithDeco } from "@/components/role-ui"
@@ -142,12 +142,9 @@ export function FriendsPanel() {
         </div>
       </div>
 
-      <div className="mx-4 mt-3 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-3">
-        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-[var(--synnical-text)]">Direct messaging is temporarily unavailable</p>
-          <p className="mt-1 text-[11px] leading-5 text-[var(--synnical-muted)]">We are reviewing and strengthening Synnical’s safety, safeguarding and moderation measures. Direct messaging will remain paused until the necessary protections are in place.</p>
-        </div>
+      <div className="mx-4 mt-3 rounded-lg border border-[var(--synnical-border)] bg-[var(--synnical-surface-2)] px-3 py-2.5">
+        <p className="text-xs font-medium text-[var(--synnical-text)]">Direct messages are off for now.</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--synnical-muted)]">You can still add friends, accept requests and manage your friends list.</p>
       </div>
       <div className="flex-1 overflow-y-auto custom-scroll">
         {loading ? <div className="p-4 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-[var(--synnical-muted)]" /></div> :
