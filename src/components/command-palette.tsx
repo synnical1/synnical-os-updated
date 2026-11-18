@@ -21,7 +21,7 @@ export function CommandPalette() {
   }, [])
   const apps = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    const visible = SYNNICAL_APPS.filter((app) => !("authOnly" in app && app.authOnly) || Boolean(user))
+    const visible = SYNNICAL_APPS.filter((app) => (!("authOnly" in app && app.authOnly) || Boolean(user)) && (!("ownerOnly" in app && app.ownerOnly) || user?.role === "OWNER"))
     return !needle ? visible : visible.filter((app) => [app.label, app.id, ...app.aliases].some((value) => value.includes(needle)))
   }, [query, user])
   if (!open) return null
