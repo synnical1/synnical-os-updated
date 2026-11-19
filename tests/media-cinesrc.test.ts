@@ -10,6 +10,8 @@ test("CineSrc movie source uses the documented TMDB embed route", () => {
   assert.equal(url.origin, "https://cinesrc.st")
   assert.equal(url.pathname, "/embed/movie/1084242")
   assert.equal(url.searchParams.get("autoplay"), "true")
+  assert.equal(url.searchParams.get("back"), "close")
+  assert.equal(url.searchParams.get("color"), "#ffffff")
 })
 
 test("CineSrc TV source uses TMDB ID and explicit season/episode parameters", () => {
@@ -21,6 +23,7 @@ test("CineSrc TV source uses TMDB ID and explicit season/episode parameters", ()
   assert.equal(url.searchParams.get("s"), "1")
   assert.equal(url.searchParams.get("e"), "2")
   assert.equal(url.searchParams.get("autonext"), "false")
+  assert.equal(url.searchParams.get("back"), "close")
 })
 
 test("CineSrc source builders reject invalid TMDB and episode identities", () => {
