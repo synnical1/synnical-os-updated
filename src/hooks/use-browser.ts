@@ -49,7 +49,7 @@ export const useBrowser = create<BrowserState>()(
       bookmarksBarCollapsed: false,
       antiTabClose: false,
       imageBlur: false,
-      theme: "blood",
+      theme: "synnical",
       setSearchEngine: (id) => set({ searchEngineId: id }),
       setHomepage: (url) => set({ homepage: url }),
       setUseProxy: (v) => set({ useProxy: v }),
