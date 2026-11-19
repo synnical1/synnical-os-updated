@@ -1,8 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react"
-import { ArrowLeft, CalendarDays, ChevronRight, Clapperboard, ExternalLink, Film, Search, Star, Tv, X } from "lucide-react"
+import { ArrowLeft, CalendarDays, ChevronRight, Clapperboard, ExternalLink, Film, Play, Search, Star, Tv, X } from "lucide-react"
 import type { SynnFlixDetails, SynnFlixHomeData, SynnFlixMediaItem, SynnFlixSeasonDetails } from "@/lib/synnflix-types"
+import { MediaPlayer } from "@/components/media-player"
+import type { MediaPlaybackRequest, NativePlaybackEvent } from "@/lib/media-provider-types"
 
 type Mode = "movies" | "anime"
 type SearchType = "all" | "movie" | "tv"
@@ -65,6 +67,8 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null)
   const [seasonData, setSeasonData] = useState<SynnFlixSeasonDetails | null>(null)
+  const [activePlayback, setActivePlayback] = useState<{ request: MediaPlaybackRequest; title: string } | null>(null)
+  const [playbackProgress, setPlaybackProgress] = useState({ currentTime: 0, duration: 0, status: "Loading player…" })
   const mainRef = useRef<HTMLElement | null>(null)
   const searchController = useRef<AbortController | null>(null)
   const detailsController = useRef<AbortController | null>(null)
@@ -160,6 +164,24 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
     }
   }, [details, mode])
 
+  const startPlayback = useCallback((item: SynnFlixMediaItem, season?: number, episode?: number, episodeName?: string) => {
+    const request: MediaPlaybackRequest = {
+      mediaType: item.mediaType,
+      mediaId: item.id,
+      ...(item.mediaType === "tv" ? { season: season ?? 1, episode: episode ?? 1 } : {}),
+    }
+    const episodeLabel = item.mediaType === "tv" ? ` · S${request.season} E${request.episode}${episodeName ? " · " + episodeName : ""}` : ""
+    setPlaybackProgress({ currentTime: 0, duration: 0, status: "Loading player…" })
+    setActivePlayback({ request, title: item.title + episodeLabel })
+  }, [])
+
+  const handlePlaybackEvent = useCallback((event: NativePlaybackEvent) => {
+    setPlaybackProgress((previous) => ({
+      currentTime: event.currentTime,
+      duration: event.duration,
+      status: event.event === "play" ? "Playing" : event.event === "pause" ? "Paused" : event.event === "ended" ? "Finished" : previous.status,
+    }))
+  }, [])
   const visibleResults = useMemo(() => searchResults.filter((item) => searchType === "all" || item.mediaType === searchType), [searchResults, searchType])
   const hero = !searchActive ? home?.trending[0] : null
   const watchGroups = [
@@ -245,6 +267,7 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
                   {details.status ? <span>{details.status}</span> : null}
                 </div>
                 <p className="mt-5 max-w-3xl text-sm leading-7 text-white/70">{details.overview || "No synopsis is available for this title."}</p>
+                {details.mediaType === "movie" ? <button type="button" onClick={() => startPlayback(details)} className="mt-6 inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/[0.16] px-5 py-3 text-sm font-semibold text-white shadow-lg backdrop-blur-xl transition hover:bg-white/[0.24]"><Play className="h-4 w-4 fill-current" /> Play movie</button> : null}
                 {details.cast.length ? <div className="mt-6"><h3 className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-white/45">Cast</h3><p className="text-xs leading-6 text-white/65">{details.cast.slice(0, 10).map((person) => person.name + (person.character ? " as " + person.character : "")).join(" · ")}</p></div> : null}
               </div>
             </div>
@@ -262,7 +285,7 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
             {details.mediaType === "tv" && details.seasons.length ? <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.045] p-5 backdrop-blur-2xl">
               <h3 className="font-semibold">Seasons and episodes</h3>
               <div className="mt-4 flex flex-wrap gap-2">{details.seasons.map((season) => <button key={season.seasonNumber} type="button" onClick={() => void loadSeason(season.seasonNumber)} className={"rounded-xl border px-3 py-2 text-xs transition " + (selectedSeason === season.seasonNumber ? "border-white/30 bg-white/[0.15] text-white" : "border-white/10 bg-white/[0.04] text-white/55 hover:bg-white/10")}>{season.name}</button>)}</div>
-              {seasonData ? <div className="mt-5 space-y-2">{seasonData.episodes.map((episode) => <article key={episode.id} className="flex gap-3 rounded-xl border border-white/[0.07] bg-black/20 p-3"><div className="w-24 shrink-0 overflow-hidden rounded-lg bg-white/5">{episode.stillPath ? <img src={imageUrl(episode.stillPath, "w300") || ""} alt="" loading="lazy" className="aspect-video w-full object-cover" /> : <div className="grid aspect-video place-items-center text-white/25"><Tv className="h-5 w-5" /></div>}</div><div className="min-w-0"><h4 className="text-xs font-semibold text-white/85">E{episode.episodeNumber} · {episode.name}</h4><p className="mt-1 line-clamp-2 text-[11px] leading-5 text-white/45">{episode.overview || "No episode synopsis available."}</p></div></article>)}</div> : selectedSeason !== null ? <p className="mt-4 text-xs text-white/45">Loading episodes…</p> : <p className="mt-4 text-xs text-white/35">Select a season to browse its episodes.</p>}
+              {seasonData ? <div className="mt-5 space-y-2">{seasonData.episodes.map((episode) => <article key={episode.id} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-black/20 p-3"><div className="w-24 shrink-0 overflow-hidden rounded-lg bg-white/5">{episode.stillPath ? <img src={imageUrl(episode.stillPath, "w300") || ""} alt="" loading="lazy" className="aspect-video w-full object-cover" /> : <div className="grid aspect-video place-items-center text-white/25"><Tv className="h-5 w-5" /></div>}</div><div className="min-w-0 flex-1"><h4 className="text-xs font-semibold text-white/85">E{episode.episodeNumber} · {episode.name}</h4><p className="mt-1 line-clamp-2 text-[11px] leading-5 text-white/45">{episode.overview || "No episode synopsis available."}</p></div><button type="button" onClick={() => startPlayback(details, episode.seasonNumber, episode.episodeNumber, episode.name)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.12] px-3 py-2 text-xs font-semibold text-white/90 backdrop-blur-xl transition hover:bg-white/[0.2]"><Play className="h-3.5 w-3.5 fill-current" /> Play</button></article>)}</div> : selectedSeason !== null ? <p className="mt-4 text-xs text-white/45">Loading episodes…</p> : <p className="mt-4 text-xs text-white/35">Select a season to browse its episodes.</p>}
             </div> : null}
 
             {details.recommendations.length ? <div className="mt-8"><Rail title="You might also like" items={details.recommendations} onSelect={openDetails} /></div> : null}
@@ -271,6 +294,18 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
           </div>
         </div>
         <button type="button" onClick={closeDetails} aria-label="Close title details" className="absolute right-4 top-5 grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-black/30 text-white/75 backdrop-blur-xl hover:bg-white/10"><X className="h-4 w-4" /></button>
+      </section> : null}
+      {activePlayback ? <section className="absolute inset-0 z-40 flex flex-col bg-black/95 backdrop-blur-2xl" aria-label={"Playing " + activePlayback.title}>
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-white/[0.045] px-4 py-3 backdrop-blur-2xl">
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-white">{activePlayback.title}</h2>
+            <p className="mt-0.5 text-[10px] text-white/45">{playbackProgress.status}{playbackProgress.duration > 0 ? " · " + Math.floor(playbackProgress.currentTime / 60) + ":" + String(Math.floor(playbackProgress.currentTime % 60)).padStart(2, "0") + " / " + Math.floor(playbackProgress.duration / 60) + ":" + String(Math.floor(playbackProgress.duration % 60)).padStart(2, "0") : ""}</p>
+          </div>
+          <button type="button" onClick={() => setActivePlayback(null)} aria-label="Close player" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/[0.08] text-white/75 backdrop-blur-xl transition hover:bg-white/[0.16]"><X className="h-4 w-4" /></button>
+        </header>
+        <div className="min-h-0 flex-1">
+          <MediaPlayer request={activePlayback.request} title={activePlayback.title} onPlaybackEvent={handlePlaybackEvent} />
+        </div>
       </section> : null}
     </main>
   )
