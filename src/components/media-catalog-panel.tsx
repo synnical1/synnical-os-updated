@@ -270,7 +270,7 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
             <p className="mt-8 text-[10px] text-white/30">Metadata and artwork © their respective owners. Synnical is not endorsed or certified by TMDB.</p>
           </div>
         </div>
-        <button type="button" onClick={() => setDetails(null)} aria-label="Close title details" className="absolute right-4 top-5 grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-black/30 text-white/75 backdrop-blur-xl hover:bg-white/10"><X className="h-4 w-4" /></button>
+        <button type="button" onClick={closeDetails} aria-label="Close title details" className="absolute right-4 top-5 grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-black/30 text-white/75 backdrop-blur-xl hover:bg-white/10"><X className="h-4 w-4" /></button>
       </section> : null}
     </main>
   )
