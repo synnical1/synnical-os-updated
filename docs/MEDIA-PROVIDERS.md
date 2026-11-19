@@ -6,7 +6,7 @@ Account/profile-scoped media profiles, lists, ratings and progress records remai
 
 ## TMDB metadata
 
-Set `TMDB_READ_ACCESS_TOKEN` in the private server environment. Use the TMDB API Read Access Token as a Bearer credential. Do not add it to a `NEXT_PUBLIC_` variable, source file, client bundle or committed `.env` file. The authenticated `/api/tmdb` route rate-limits catalogue requests and normalises TMDB responses before returning them to the client. Search excludes adult results. Synnime requires the Animation genre and Japanese language or Japanese origin. UK provider availability is informational and links to TMDB's watch page; provider catalogues and subscription requirements can change. Synnical uses the TMDB API but is not endorsed or certified by TMDB.
+Set `TMDB_READ_ACCESS_TOKEN` in the private server environment. Use the TMDB API Read Access Token as a Bearer credential. Do not add it to a `NEXT_PUBLIC_` variable, source file, client bundle or committed `.env` file. The `/api/tmdb` route rate-limits catalogue requests by IP, rejects cross-origin requests when an Origin header is present, and normalises TMDB responses before returning them to the client. Search excludes adult results. Synnime requires the Animation genre and Japanese language or Japanese origin. UK provider availability is informational and links to TMDB's watch page; provider catalogues and subscription requirements can change. Synnical uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## Authorised playback
 
