@@ -81,8 +81,11 @@ export function MediaPlayer({ request, title, startSeconds = 0, onPlaybackEvent,
         ? payload.currentTime : previous?.currentTime ?? 0
       const duration = typeof payload.duration === "number" && Number.isFinite(payload.duration)
         ? payload.duration : previous?.duration ?? 0
-      const progress = validProgress(currentTime, duration)
-      if (!progress) return
+      const rawProgress = validProgress(currentTime, duration)
+      if (!rawProgress) return
+      const progress = mapped === "ended" && rawProgress.duration > 0
+        ? { currentTime: rawProgress.duration, duration: rawProgress.duration }
+        : rawProgress
       embedProgressRef.current = progress
       if (!mapped) return
 
