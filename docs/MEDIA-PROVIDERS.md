@@ -10,28 +10,14 @@ Set `TMDB_READ_ACCESS_TOKEN` in the private server environment. Use the TMDB API
 
 ## Authorised playback
 
-CineSrc is the default playback provider. It creates the documented `https://cinesrc.st/embed/movie/{tmdb_id}` URL for films and `https://cinesrc.st/embed/tv/{tmdb_id}?s={season}&e={episode}` URL for TV. Only validated TMDB IDs and episode numbers are used to build these URLs. TV auto-next is disabled so the app's selected episode identity remains aligned with progress tracking. An operator-managed manifest remains available as a per-title override. The default \`MediaPlaybackProvider\` reads an operator-managed private JSON manifest. Configure:
+CineSrc is the default playback provider. It creates the documented `https://cinesrc.st/embed/movie/{tmdb_id}` URL for films and `https://cinesrc.st/embed/tv/{tmdb_id}?s={season}&e={episode}` URL for TV. Only validated TMDB IDs and episode numbers are used to build these URLs. TV auto-next is disabled so the app's selected episode identity remains aligned with progress tracking.
 
-- \`MEDIA_PLAYBACK_MANIFEST\`: path to a private manifest outside public/upload directories; keep it under 2 MB.
-- \`MEDIA_PLAYBACK_ALLOWED_ORIGINS\`: comma-separated exact HTTPS origins approved by the operator.
+An operator-managed manifest remains available as a per-title override. Configure:
 
-Provision sources only when you have authorization to play them. A manifest shape (illustrative domains, no real source):
+- `MEDIA_PLAYBACK_MANIFEST`: path to a private manifest outside public/upload directories; keep it under 2 MB.
+- `MEDIA_PLAYBACK_ALLOWED_ORIGINS`: comma-separated exact HTTPS origins approved for manifest sources and subtitles.
 
-\`\`\`json
-{
-  "movie:123": {
-    "providerId": "licensed-catalogue",
-    "kind": "file",
-    "url": "https://media.example.org/title.mp4",
-    "subtitles": [{ "url": "https://media.example.org/title.en.vtt", "language": "en", "label": "English" }]
-  },
-  "tv:456:1:2": {
-    "providerId": "licensed-catalogue",
-    "kind": "hls",
-    "url": "https://media.example.org/episode.m3u8"
-  }
-}
-\`\`\`
+Manifest sources and subtitles reject credentials in URL authority, non-HTTPS, IP literals, localhost, fragments and unapproved origins. Keep manifest files private and never accept their paths or URLs from browser requests.
 
 The browser sends only media identity. It cannot choose a URL, origin, filesystem path or provider. CineSrc URLs are created from validated TMDB IDs on the server; manifest overrides are read from a private file and checked against exact allowed HTTPS origins. The server does not fetch playback URLs. Manifest sources and subtitles reject credentials in URL authority, non-HTTPS, IP literals, localhost, fragments and unapproved origins. Playback source responses require authentication and use private/no-store and no-referrer headers.
 
@@ -41,7 +27,7 @@ The browser sends only media identity. It cannot choose a URL, origin, filesyste
 
 Native file and HLS sources use video controls; HLS is loaded on demand through hls.js, or natively on compatible browsers. Playback exposes seeking, volume, mute, fullscreen, subtitles, keyboard controls, resume, loading/buffering and errors. DASH is represented by the contract but currently depends on native browser support; no general DASH/DRM engine is installed. Alternate audio track metadata is reserved by the contract; no track switching UI is implemented.
 
-An explicitly approved embed uses \`allow-scripts allow-same-origin\`, fullscreen/picture-in-picture, and no-referrer, with no popup/top-navigation permissions. There is no generic postMessage progress bridge. Embed progress/resume and watch-party control therefore require a future authenticated provider-specific integration; do not invent progress from untrusted messages.
+The CineSrc iframe allows scripts, same-origin execution within its own origin, forms and presentation, plus autoplay/fullscreen/picture-in-picture permissions. Its documented `postMessage` events are accepted only when both `event.origin` matches the iframe origin and `event.source` is the exact iframe window. Time updates are validated and throttled before being passed to Synnical's progress callback; untrusted messages are ignored. The native catalogue saves progress into the account/profile-scoped media progress records.
 
 Native time events are throttled to one per second. Persistence normally occurs every 15 seconds, with pause/seek/end/close/page lifecycle flushes. Progress is finite, bounded and server-owned by the authenticated account and selected profile. Continue Watching retains the furthest credible progress, treats 92% as completed, and provides explicit replay/reset. Previous/next/select controls work within a loaded season; end-of-season discovery and actual autoplay on browser transition require live playback validation.
 
