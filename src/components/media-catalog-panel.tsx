@@ -200,6 +200,23 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
       }),
     }).catch(() => {})
   }, [activePlayback])
+  const closePlayback = useCallback(() => {
+    const playback = activePlayback
+    if (playback && (playbackProgress.currentTime > 0 || playbackProgress.duration > 0)) {
+      lastProgressSaveRef.current = Date.now()
+      void fetch("/api/features/media", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "progress", mediaType: playback.request.mediaType, mediaId: String(playback.request.mediaId),
+          title: playback.mediaTitle, season: playback.request.season ?? 0, episode: playback.request.episode ?? 0,
+          currentTime: playbackProgress.currentTime, duration: playbackProgress.duration,
+          poster: playback.poster, backdrop: playback.backdrop,
+        }),
+      }).catch(() => {})
+    }
+    setActivePlayback(null)
+  }, [activePlayback, playbackProgress])
   const visibleResults = useMemo(() => searchResults.filter((item) => searchType === "all" || item.mediaType === searchType), [searchResults, searchType])
   const hero = !searchActive ? home?.trending[0] : null
   const watchGroups = [
@@ -319,10 +336,10 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
             <h2 className="truncate text-sm font-semibold text-white">{activePlayback.title}</h2>
             <p className="mt-0.5 text-[10px] text-white/45">{playbackProgress.status}{playbackProgress.duration > 0 ? " · " + Math.floor(playbackProgress.currentTime / 60) + ":" + String(Math.floor(playbackProgress.currentTime % 60)).padStart(2, "0") + " / " + Math.floor(playbackProgress.duration / 60) + ":" + String(Math.floor(playbackProgress.duration % 60)).padStart(2, "0") : ""}</p>
           </div>
-          <button type="button" onClick={() => { const playback = activePlayback; if (playback && (playbackProgress.currentTime > 0 || playbackProgress.duration > 0)) { lastProgressSaveRef.current = Date.now(); void fetch("/api/features/media", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "progress", mediaType: playback.request.mediaType, mediaId: String(playback.request.mediaId), title: playback.mediaTitle, season: playback.request.season ?? 0, episode: playback.request.episode ?? 0, currentTime: playbackProgress.currentTime, duration: playbackProgress.duration, poster: playback.poster, backdrop: playback.backdrop }) }).catch(() => {}) } setActivePlayback(null) }} aria-label="Close player" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/[0.08] text-white/75 backdrop-blur-xl transition hover:bg-white/[0.16]"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={closePlayback} aria-label="Close player" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/[0.08] text-white/75 backdrop-blur-xl transition hover:bg-white/[0.16]"><X className="h-4 w-4" /></button>
         </header>
         <div className="min-h-0 flex-1">
-          <MediaPlayer request={activePlayback.request} title={activePlayback.title} onPlaybackEvent={handlePlaybackEvent} />
+          <MediaPlayer request={activePlayback.request} title={activePlayback.title} onPlaybackEvent={handlePlaybackEvent} onClose={closePlayback} />
         </div>
       </section> : null}
     </main>
