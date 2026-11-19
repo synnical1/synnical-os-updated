@@ -22,6 +22,8 @@ export function cineSrcMovieSource(tmdbId: number): MediaPlaybackSource | null {
   const url = new URL("/embed/movie/" + tmdbId, CINESRC_ORIGIN)
   url.searchParams.set("controls", "true")
   url.searchParams.set("autoplay", "true")
+  url.searchParams.set("color", "#ffffff")
+  url.searchParams.set("back", "close")
   return approvedEmbed(url.toString())
 }
 
@@ -34,5 +36,7 @@ export function cineSrcEpisodeSource(tmdbId: number, season: number, episode: nu
   url.searchParams.set("controls", "true")
   url.searchParams.set("autoplay", "true")
   url.searchParams.set("autonext", "false")
+  url.searchParams.set("color", "#ffffff")
+  url.searchParams.set("back", "close")
   return approvedEmbed(url.toString())
 }
