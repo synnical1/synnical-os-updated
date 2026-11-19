@@ -33,7 +33,7 @@ Provision sources only when you have authorization to play them. A manifest shap
 }
 \`\`\`
 
-The browser sends only media identity. It cannot choose a URL, origin, filesystem path or provider. The server checks the manifest and origin policy and never fetches the playback URL. Sources and subtitles reject credentials in URL authority, non-HTTPS, IP literals, localhost, fragments and unapproved origins. Source responses require authentication and use private/no-store and no-referrer headers. Signed source URLs, if required by a licensed provider, necessarily reach its player; keep authorization short-lived and scoped in a future provider adapter.
+The browser sends only media identity. It cannot choose a URL, origin, filesystem path or provider. CineSrc URLs are created from validated TMDB IDs on the server; manifest overrides are read from a private file and checked against exact allowed HTTPS origins. The server does not fetch playback URLs. Manifest sources and subtitles reject credentials in URL authority, non-HTTPS, IP literals, localhost, fragments and unapproved origins. Playback source responses require authentication and use private/no-store and no-referrer headers.
 
 \`getMovieSource\` / \`getEpisodeSource\` can be implemented by another licensed provider without changing catalogue or list components. The manifest adapter is an integration boundary, not a DRM/entitlement service. Account/title entitlement checks, license expiry and DRM would belong in that adapter.
 
