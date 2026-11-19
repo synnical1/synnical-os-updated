@@ -74,7 +74,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <PreloadLinks />
         <script
           // Force dark mode before hydration.
-          dangerouslySetInnerHTML={{ __html: `try { const saved = JSON.parse(localStorage.getItem('stratus-browser') || '{}'); const themes = ${JSON.stringify(Object.fromEntries(THEMES.map(theme => [theme.id, theme.vars['--synnical-accent']])))}; const theme = Object.hasOwn(themes, saved?.state?.theme) ? saved.state.theme : 'blood'; document.documentElement.dataset.synnicalTheme = theme; document.documentElement.style.setProperty('--synnical-accent', themes[theme]); document.documentElement.dataset.appearance = 'dark'; document.documentElement.style.colorScheme = 'dark'; document.documentElement.classList.add('dark'); } catch (_) {}` }}
+          dangerouslySetInnerHTML={{ __html: `try { const saved = JSON.parse(localStorage.getItem('stratus-browser') || '{}'); const themes = ${JSON.stringify(Object.fromEntries(THEMES.map(theme => [theme.id, theme.vars['--synnical-accent']])))}; const theme = Object.hasOwn(themes, saved?.state?.theme) ? saved.state.theme : 'synnical'; document.documentElement.dataset.synnicalTheme = theme; document.documentElement.style.setProperty('--synnical-accent', themes[theme]); document.documentElement.dataset.appearance = 'dark'; document.documentElement.style.colorScheme = 'dark'; document.documentElement.classList.add('dark'); } catch (_) {}` }}
         />
       </head>
       <body
