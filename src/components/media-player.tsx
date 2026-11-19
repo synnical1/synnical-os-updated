@@ -5,7 +5,7 @@ import { playbackKey, validProgress } from "@/lib/media-playback-policy"
 import { installSvgFetchAuth } from "@/lib/svg-client"
 installSvgFetchAuth()
 
-export function MediaPlayer({ request, title, startSeconds = 0, onPlaybackEvent }: { request: MediaPlaybackRequest; title: string; startSeconds?: number; onPlaybackEvent: (event: NativePlaybackEvent) => void }) {
+export function MediaPlayer({ request, title, startSeconds = 0, onPlaybackEvent, onClose }: { request: MediaPlaybackRequest; title: string; startSeconds?: number; onPlaybackEvent: (event: NativePlaybackEvent) => void; onClose?: () => void }) {
   const [source, setSource] = useState<MediaPlaybackSource | null>(null)
   const [loading, setLoading] = useState(true)
   const [buffering, setBuffering] = useState(false)
@@ -61,6 +61,7 @@ export function MediaPlayer({ request, title, startSeconds = 0, onPlaybackEvent 
       const payload = event.data as Record<string, unknown>
       const type = payload.type
       if (type === "cinesrc:ready") { setBuffering(false); return }
+      if (type === "cinesrc:close") { onClose?.(); return }
       if (type === "cinesrc:error") {
         setBuffering(false)
         setError(typeof payload.error === "string" ? payload.error.slice(0, 180) : "CineSrc reported a playback error.")
@@ -100,7 +101,7 @@ export function MediaPlayer({ request, title, startSeconds = 0, onPlaybackEvent 
 
     window.addEventListener("message", onMessage)
     return () => window.removeEventListener("message", onMessage)
-  }, [source, request.mediaId, request.mediaType, request.season, request.episode])
+  }, [source, request.mediaId, request.mediaType, request.season, request.episode, onClose])
 
   const emit = (event: NativePlaybackEvent["event"]) => {
     const video = videoRef.current
