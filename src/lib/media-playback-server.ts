@@ -2,11 +2,9 @@ import "server-only"
 import { readFile, stat } from "node:fs/promises"
 import type { MediaPlaybackProvider, MediaPlaybackSource } from "./media-provider-types"
 import { normalizePlaybackSource } from "./media-playback-policy"
+import { cineSrcEpisodeSource, cineSrcMovieSource } from "./media-cinesrc"
 
-/** Operator-provisioned catalogue of media for which the operator has playback rights.
- * Never accepts a URL, path or provider identifier supplied by a browser request.
- * No server fetch to playback URLs, so this layer cannot become an SSRF proxy.
- */
+/** Optional operator-managed, private playback sources retained as an override. */
 class ManifestPlaybackProvider implements MediaPlaybackProvider {
   readonly id = "authorized-manifest"
   private async source(key: string): Promise<MediaPlaybackSource | null> {
@@ -19,9 +17,24 @@ class ManifestPlaybackProvider implements MediaPlaybackProvider {
       if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return null
       const entries = manifest as Record<string, unknown>
       return Object.prototype.hasOwnProperty.call(entries, key) ? normalizePlaybackSource(entries[key], origins) : null
-    } catch { return null } // Paths, signed URLs and credentials must never enter diagnostics.
+    } catch { return null }
   }
   getMovieSource(id: number) { return this.source(`movie:${id}`) }
   getEpisodeSource(id: number, season: number, episode: number) { return this.source(`tv:${id}:${season}:${episode}`) }
 }
-export const mediaPlaybackProvider: MediaPlaybackProvider = new ManifestPlaybackProvider()
+
+/** CineSrc receives only a validated TMDB identity; no browser-supplied URL is accepted. */
+class CineSrcPlaybackProvider implements MediaPlaybackProvider {
+  readonly id = "cinesrc"
+  private readonly manifest = new ManifestPlaybackProvider()
+
+  async getMovieSource(id: number): Promise<MediaPlaybackSource | null> {
+    return await this.manifest.getMovieSource(id) ?? cineSrcMovieSource(id)
+  }
+
+  async getEpisodeSource(id: number, season: number, episode: number): Promise<MediaPlaybackSource | null> {
+    return await this.manifest.getEpisodeSource(id, season, episode) ?? cineSrcEpisodeSource(id, season, episode)
+  }
+}
+
+export const mediaPlaybackProvider: MediaPlaybackProvider = new CineSrcPlaybackProvider()
