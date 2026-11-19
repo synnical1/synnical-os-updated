@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth-server"
 import { consumeRequestLimit } from "@/lib/request-rate-limit"
 import { getTmdbDetails, getTmdbHome, getTmdbSeason, searchTmdb, TmdbCatalogError } from "@/lib/tmdb-catalog-server"
 import type { SynnFlixMediaType } from "@/lib/synnflix-types"
@@ -22,9 +21,17 @@ function positiveInteger(value: string | null): number | null {
 }
 
 export async function GET(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user) return fail("Unauthorized", 401)
-  const rate = consumeRequestLimit(req, "tmdb-catalog", 90, 60_000, user.id)
+  // Catalogue browsing is deliberately available to guests, matching the app
+  // navigation. The server token remains private and requests are IP-limited.
+  const origin = req.headers.get("origin")
+  if (origin) {
+    try {
+      if (new URL(origin).origin !== req.nextUrl.origin) return fail("Cross-origin catalogue requests are not allowed.", 403)
+    } catch {
+      return fail("Invalid request origin.", 403)
+    }
+  }
+  const rate = consumeRequestLimit(req, "tmdb-catalog", 45, 60_000)
   if (!rate.allowed) return NextResponse.json({ error: "Too many catalogue requests. Please wait a moment." }, {
     status: 429,
     headers: { "Retry-After": String(rate.retryAfterSeconds), "Cache-Control": "private, no-store" },
