@@ -65,6 +65,7 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null)
   const [seasonData, setSeasonData] = useState<SynnFlixSeasonDetails | null>(null)
+  const mainRef = useRef<HTMLElement | null>(null)
   const searchController = useRef<AbortController | null>(null)
   const detailsController = useRef<AbortController | null>(null)
   const seasonController = useRef<AbortController | null>(null)
@@ -111,6 +112,7 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
   }, [mode, query])
 
   const openDetails = useCallback(async (item: SynnFlixMediaItem) => {
+    if (mainRef.current) mainRef.current.scrollTop = 0
     detailsController.current?.abort()
     seasonController.current?.abort()
     const controller = new AbortController()
@@ -151,7 +153,10 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
       const result = await api<SynnFlixSeasonDetails>(params, controller.signal)
       if (!controller.signal.aborted) setSeasonData(result)
     } catch (cause) {
-      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load season details.")
+      if (!controller.signal.aborted) {
+        setSelectedSeason(null)
+        setError(cause instanceof Error ? cause.message : "Could not load season details.")
+      }
     }
   }, [details, mode])
 
@@ -166,7 +171,7 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
   ]
 
   return (
-    <main className="relative h-full min-h-0 w-full overflow-y-auto overflow-x-hidden bg-[#050608] text-white">
+    <main ref={mainRef} className="relative h-full min-h-0 w-full overflow-y-auto overflow-x-hidden bg-[#050608] text-white">
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 opacity-80" style={{ background: "radial-gradient(ellipse at 12% 0%, rgba(74,112,168,.20), transparent 42%), radial-gradient(ellipse at 92% 28%, rgba(121,83,160,.12), transparent 34%)" }} />
       <div className="relative mx-auto w-full max-w-[1500px] px-4 pb-12 pt-7 sm:px-7 lg:px-10">
         <header className="mb-7 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
