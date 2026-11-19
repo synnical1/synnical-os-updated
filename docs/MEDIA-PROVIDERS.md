@@ -10,7 +10,7 @@ Set `TMDB_READ_ACCESS_TOKEN` in the private server environment. Use the TMDB API
 
 ## Authorised playback
 
-With no configured source, playback remains unavailable. The default \`MediaPlaybackProvider\` reads an operator-managed private JSON manifest. Configure:
+CineSrc is the default playback provider. It creates the documented `https://cinesrc.st/embed/movie/{tmdb_id}` URL for films and `https://cinesrc.st/embed/tv/{tmdb_id}?s={season}&e={episode}` URL for TV. Only validated TMDB IDs and episode numbers are used to build these URLs. TV auto-next is disabled so the app's selected episode identity remains aligned with progress tracking. An operator-managed manifest remains available as a per-title override. The default \`MediaPlaybackProvider\` reads an operator-managed private JSON manifest. Configure:
 
 - \`MEDIA_PLAYBACK_MANIFEST\`: path to a private manifest outside public/upload directories; keep it under 2 MB.
 - \`MEDIA_PLAYBACK_ALLOWED_ORIGINS\`: comma-separated exact HTTPS origins approved by the operator.
