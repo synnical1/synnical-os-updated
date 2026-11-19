@@ -1,8 +1,12 @@
 # Native media configuration
 
-SynnFlix and Synnime are currently paused while a dependable, properly authorised catalogue and playback provider is selected. The previous external metadata catalogue and its API endpoints have been removed. Neither app opens, embeds or proxies an unapproved third-party streaming website. Synnime will have its own anime catalogue when an authorised source is available.
+SynnFlix and Synnime use TMDB for catalogue metadata, search, title details, cast, seasons, episodes, recommendations and UK watch-provider availability. Synnime is restricted to animation with Japanese language or Japanese origin. The catalogue is native to Synnical and does not proxy third-party browsing sites.
 
 Account/profile-scoped media profiles, lists, ratings and progress records remain stored. No database migration or user-data deletion is part of this change.
+
+## TMDB metadata
+
+Set `TMDB_READ_ACCESS_TOKEN` in the private server environment. Use the TMDB API Read Access Token as a Bearer credential. Do not add it to a `NEXT_PUBLIC_` variable, source file, client bundle or committed `.env` file. The authenticated `/api/tmdb` route rate-limits catalogue requests and normalises TMDB responses before returning them to the client. Search excludes adult results. Synnime requires the Animation genre and Japanese language or Japanese origin. UK provider availability is informational and links to TMDB's watch page; provider catalogues and subscription requirements can change. Synnical uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## Authorised playback
 

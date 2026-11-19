@@ -1,7 +1,7 @@
 "use client"
 
-import { MovyEmbedPanel } from "@/components/movy-embed-panel"
+import { MediaCatalogPanel } from "@/components/media-catalog-panel"
 
 export function SynnFlixUnavailablePanel() {
-  return <MovyEmbedPanel mode="movies" />
+  return <MediaCatalogPanel mode="movies" />
 }
