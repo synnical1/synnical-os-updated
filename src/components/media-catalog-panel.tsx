@@ -130,6 +130,15 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
     }
   }, [mode])
 
+  const closeDetails = useCallback(() => {
+    detailsController.current?.abort()
+    seasonController.current?.abort()
+    setDetails(null)
+    setDetailsLoading(false)
+    setSelectedSeason(null)
+    setSeasonData(null)
+  }, [])
+
   const loadSeason = useCallback(async (season: number) => {
     if (!details) return
     seasonController.current?.abort()
@@ -169,7 +178,7 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
           <form onSubmit={search} className="flex w-full max-w-2xl items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.075] p-2 shadow-[0_12px_55px_rgba(0,0,0,.28),inset_0_1px_0_rgba(255,255,255,.12)] backdrop-blur-2xl transition focus-within:border-white/30 focus-within:bg-white/[0.10]">
             <Search className="ml-2 h-5 w-5 shrink-0 text-white/50" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={isAnime ? "Search anime titles…" : "Search films and series…"} aria-label={"Search " + appName} className="h-10 min-w-0 flex-1 bg-transparent px-1 text-sm text-white outline-none placeholder:text-white/35" />
-            {query ? <button type="button" onClick={() => { setQuery(""); setSearchActive(false); setSearchResults([]) }} aria-label="Clear search" className="grid h-9 w-9 place-items-center rounded-xl text-white/55 hover:bg-white/10 hover:text-white"><X className="h-4 w-4" /></button> : null}
+            {query ? <button type="button" onClick={() => { searchController.current?.abort(); setSearching(false); setQuery(""); setSearchActive(false); setSearchResults([]) }} aria-label="Clear search" className="grid h-9 w-9 place-items-center rounded-xl text-white/55 hover:bg-white/10 hover:text-white"><X className="h-4 w-4" /></button> : null}
             <button type="submit" disabled={searching || !query.trim()} className="rounded-xl border border-white/15 bg-white/[0.12] px-4 py-2.5 text-xs font-semibold text-white shadow-lg backdrop-blur-xl transition hover:bg-white/[0.2] disabled:cursor-not-allowed disabled:opacity-40">{searching ? "Searching…" : "Search"}</button>
           </form>
         </header>
@@ -217,7 +226,7 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
           <div className="absolute inset-x-0 top-0 h-[320px] bg-cover bg-center opacity-45" style={details.backdropPath ? { backgroundImage: "url(" + JSON.stringify(imageUrl(details.backdropPath, "w1280")) + ")" } : undefined} />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#050608]/75 to-[#050608]" />
           <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-5 sm:px-8">
-            <button type="button" onClick={() => setDetails(null)} className="mb-8 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-xs text-white/80 backdrop-blur-xl hover:bg-white/10"><ArrowLeft className="h-4 w-4" /> Back to catalogue</button>
+            <button type="button" onClick={closeDetails} className="mb-8 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-xs text-white/80 backdrop-blur-xl hover:bg-white/10"><ArrowLeft className="h-4 w-4" /> Back to catalogue</button>
             <div className="grid gap-6 sm:grid-cols-[190px_1fr] sm:gap-8">
               <div className="max-w-[190px]"><Poster item={details} /></div>
               <div className="min-w-0 pt-1">
