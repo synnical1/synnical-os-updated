@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { ArrowLeft, CalendarDays, ChevronRight, Clapperboard, ExternalLink, Film, Search, Star, Tv, X } from "lucide-react"
 import type { SynnFlixDetails, SynnFlixHomeData, SynnFlixMediaItem, SynnFlixSeasonDetails } from "@/lib/synnflix-types"
 
@@ -65,6 +65,9 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null)
   const [seasonData, setSeasonData] = useState<SynnFlixSeasonDetails | null>(null)
+  const searchController = useRef<AbortController | null>(null)
+  const detailsController = useRef<AbortController | null>(null)
+  const seasonController = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -77,45 +80,69 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
     return () => controller.abort()
   }, [mode])
 
+  useEffect(() => () => {
+    searchController.current?.abort()
+    detailsController.current?.abort()
+    seasonController.current?.abort()
+  }, [])
+
   const search = useCallback(async (event: FormEvent) => {
     event.preventDefault()
     const clean = query.trim()
-    if (!clean) { setSearchActive(false); setSearchResults([]); return }
+    searchController.current?.abort()
+    if (!clean) { setSearching(false); setSearchActive(false); setSearchResults([]); return }
+    const controller = new AbortController()
+    searchController.current = controller
     setSearching(true)
     setError("")
     setSearchActive(true)
     try {
       const params = new URLSearchParams({ action: "search", mode, query: clean })
-      const result = await api<SearchPage>(params)
-      setSearchResults(result.results)
+      const result = await api<SearchPage>(params, controller.signal)
+      if (!controller.signal.aborted) setSearchResults(result.results)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Search failed.")
-      setSearchResults([])
-    } finally { setSearching(false) }
+      if (!controller.signal.aborted) {
+        setError(cause instanceof Error ? cause.message : "Search failed.")
+        setSearchResults([])
+      }
+    } finally {
+      if (!controller.signal.aborted) setSearching(false)
+    }
   }, [mode, query])
 
   const openDetails = useCallback(async (item: SynnFlixMediaItem) => {
+    detailsController.current?.abort()
+    seasonController.current?.abort()
+    const controller = new AbortController()
+    detailsController.current = controller
     setDetails(null)
     setDetailsLoading(true)
     setSelectedSeason(null)
     setSeasonData(null)
     try {
       const params = new URLSearchParams({ action: "details", mode, type: item.mediaType, id: String(item.id) })
-      setDetails(await api<Details>(params))
+      const result = await api<Details>(params, controller.signal)
+      if (!controller.signal.aborted) setDetails(result)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load title details.")
-    } finally { setDetailsLoading(false) }
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load title details.")
+    } finally {
+      if (!controller.signal.aborted) setDetailsLoading(false)
+    }
   }, [mode])
 
   const loadSeason = useCallback(async (season: number) => {
     if (!details) return
+    seasonController.current?.abort()
+    const controller = new AbortController()
+    seasonController.current = controller
     setSelectedSeason(season)
     setSeasonData(null)
     try {
       const params = new URLSearchParams({ action: "season", mode, id: String(details.id), season: String(season) })
-      setSeasonData(await api<SynnFlixSeasonDetails>(params))
+      const result = await api<SynnFlixSeasonDetails>(params, controller.signal)
+      if (!controller.signal.aborted) setSeasonData(result)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load season details.")
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load season details.")
     }
   }, [details, mode])
 
