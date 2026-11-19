@@ -178,8 +178,9 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
   }, [])
 
   const handlePlaybackEvent = useCallback((event: NativePlaybackEvent) => {
+    const currentTime = event.event === "ended" && event.duration > 0 ? event.duration : event.currentTime
     setPlaybackProgress((previous) => ({
-      currentTime: event.currentTime,
+      currentTime,
       duration: event.duration,
       status: event.event === "play" ? "Playing" : event.event === "pause" ? "Paused" : event.event === "ended" ? "Finished" : previous.status,
     }))
@@ -195,7 +196,7 @@ export function MediaCatalogPanel({ mode }: { mode: Mode }) {
       body: JSON.stringify({
         action: "progress", mediaType: request.mediaType, mediaId: String(request.mediaId),
         title: mediaTitle, season: request.season ?? 0, episode: request.episode ?? 0,
-        currentTime: event.currentTime, duration: event.duration, completed: event.event === "ended",
+        currentTime, duration: event.duration, completed: event.event === "ended",
         poster, backdrop,
       }),
     }).catch(() => {})
