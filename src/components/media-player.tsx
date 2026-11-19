@@ -26,9 +26,16 @@ export function MediaPlayer({ request, title, startSeconds = 0, onPlaybackEvent,
     const query = new URLSearchParams({ type: request.mediaType, id: String(request.mediaId) })
     if (request.mediaType === "tv") { query.set("season", String(request.season ?? 1)); query.set("episode", String(request.episode ?? 1)) }
     fetch(`/api/media/playback?${query}`, { signal: controller.signal, credentials: "same-origin", cache: "no-store" })
-      .then(async response => { if (!response.ok) throw new Error("Playback request failed"); return await response.json() as { source: MediaPlaybackSource | null } })
+      .then(async response => {
+        const body = await response.json().catch(() => ({})) as { source?: MediaPlaybackSource | null; error?: unknown }
+        if (!response.ok) {
+          const message = response.status === 401 ? "Sign in to play and save your viewing progress." : typeof body.error === "string" ? body.error : "Playback request failed."
+          throw new Error(message)
+        }
+        return { source: body.source ?? null }
+      })
       .then(body => { if (!controller.signal.aborted) setSource(body.source) })
-      .catch(() => { if (!controller.signal.aborted) setError("Could not load playback. Please try again.") })
+      .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load playback. Please try again.") })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [identity])
