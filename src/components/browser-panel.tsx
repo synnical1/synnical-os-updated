@@ -31,6 +31,7 @@ type Tab = {
 
 const SEARCH_ENGINE_MIGRATION_KEY = "synnical:browser-search-default-v3"
 const BLOOD_THEME_MIGRATION_KEY = "synnical:blood-default-v14"
+const SYNNICAL_THEME_MIGRATION_KEY = "synnical:synnical-default-v15"
 const BROWSER_RUNTIME_MIGRATION_KEY = "synnical:browser-runtime-defaults-v21"
 const NEW_TAB_ID = "new-tab"
 
@@ -322,18 +323,21 @@ export function BrowserPanel({ initialUrl = "", onUrlChange, embedded = false, e
     } catch {}
   }, [setSearchEngine, setSSearchEngine])
 
-  // Existing installs could retain the old Blossom/pink selection forever.
-  // Migrate once to the new OLED midnight default, while leaving users free to
-  // choose a different theme afterwards.
+  // Make Synnical the default accent family. Move installs still on the
+  // previous migration-imposed Blood default, but preserve other saved themes.
   useEffect(() => {
     try {
-      if (localStorage.getItem(BLOOD_THEME_MIGRATION_KEY)) return
-      setTheme("blood")
+      if (localStorage.getItem(SYNNICAL_THEME_MIGRATION_KEY)) return
+      const persisted = JSON.parse(localStorage.getItem("stratus-browser") || "{}")
+      const storedTheme = persisted?.state?.theme
+      const wasUsingLegacyBloodDefault =
+        localStorage.getItem(BLOOD_THEME_MIGRATION_KEY) === "1" && storedTheme === "blood"
+      if (!storedTheme || wasUsingLegacyBloodDefault) setTheme("synnical")
       const oldProfileColor = localStorage.getItem("synnical:settings:profile.customColor")
       if (oldProfileColor === JSON.stringify("#ec4899") || oldProfileColor === JSON.stringify("#f472b6")) {
         localStorage.removeItem("synnical:settings:profile.customColor")
       }
-      localStorage.setItem(BLOOD_THEME_MIGRATION_KEY, "1")
+      localStorage.setItem(SYNNICAL_THEME_MIGRATION_KEY, "1")
     } catch {}
   }, [setTheme])
 
@@ -1395,15 +1399,14 @@ function NewTabPage({
             <div
               className="mt-4 flex flex-col items-center gap-1"
               aria-label="Illustrative community activity figures, not live user telemetry."
-              title="Illustrative community activity figures."
             >
-              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">Community activity</span>
+              <span className="text-[10px] font-medium text-white/45">Community</span>
               <span className="flex items-center gap-2 text-sm font-medium text-white/75">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />
                 {activity ? activity.onlineCount.toLocaleString() : "—"} online
               </span>
               <span className="text-[10px] text-white/35">
-                All-time peak: {(activity?.allTimePeak ?? 1064).toLocaleString()} online at a time
+                Peak: {(activity?.allTimePeak ?? 1064).toLocaleString()}
               </span>
             </div>
           </div>

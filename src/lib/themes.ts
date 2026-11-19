@@ -36,8 +36,8 @@ function darkTheme(id: ThemeId, name: string, accent: string, hover: string, sof
 }
 
 export const THEMES: ThemeDef[] = [
-  darkTheme("blood", "Blood", "#dc2626", "#ef4444", "#1f0909"),
   darkTheme("synnical", "Synnical", "#ffffff", "#e8e8e8", "#151515"),
+  darkTheme("blood", "Blood", "#dc2626", "#ef4444", "#1f0909"),
   darkTheme("ocean", "Ocean", "#2563eb", "#3b82f6", "#07142e"),
   darkTheme("forest", "Forest", "#16a34a", "#22c55e", "#071b0e"),
   darkTheme("sunset", "Sunset", "#ea580c", "#f97316", "#261006"),
@@ -55,7 +55,7 @@ export function isThemeId(value: unknown): value is ThemeId {
 }
 
 export function getTheme(id: string): ThemeDef {
-  return BY_ID.get(id as ThemeId) || BY_ID.get("blood")!
+  return BY_ID.get(id as ThemeId) || BY_ID.get("synnical")!
 }
 
 export function applyTheme(id: string, mode: "light" | "dark" = "dark") {
