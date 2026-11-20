@@ -29,13 +29,14 @@ log "$HOST resolves to $EXPECTED_IPV4."
 
 nginx_dump="$(nginx -T 2>&1)" || fail "nginx -T failed; existing configuration has not been changed."
 
-# An exact host may already be configured. Reuse it only if it reaches the
-# Synnical application; refuse to hijack an unrelated virtual host.
+# Refuse to hijack a host configured by another site. Our own managed site
+# remains recognisable after Certbot adds its TLS and redirect directives.
 if printf '%s\n' "$nginx_dump" | grep -Eq '^[[:space:]]*server_name[[:space:]][^;]*([[:space:]]|^)roblox\.synnical\.co\.uk([[:space:]]|;|$)'; then
-  if ! printf '%s\n' "$nginx_dump" | grep -Fq 'proxy_pass http://127.0.0.1:3000'; then
-    fail "$HOST is already present in Nginx, but the active configuration does not visibly proxy to 127.0.0.1:3000. Manual inspection is required."
+  if [[ -f "$AVAILABLE" ]] && grep -Fq "$MARKER" "$AVAILABLE" && [[ -L "$ENABLED" ]] && [[ "$(readlink -f "$ENABLED")" == "$AVAILABLE" ]]; then
+    log "The managed Roblox virtual host already exists; preserving it."
+  else
+    fail "$HOST is already configured in another Nginx site. Refusing to create a competing virtual host; inspect the existing server block first."
   fi
-  log "An Nginx host entry for $HOST already exists and proxies to Synnical; preserving it."
 else
   if [[ -e "$AVAILABLE" ]] && ! grep -Fq "$MARKER" "$AVAILABLE"; then
     fail "$AVAILABLE already exists and is not managed by this script; refusing to overwrite it."
