@@ -1,8 +1,8 @@
 // Pull Roblox's official browser client (binary type "WebClientApp") from
 // setup.rbxcdn.com into public/roblox-player/engine/, plus a pinned copy of its live
 // FFlags. The engine is an Emscripten build: WasmPlayer.js boots WebClient.js +
-// WebClient.wasm and prefetches every file listed in WebClient.metadata.json
-// from the same base URL.
+// WebClient.wasm and prefetches every file listed in WebClient.fsindex.txt
+// (new builds) or WebClient.metadata.json (legacy builds) from the same base URL.
 //
 // Run: npm run roblox:engine:update [version-xxxxxxxxxxxxxxxx]
 // Without an argument the current production version is resolved from
@@ -16,6 +16,7 @@ import { dirname, join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { createGzip } from "node:zlib";
+import { parseWebClientFsIndex } from "./webclient-fsindex.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PLAYER_ROOT = join(ROOT, "public", "roblox-player");
@@ -28,8 +29,8 @@ const BINARY_TYPE = "WebClientApp";
 const CLIENT_VERSION_URL = `https://clientsettings.roblox.com/v2/client-version/${BINARY_TYPE}`;
 const FLAGS_URL = `https://clientsettingscdn.roblox.com/v2/settings/application/${BINARY_TYPE}`;
 const CDN = "https://setup.rbxcdn.com/webclient";
-// Loaded by WasmPlayer.js by name; everything else comes from the metadata list.
-const CORE = ["WasmPlayer.js", "WebClient.js", "WebClient.wasm", "WebClient.metadata.json", "audio-processor-fast.js"];
+// Core files are loaded directly by the player. The content index is fetched separately.
+const CORE = ["WasmPlayer.js", "WebClient.js", "WebClient.wasm"];
 const CONCURRENCY = 16;
 const RETRIES = 3;
 const VERSION_RE = /^version-[0-9a-f]{16}$/;
@@ -111,7 +112,8 @@ async function main() {
       const existing = JSON.parse(await readFile(VERSION_FILE, "utf8"));
       const required = ["WasmPlayer.js", "WebClient.js", "WebClient.wasm", "PinnedFlags.json"];
       const sizes = await Promise.all(required.map(name => sizeOnDisk(join(OUT, name))));
-      if (existing.complete === true && sizes.every(size => size > 0)) {
+      const hasIndex = (await sizeOnDisk(join(OUT, "WebClient.fsindex.txt"))) > 0 || (await sizeOnDisk(join(OUT, "WebClient.metadata.json"))) > 0;
+      if (existing.complete === true && sizes.every(size => size > 0) && hasIndex) {
         console.log(`[webblox] keeping installed engine ${existing.clientVersionUpload}`);
         return;
       }
@@ -143,6 +145,12 @@ async function main() {
     const fetched = await download(`${base}/${name}`, join(OUT, name));
     console.log(`[webblox] ${fetched ? "fetched" : "kept"} ${name}`);
   }
+  try {
+    const fetched = await download(base + "/audio-processor-fast.js", join(OUT, "audio-processor-fast.js"));
+    console.log("[webblox] " + (fetched ? "fetched" : "kept") + " audio-processor-fast.js");
+  } catch (error) {
+    console.warn("[webblox] optional audio processor unavailable: " + error.message);
+  }
   for (const name of GZIP) {
     const path = join(OUT, name);
     if ((await sizeOnDisk(`${path}.gz`)) >= 0) continue;
@@ -151,14 +159,33 @@ async function main() {
     console.log(`[webblox] gzipped ${name} (${((await sizeOnDisk(`${path}.gz`)) / 1e6).toFixed(1)} MB)`);
   }
 
-  const metadata = JSON.parse(await readFile(join(OUT, "WebClient.metadata.json"), "utf8"));
-  if (!Array.isArray(metadata)) throw new Error("WebClient.metadata.json is not a file list");
-  const files = metadata.filter(entry => {
-    // Paths are rooted at the engine base; refuse anything that would escape OUT.
-    const ok = typeof entry?.path === "string" && entry.path.startsWith("/") && !entry.path.split("/").includes("..");
-    if (!ok) console.warn(`[webblox] skipping bad metadata entry ${JSON.stringify(entry)}`);
-    return ok;
-  });
+  let entries;
+  try {
+    const indexPath = join(OUT, "WebClient.fsindex.txt");
+    const fetched = await download(base + "/WebClient.fsindex.txt", indexPath);
+    entries = parseWebClientFsIndex(await readFile(indexPath));
+    console.log("[webblox] " + entries.length + " files listed via WebClient.fsindex.txt (" + (fetched ? "fetched" : "kept") + ")");
+  } catch (fsIndexError) {
+    console.warn("[webblox] WebClient.fsindex.txt unavailable (" + fsIndexError.message + "); trying legacy WebClient.metadata.json");
+    const metadataPath = join(OUT, "WebClient.metadata.json");
+    await download(base + "/WebClient.metadata.json", metadataPath);
+    entries = JSON.parse(await readFile(metadataPath, "utf8"));
+    if (!Array.isArray(entries)) throw new Error("WebClient.metadata.json is not a file list");
+  }
+
+  const seenPaths = new Set();
+  const files = entries.filter(entry => {
+    const size = Number(entry?.size);
+    const path = entry?.path;
+    const validPath = typeof path === "string" && path.startsWith("/") &&
+      !path.includes("\\\\") && !path.includes(String.fromCharCode(0)) &&
+      !path.split("/").includes("..");
+    const validSize = Number.isSafeInteger(size) && size >= 0;
+    const unique = typeof path === "string" && !seenPaths.has(path);
+    if (validPath && validSize && unique) seenPaths.add(path);
+    else console.warn("[webblox] skipping bad or duplicate index entry " + JSON.stringify(entry));
+    return validPath && validSize && unique;
+  }).map(entry => ({ ...entry, size: Number(entry.size) }));
   const total = files.reduce((sum, entry) => sum + entry.size, 0);
   console.log(`[webblox] ${files.length} content files, ${(total / 1e6).toFixed(1)} MB`);
   const failures = await pool(files, entry =>
