@@ -474,7 +474,7 @@ export function MediaCatalogPanel({ mode, onNavigate }: { mode: Mode; onNavigate
                       <Rail title="Trending this week" items={home.trending} onSelect={openDetails} />
                       {watchedRecommendations ? <Rail title={"Because you watched " + watchedRecommendations.title} items={watchedRecommendations.items} onSelect={openDetails} /> : null}
                       <Rail title="Popular movies" items={home.popularMovies} onSelect={openDetails} />
-                      <Rail title="Current & upcoming TV shows" items={home.popularTv} onSelect={openDetails} />
+                      <Rail title="Current & upcoming TV shows" items={home.onTheAirTv || []} onSelect={openDetails} />
                       <Rail title="Top rated" items={[...home.topRatedMovies, ...home.topRatedTv].sort((a, b) => b.voteAverage - a.voteAverage)} onSelect={openDetails} />
                     </>
                   )}
