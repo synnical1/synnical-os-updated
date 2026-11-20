@@ -58,7 +58,7 @@ test("SynnFlix and Synnime render the native TMDB catalogue", () => {
   assert.match(anime, /MediaCatalogPanel mode="anime"/)
   assert.match(catalog, /\/api\/tmdb/)
   assert.match(catalog, /Trending now/)
-  assert.match(catalog, /Anime Movies/)
+  assert.match(catalog, /Popular anime films/)
   assert.match(catalog, /Watchlist/)
   assert.match(catalog, /Play movie/)
   assert.match(api, /getTmdbHome/)
