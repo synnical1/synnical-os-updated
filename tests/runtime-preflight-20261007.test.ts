@@ -125,7 +125,11 @@ test("deployment runs configuration preflight before build and live readiness af
   assert.ok(workflow.indexOf("node scripts/runtime-preflight.mjs\n") < workflow.indexOf("npm run build"))
   assert.ok(workflow.indexOf("node scripts/runtime-preflight.mjs --runtime") > workflow.indexOf("pm2 reload synnical --update-env"))
   assert.match(workflow, /SYNNICAL_DESKTOP_BROWSER_TEST: "true"/)
-  assert.doesNotMatch(workflow, /TMDB|Synnical \+ bundled Stratus deployment completed/)
+  assert.doesNotMatch(workflow, /Synnical \+ bundled Stratus deployment completed/)
+  assert.match(workflow, /TMDB_READ_ACCESS_TOKEN: \$\{\{ secrets\.TMDB_READ_ACCESS_TOKEN \}\}/)
+  assert.match(workflow, /Stage TMDB token securely on the deployment host/)
+  assert.match(workflow, /TMDB_SECRET_FILE/)
+  assert.doesNotMatch(workflow, /NEXT_PUBLIC_TMDB_READ_ACCESS_TOKEN|NEXT_PUBLIC_TMDB_API_KEY/)
 })
 
 test("post-reload readiness requires a valid Games catalogue and rejects contradictory Games health", async () => {

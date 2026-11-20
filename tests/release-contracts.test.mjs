@@ -75,7 +75,7 @@ test(
 )
 
 test(
-  "SynnFlix and Synnime use Movy directly without restoring the retired TMDB catalogue",
+  "SynnFlix and Synnime use the native TMDB catalogue with server-side metadata credentials",
   () => {
     const appShell = read("src/components/app-shell.tsx")
     assert.match(appShell, /@\/components\/synnflix-unavailable-panel/)
@@ -83,17 +83,24 @@ test(
 
     const movies = read("src/components/synnflix-unavailable-panel.tsx")
     const synnime = read("src/components/synnime-panel.tsx")
-    const embed = read("src/components/movy-embed-panel.tsx")
-    assert.match(movies, /MovyEmbedPanel mode="movies"/)
-    assert.match(synnime, /MovyEmbedPanel mode="anime"/)
-    assert.match(embed, /https:\/\/www\.movy\.sx\//)
-    assert.match(embed, /https:\/\/www\.movy\.sx\/browse\/anime/)
-    assert.match(embed, /useScramjetController/)
-    assert.match(embed, /useScramjetFrame/)
-    assert.match(embed, /navigate\(src\)/)
-    assert.match(embed, /<iframe/)
-    assert.doesNotMatch(embed, /src=\{?src\}?/)
-    assert.match(embed, /allowFullScreen/)
+    const catalog = read("src/components/media-catalog-panel.tsx")
+    const api = read("src/app/api/tmdb/route.ts")
+    const server = read("src/lib/tmdb-catalog-server.ts")
+    assert.match(movies, /MediaCatalogPanel mode="movies"/)
+    assert.match(synnime, /MediaCatalogPanel mode="anime"/)
+    assert.match(catalog, /\/api\/tmdb/)
+    assert.match(catalog, /action: "home"/)
+    assert.match(catalog, /action: "search"/)
+    assert.match(catalog, /action: "details"/)
+    assert.match(catalog, /action: "season"/)
+    assert.match(api, /getTmdbHome/)
+    assert.match(api, /searchTmdb/)
+    assert.match(api, /getTmdbDetails/)
+    assert.match(api, /getTmdbSeason/)
+    assert.match(server, /TMDB_READ_ACCESS_TOKEN/)
+    assert.match(server, /Bearer/)
+    assert.doesNotMatch(catalog, /movy\.sx|MovyEmbedPanel/)
+    assert.doesNotMatch(appShell, /provider-web-view/)
 
     const legacyPanel = read("src/components/synnflix-panel.tsx")
     assert.match(legacyPanel, /LEGACY UI ARCHIVE/)
@@ -112,7 +119,6 @@ test(
     }
   }
 )
-
 test(
   "private uploads require an authenticated owner or channel member and disable shared caching",
   () => {

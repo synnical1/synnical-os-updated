@@ -165,11 +165,17 @@ try {
   await db.user.update({ where: { id: b.id }, data: { role: "MEMBER" } })
   pass("parallel daily claims award exactly once; canonical equal staff ranks cannot adjust credits")
   await request("/api/media/playback?type=movie&id=123", { status: 401 })
-  const unavailable = (await request("/api/media/playback?type=movie&id=123", { cookie: a.cookie })).json
-  assert.equal(unavailable.available, false); assert.equal(unavailable.source, null)
+  const playback = (await request("/api/media/playback?type=movie&id=123", { cookie: a.cookie })).json
+  assert.equal(playback.available, true)
+  assert.equal(playback.source.providerId, "cinesrc")
+  assert.equal(playback.source.kind, "embed")
+  const playbackUrl = new URL(playback.source.url)
+  assert.equal(playbackUrl.origin, "https://cinesrc.st")
+  assert.equal(playbackUrl.pathname, "/embed/movie/123")
+  assert.equal(playbackUrl.searchParams.get("back"), "close")
   await request("/api/media/playback?type=tv&id=123&season=1&episode=0", { cookie: a.cookie, status: 400 })
   await request("/api/media/providers/cineb", { status: 410 })
-  pass("authorized playback requires session, validates identity and fails closed without a provider")
+  pass("authorized playback requires a session, validates identity and returns the server-built CineSrc embed")
   await request("/api/games/cloud/v1/createSession", { data: { game_key: "fixture" }, status: 401 })
   await request("/api/games/cloud/v1/getQueue?uuid=fixture", { status: 401 })
   await request("/api/games/cloud/v1/createSession", { cookie: a.cookie, data: {}, status: 400 })
@@ -188,7 +194,9 @@ try {
   await writeFile(env.MEDIA_PLAYBACK_MANIFEST, JSON.stringify({ "movie:999": { providerId: "disposable-fixture", kind: "file", url: "https://licensed-media.example/sample.mp4" }, "movie:998": { providerId: "disposable-fixture", kind: "embed", url: "https://unapproved.example/player" } }), { mode: 0o600 })
   const approvedPlayback = (await request("/api/media/playback?type=movie&id=999&url=https://unapproved.example", { cookie: a.cookie })).json
   assert.equal(approvedPlayback.source.url, "https://licensed-media.example/sample.mp4")
-  assert.equal((await request("/api/media/playback?type=movie&id=998", { cookie: a.cookie })).json.source, null)
+  const fallbackPlayback = (await request("/api/media/playback?type=movie&id=998", { cookie: a.cookie })).json
+  assert.equal(fallbackPlayback.source.providerId, "cinesrc")
+  assert.equal(new URL(fallbackPlayback.source.url).pathname, "/embed/movie/998")
   await rm(env.MEDIA_PLAYBACK_MANIFEST)
   pass("playback manifest allows only operator-approved sources and ignores client URL injection")
 

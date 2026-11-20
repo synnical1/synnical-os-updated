@@ -1,7 +1,7 @@
 "use client"
 
-import { MovyEmbedPanel } from "@/components/movy-embed-panel"
+import { MediaCatalogPanel } from "@/components/media-catalog-panel"
 
 export function SynnimePanel() {
-  return <MovyEmbedPanel mode="anime" />
+  return <MediaCatalogPanel mode="anime" />
 }

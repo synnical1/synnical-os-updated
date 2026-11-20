@@ -36,7 +36,7 @@ test("Radix and local Settings toggle share the same accessible geometry and the
   assert.ok(read("src/app/globals.css").includes('[class*="bg-[var(--synnical-surface-2)]"]:not([role="switch"])'), "Legacy surface normalization must not override checked switch accent")
   const shared = read("src/components/ui/switch.tsx")
   assert.match(shared, /left-\[2px\] top-\[2px\]/)
-  assert.match(shared, /data-\[state=checked\]:translate-x-\[20px\]/)
+  assert.match(shared, /data-\[state=checked\]:left-\[22px\]/)
   assert.match(shared, /focus-visible:ring-2/)
   assert.match(shared, /disabled:cursor-not-allowed/)
   assert.match(shared, /data-\[state=checked\]:bg-\[var\(--synnical-accent\)\]/)
