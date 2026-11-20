@@ -82,12 +82,17 @@ jobs:
       DEPLOY_HOST: 140.238.87.247
       DEPLOY_USER: ubuntu
       DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SYNNICAL_DEPLOY_SSH_KEY }}
+      TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
 
     steps:
       - name: Require deployment key
         run: |
           if [ -z "$DEPLOY_SSH_PRIVATE_KEY" ]; then
             echo "::error::Missing repository secret SYNNICAL_DEPLOY_SSH_KEY."
+            exit 1
+          fi
+          if [ -z "$TMDB_READ_ACCESS_TOKEN" ]; then
+            echo "::error::Missing repository secret TMDB_READ_ACCESS_TOKEN. Add it in Settings > Secrets and variables > Actions."
             exit 1
           fi
 
@@ -97,6 +102,20 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
           chmod 600 "$HOME/.ssh/id_ed25519"
           ssh-keyscan -H "$DEPLOY_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Stage TMDB token securely on the deployment host
+        env:
+          TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          stage_path="/home/$DEPLOY_USER/.synnical-tmdb-token-${GITHUB_RUN_ID}"
+          umask 077
+          printf '%s' "$TMDB_READ_ACCESS_TOKEN" > "$RUNNER_TEMP/tmdb-token"
+          scp -i "$HOME/.ssh/id_ed25519" \\
+            -o BatchMode=yes \\
+            -o ConnectTimeout=20 \\
+            "$RUNNER_TEMP/tmdb-token" "$DEPLOY_USER@$DEPLOY_HOST:$stage_path"
+          rm -f "$RUNNER_TEMP/tmdb-token"
 
       - name: Deploy exact pushed commit
         env:
@@ -110,7 +129,31 @@ jobs:
           set -Eeuo pipefail
 
           deploy_sha="$1"
+          tmdb_secret_file="$2"
           app_dir="/var/www/synnical"
+          cleanup_tmdb_secret() { rm -f "$tmdb_secret_file"; }
+          trap cleanup_tmdb_secret EXIT
+
+          # Inject the GitHub Actions secret into the private server-side .env.
+          # Never echo the value, put it in argv, or commit it to the repository.
+          TMDB_SECRET_FILE="$tmdb_secret_file" node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          const secretPath = process.env.TMDB_SECRET_FILE
+          const token = fs.readFileSync(secretPath, 'utf8').trim()
+          if (!token || /[\\r\\n]/.test(token)) throw new Error('TMDB secret is empty or malformed')
+          const envPath = '/var/www/synnical/.env'
+          let contents = fs.readFileSync(envPath, 'utf8')
+          const line = 'TMDB_READ_ACCESS_TOKEN=' + JSON.stringify(token)
+          if (/^TMDB_READ_ACCESS_TOKEN=.*$/m.test(contents)) {
+            contents = contents.replace(/^TMDB_READ_ACCESS_TOKEN=.*$/m, line)
+          } else {
+            contents = contents.replace(/\\s*$/, '') + '\\n' + line + '\\n'
+          }
+          const temporaryPath = envPath + '.tmdb.tmp'
+          fs.writeFileSync(temporaryPath, contents, { mode: 0o600 })
+          fs.chmodSync(temporaryPath, 0o600)
+          fs.renameSync(temporaryPath, envPath)
+          NODE
           lock_file="/tmp/synnical-deploy.lock"
 
           exec 9>"$lock_file"
