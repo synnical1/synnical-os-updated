@@ -82,10 +82,11 @@ jobs:
       DEPLOY_HOST: 140.238.87.247
       DEPLOY_USER: ubuntu
       DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SYNNICAL_DEPLOY_SSH_KEY }}
-      TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
 
     steps:
       - name: Require deployment key
+        env:
+          TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
         run: |
           if [ -z "$DEPLOY_SSH_PRIVATE_KEY" ]; then
             echo "::error::Missing repository secret SYNNICAL_DEPLOY_SSH_KEY."
@@ -111,9 +112,9 @@ jobs:
           stage_path="/home/$DEPLOY_USER/.synnical-tmdb-token-${GITHUB_RUN_ID}"
           umask 077
           printf '%s' "$TMDB_READ_ACCESS_TOKEN" > "$RUNNER_TEMP/tmdb-token"
-          scp -i "$HOME/.ssh/id_ed25519" \\
-            -o BatchMode=yes \\
-            -o ConnectTimeout=20 \\
+          scp -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
             "$RUNNER_TEMP/tmdb-token" "$DEPLOY_USER@$DEPLOY_HOST:$stage_path"
           rm -f "$RUNNER_TEMP/tmdb-token"
 
@@ -133,6 +134,14 @@ jobs:
           app_dir="/var/www/synnical"
           cleanup_tmdb_secret() { rm -f "$tmdb_secret_file"; }
           trap cleanup_tmdb_secret EXIT
+
+          lock_file="/tmp/synnical-deploy.lock"
+
+          exec 9>"$lock_file"
+          if ! flock -n 9; then
+            echo "Another Synnical deployment is already running." >&2
+            exit 75
+          fi
 
           # Inject the GitHub Actions secret into the private server-side .env.
           # Never echo the value, put it in argv, or commit it to the repository.
@@ -154,14 +163,6 @@ jobs:
           fs.chmodSync(temporaryPath, 0o600)
           fs.renameSync(temporaryPath, envPath)
           NODE
-          lock_file="/tmp/synnical-deploy.lock"
-
-          exec 9>"$lock_file"
-          if ! flock -n 9; then
-            echo "Another Synnical deployment is already running." >&2
-            exit 75
-          fi
-
           cd "$app_dir"
           git fetch --no-tags origin main
           git cat-file -e "$deploy_sha^{commit}"
