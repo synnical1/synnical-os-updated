@@ -12,7 +12,7 @@ The Roblox desktop app launches Webblox's Roblox WebClientApp in a dedicated top
 
 ## Engine assets
 
-Run `node scripts/fetch-webblox.mjs --if-missing` to provision the pinned Epoxy browser transport and current production WebClientApp. Large engine assets are ignored by Git and downloaded on first deployment. Run `npm run roblox:engine:update` to deliberately refresh the client.
+Run `node scripts/fetch-webblox.mjs --if-missing` to provision the pinned Epoxy browser transport and current production WebClientApp. Current Roblox builds use the prefix-compressed `WebClient.fsindex.txt` index; the fetcher also supports legacy `WebClient.metadata.json` builds. Large engine assets are ignored by Git and downloaded on first deployment. Run `npm run roblox:engine:update` to deliberately refresh the client.
 
 ## Deployment
 
