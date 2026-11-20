@@ -41,7 +41,7 @@ export function parseWebClientFsIndex(input) {
     const fullPath = Buffer.concat([previousPath.subarray(0, prefixLength), suffix]);
     const path = fullPath.toString("utf8");
     if (!path.startsWith("/") || path.includes(String.fromCharCode(0)) ||
-        path.includes("\\\\") || path.split("/").includes("..")) {
+        path.includes(String.fromCharCode(92))) {
       throw new Error("WebClient.fsindex.txt: unsafe path");
     }
 

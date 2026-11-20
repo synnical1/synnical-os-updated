@@ -178,7 +178,7 @@ async function main() {
     const size = Number(entry?.size);
     const path = entry?.path;
     const validPath = typeof path === "string" && path.startsWith("/") &&
-      !path.includes("\\\\") && !path.includes(String.fromCharCode(0)) &&
+      !path.includes(String.fromCharCode(92)) && !path.includes(String.fromCharCode(0)) &&
       !path.split("/").includes("..");
     const validSize = Number.isSafeInteger(size) && size >= 0;
     const unique = typeof path === "string" && !seenPaths.has(path);

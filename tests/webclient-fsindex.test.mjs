@@ -28,7 +28,7 @@ test("rejects truncated and malformed index entries", () => {
 });
 
 test("rejects prefix lengths beyond the previous path", () => {
-  const index = Buffer.from("rbxfsindex 1\n0\t/a\t1\n2\tb\t1\n");
+  const index = Buffer.from("rbxfsindex 1\n0\t/a\t1\n3\tb\t1\n");
   assert.throws(() => parseWebClientFsIndex(index), /malformed entry/);
 });
 
