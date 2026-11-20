@@ -183,13 +183,7 @@ sudo logrotate --debug /etc/logrotate.d/synnical
 
 ## 7a. Enable the Roblox player origin
 
-The Roblox app uses `https://roblox.synnical.co.uk/roblox-player/index.html` as a separate origin. Create an **A record** for `roblox.synnical.co.uk` pointing to the same public VPS address as Synnical. Add `roblox.synnical.co.uk` to the active Nginx `server_name` alongside the existing root and `www` names, then obtain a TLS certificate covering all three hosts. For the standard Synnical domain names, run:
-
-```bash
-sudo certbot --nginx -d synnical.co.uk -d www.synnical.co.uk -d roblox.synnical.co.uk
-sudo nginx -t
-sudo systemctl reload nginx
-```
+The Roblox app uses `https://roblox.synnical.co.uk/roblox-player/index.html` as a separate origin. Create an **A record** for `roblox.synnical.co.uk` pointing to the same public VPS address as Synnical. The main deployment workflow now runs `deploy/configure-roblox-host.sh` after the application update. When public DNS resolves to the Oracle VPS, the script creates an isolated Nginx virtual host for the Roblox subdomain, obtains and installs its own Let's Encrypt certificate with Certbot, reloads Nginx, and checks the player page's HTTPS and cross-origin isolation headers. It deliberately leaves the root and `www` virtual hosts and their certificates untouched. If DNS has not propagated yet, it logs a skip and makes no Nginx or certificate changes; a later main-branch deployment retries automatically.
 
 The player route is limited to its own static assets and `/wisp/` WebSocket. Its Wisp transport permits TCP port 443 only on `roblox.com`, `rbxcdn.com` and `robloxlabs.com`; it is not the Synnical general-purpose proxy. The WebClientApp binary and Epoxy browser transport are fetched into ignored `public/roblox-player/` assets on first deployment and are not committed to Git. To deliberately update the Roblox client, run `npm run roblox:engine:update` as the `synnical` user, then reload Synnical.
 
