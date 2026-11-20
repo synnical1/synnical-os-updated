@@ -6,7 +6,8 @@ import * as SwitchPrimitive from "@radix-ui/react-switch"
 import { cn } from "@/lib/utils"
 
 // Border-box 40×20; 1px border + 2px anchor = 3px outer inset.
-// 40 - 14 - 2×3 = 20px travel, with equal insets in both states.
+// Pin the thumb at 2px or 22px from the padding edge so both states have
+// an exact 3px outer inset without relying on a transform utility.
 function Switch({
   className,
   ...props
@@ -23,7 +24,7 @@ function Switch({
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
         className={cn(
-          "pointer-events-none absolute left-[2px] top-[2px] block size-[14px] rounded-full bg-[var(--synnical-text)] data-[state=checked]:bg-[var(--primary-foreground)] ring-0 transition-transform duration-150 data-[state=checked]:translate-x-[20px] data-[state=unchecked]:translate-x-0 motion-reduce:transition-none"
+          "pointer-events-none absolute left-[2px] top-[2px] block size-[14px] rounded-full bg-[var(--synnical-text)] data-[state=checked]:left-[22px] data-[state=checked]:bg-[var(--primary-foreground)] ring-0 transition-[left] duration-150 motion-reduce:transition-none"
         )}
       />
     </SwitchPrimitive.Root>
