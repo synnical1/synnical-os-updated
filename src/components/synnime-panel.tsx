@@ -2,6 +2,6 @@
 
 import { MediaCatalogPanel } from "@/components/media-catalog-panel"
 
-export function SynnimePanel() {
-  return <MediaCatalogPanel mode="anime" />
+export function SynnimePanel({ onNavigate }: { onNavigate?: (panel: "movies" | "synnime") => void }) {
+  return <MediaCatalogPanel mode="anime" onNavigate={onNavigate} />
 }

@@ -2,6 +2,6 @@
 
 import { MediaCatalogPanel } from "@/components/media-catalog-panel"
 
-export function SynnFlixUnavailablePanel() {
-  return <MediaCatalogPanel mode="movies" />
+export function SynnFlixUnavailablePanel({ onNavigate }: { onNavigate?: (panel: "movies" | "synnime") => void }) {
+  return <MediaCatalogPanel mode="movies" onNavigate={onNavigate} />
 }

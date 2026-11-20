@@ -51,8 +51,18 @@ test("OpenRouter is first, a 429 fails over to Groq, and OpenAI can never enter 
 })
 
 test("SynnFlix separates native metadata and authenticated authorized playback", async () => {
-  const [panel, catalog, player, route] = await Promise.all([read("src/components/synnflix-unavailable-panel.tsx"), read("src/components/media-catalog-panel.tsx"), read("src/components/media-player.tsx"), read("src/app/api/media/playback/route.ts")])
-  assert.match(panel, /<MediaCatalogPanel mode="movies" \/>/)
+  const [panel, animePanel, shell, catalog, player, route] = await Promise.all([
+    read("src/components/synnflix-unavailable-panel.tsx"),
+    read("src/components/synnime-panel.tsx"),
+    read("src/components/app-shell.tsx"),
+    read("src/components/media-catalog-panel.tsx"),
+    read("src/components/media-player.tsx"),
+    read("src/app/api/media/playback/route.ts"),
+  ])
+  assert.match(panel, /<MediaCatalogPanel mode="movies" onNavigate=\{onNavigate\} \/>/)
+  assert.match(animePanel, /<MediaCatalogPanel mode="anime" onNavigate=\{onNavigate\} \/>/)
+  assert.match(shell, /SynnFlixPanel onNavigate=\{openPanel\}/)
+  assert.match(shell, /SynnimePanel onNavigate=\{openPanel\}/)
   assert.match(catalog, /\/api\/tmdb/)
   assert.match(catalog, /action: "home", mode/)
   assert.match(catalog, /action: "details"/)

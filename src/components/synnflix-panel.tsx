@@ -659,7 +659,7 @@ export function SynnFlixPanel({ catalogMode = "synnflix" }: { catalogMode?: Cata
         if (!controller.signal.aborted) { setResults(previous => dedupe([...previous, ...response.results])); setSearchPage(previous => previous + 1); setSearchTotalPages(response.totalPages) }
       } else {
         const response = await apiJson<SynnFlixHomeData>(`${homeUrl}${homeUrl.includes("?") ? "&" : "?"}page=${catalogPage + 1}`, controller.signal)
-        if (!controller.signal.aborted) { setHome(previous => previous ? Object.fromEntries(Object.keys(previous).map(key => [key, dedupe([...previous[key as keyof SynnFlixHomeData], ...response[key as keyof SynnFlixHomeData]])])) as SynnFlixHomeData : response); setCatalogPage(previous => previous + 1) }
+        if (!controller.signal.aborted) { setHome(previous => previous ? Object.fromEntries(Object.keys(previous).map(key => { const currentItems = previous[key as keyof SynnFlixHomeData] || []; const nextItems = response[key as keyof SynnFlixHomeData] || []; return [key, dedupe([...currentItems, ...nextItems])] })) as SynnFlixHomeData : response); setCatalogPage(previous => previous + 1) }
       }
     } catch { if (!controller.signal.aborted) setMoreError("Could not load more titles. Try again.") }
     finally { setLoadingMore(false) }

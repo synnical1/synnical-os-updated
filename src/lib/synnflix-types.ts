@@ -20,6 +20,7 @@ export type SynnFlixHomeData = {
   popularTv: SynnFlixMediaItem[]
   topRatedMovies: SynnFlixMediaItem[]
   topRatedTv: SynnFlixMediaItem[]
+  onTheAirTv?: SynnFlixMediaItem[]
 }
 
 export type SynnFlixSeasonSummary = {

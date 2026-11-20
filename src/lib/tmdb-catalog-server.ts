@@ -85,14 +85,15 @@ export async function getTmdbHome(mode: "movies" | "anime"): Promise<SynnFlixHom
       popularMovies, popularTv, topRatedMovies, topRatedTv,
     }
   }
-  const [trending, popularMovies, popularTv, topRatedMovies, topRatedTv] = await Promise.all([
+  const [trending, popularMovies, popularTv, topRatedMovies, topRatedTv, onTheAirTv] = await Promise.all([
     list("/trending/all/week"),
     list("/movie/popular"),
     list("/tv/popular"),
     list("/movie/top_rated"),
     list("/tv/top_rated"),
+    list("/tv/on_the_air"),
   ])
-  return { trending, popularMovies, popularTv, topRatedMovies, topRatedTv }
+  return { trending, popularMovies, popularTv, topRatedMovies, topRatedTv, onTheAirTv }
 }
 
 export async function searchTmdb(query: string, mode: "movies" | "anime") {
