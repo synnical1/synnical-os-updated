@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react"
-import { ArrowLeft, CalendarDays, ChevronRight, Clapperboard, ExternalLink, Film, Home, Play, Search, Star, Tv, UserRound, X } from "lucide-react"
+import { ArrowLeft, CalendarDays, ExternalLink, Film, Home, Play, Search, Star, Tv, UserRound, X } from "lucide-react"
 import type { SynnFlixDetails, SynnFlixHomeData, SynnFlixMediaItem, SynnFlixSeasonDetails } from "@/lib/synnflix-types"
 import { MediaPlayer } from "@/components/media-player"
 import type { MediaPlaybackRequest, NativePlaybackEvent } from "@/lib/media-provider-types"
