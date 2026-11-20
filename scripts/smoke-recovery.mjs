@@ -194,7 +194,9 @@ try {
   await writeFile(env.MEDIA_PLAYBACK_MANIFEST, JSON.stringify({ "movie:999": { providerId: "disposable-fixture", kind: "file", url: "https://licensed-media.example/sample.mp4" }, "movie:998": { providerId: "disposable-fixture", kind: "embed", url: "https://unapproved.example/player" } }), { mode: 0o600 })
   const approvedPlayback = (await request("/api/media/playback?type=movie&id=999&url=https://unapproved.example", { cookie: a.cookie })).json
   assert.equal(approvedPlayback.source.url, "https://licensed-media.example/sample.mp4")
-  assert.equal((await request("/api/media/playback?type=movie&id=998", { cookie: a.cookie })).json.source, null)
+  const fallbackPlayback = (await request("/api/media/playback?type=movie&id=998", { cookie: a.cookie })).json
+  assert.equal(fallbackPlayback.source.providerId, "cinesrc")
+  assert.equal(new URL(fallbackPlayback.source.url).pathname, "/embed/movie/998")
   await rm(env.MEDIA_PLAYBACK_MANIFEST)
   pass("playback manifest allows only operator-approved sources and ignores client URL injection")
 
