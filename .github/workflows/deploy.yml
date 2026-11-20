@@ -44,6 +44,9 @@ jobs:
       - name: Verify proxy assets
         run: npm run check:proxy
 
+      - name: Validate Roblox Nginx setup script
+        run: bash -n deploy/configure-roblox-host.sh
+
       - name: Validate, test, and build
         env:
           DATABASE_URL: file:./prisma/ci.db
@@ -215,6 +218,14 @@ jobs:
           echo "Synnical or bundled Stratus did not become healthy after deployment." >&2
           exit 1
           REMOTE
+
+      - name: Configure Roblox hostname and HTTPS
+        run: |
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "sudo -n bash /var/www/synnical/deploy/configure-roblox-host.sh"
 
       - name: Check out deployed commit for visual verification
         uses: actions/checkout@v4
