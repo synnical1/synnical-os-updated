@@ -1,8 +1,9 @@
 "use client"
+
 import { useState, type FormEvent } from "react"
-import { ArrowUpRight, Gamepad2, ShieldCheck, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { RobloxIcon } from "@/components/brand-app-icons"
 
 const ROBLOX_PLAYER_URL = "https://roblox.synnical.co.uk/roblox-player/index.html"
 
@@ -19,55 +20,84 @@ function gameTarget(value: string): string | null {
     const serverId = url.searchParams.get("gameInstanceId")
     if (serverId && /^[A-Za-z0-9-]{1,64}$/.test(serverId)) params.set("gameInstanceId", serverId)
     return `?${params.toString()}`
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
 export function RobloxPanel() {
   const [gameLink, setGameLink] = useState("")
   const [error, setError] = useState("")
+
   function openPlayer(target = "") {
     const url = new URL(ROBLOX_PLAYER_URL)
     if (target) url.search = target
     window.open(url.toString(), "_blank", "noopener,noreferrer")
     setError("")
   }
+
   function joinGame(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const target = gameTarget(gameLink)
-    if (!target) { setError("Enter a Roblox game URL or a valid place ID."); return }
+    if (!target) {
+      setError("Enter a Roblox experience link or a valid place ID.")
+      return
+    }
     openPlayer(target)
   }
+
   return (
-    <main className="h-full min-h-0 overflow-y-auto p-5 text-white sm:p-7">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
-        <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#101a30] via-[#10131d] to-[#08090d] p-6 sm:p-8">
-          <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#2878ff]/15 blur-3xl" />
-          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="max-w-xl space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"><Sparkles className="h-3.5 w-3.5 text-blue-300" /> Synnical gaming</div>
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Roblox</h1>
-              <p className="max-w-lg text-sm leading-6 text-white/65 sm:text-base">Explore experiences and launch Roblox in its own dedicated player window.</p>
-              <Button onClick={() => openPlayer()} size="lg" className="gap-2"><Gamepad2 className="h-4 w-4" /> Open Roblox <ArrowUpRight className="h-4 w-4" /></Button>
-            </div>
-            <div className="hidden shrink-0 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] p-8 sm:flex"><Gamepad2 className="h-24 w-24 text-blue-300" strokeWidth={1.2} /></div>
+    <main className="h-full min-h-0 overflow-y-auto bg-background text-foreground">
+      <div className="mx-auto flex w-full max-w-5xl flex-col px-5 py-7 sm:px-8 sm:py-9">
+        <header className="flex items-center gap-3 border-b border-border pb-6">
+          <RobloxIcon className="h-8 w-8 shrink-0" />
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Roblox</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">Launch and join experiences</p>
+          </div>
+        </header>
+
+        <section className="grid gap-9 border-b border-border py-8 sm:py-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-12">
+          <div className="flex flex-col items-start">
+            <h2 className="text-2xl font-semibold tracking-tight">Open Roblox</h2>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+              Start the player in a separate browser tab. Your Roblox sign-in stays separate from your Synnical account.
+            </p>
+            <Button onClick={() => openPlayer()} size="lg" className="mt-5">
+              Open player
+            </Button>
+          </div>
+
+          <div className="border-t border-border pt-8 sm:pt-0 lg:border-l lg:border-t-0 lg:pl-12">
+            <h2 className="text-base font-semibold">Join an experience</h2>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Paste a Roblox game link or enter its place ID.
+            </p>
+            <form onSubmit={joinGame} className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <Input
+                value={gameLink}
+                onChange={event => setGameLink(event.target.value)}
+                placeholder="roblox.com/games/… or place ID"
+                aria-label="Roblox game link or place ID"
+                aria-invalid={Boolean(error)}
+                className="h-11 min-w-0 flex-1 border-border bg-background text-foreground placeholder:text-muted-foreground"
+              />
+              <Button type="submit" className="h-11 shrink-0 px-5">
+                Join
+              </Button>
+            </form>
+            {error ? <p role="alert" className="mt-3 text-sm text-red-500">{error}</p> : null}
           </div>
         </section>
-        <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 sm:p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-xl bg-blue-500/10 p-2 text-blue-300"><ArrowUpRight className="h-5 w-5" /></div>
-            <div><h2 className="font-medium">Jump straight into an experience</h2><p className="text-sm text-white/55">Paste a Roblox game link or enter its place ID.</p></div>
-          </div>
-          <form onSubmit={joinGame} className="flex flex-col gap-3 sm:flex-row">
-            <Input value={gameLink} onChange={event => setGameLink(event.target.value)} placeholder="Roblox game URL or place ID" aria-label="Roblox game URL or place ID" className="min-w-0 flex-1 border-white/10 bg-black/25 text-white placeholder:text-white/35" />
-            <Button type="submit" className="shrink-0 gap-2">Play experience <ArrowUpRight className="h-4 w-4" /></Button>
-          </form>
-          {error ? <p role="alert" className="mt-3 text-sm text-red-300">{error}</p> : null}
-        </section>
-        <section className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4"><div className="mb-2 flex items-center gap-2 text-sm font-medium"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Separate account storage</div><p className="text-sm leading-5 text-white/55">Roblox sign-in stays on the dedicated player origin. Synnical never asks you to paste your session cookie into chat or settings.</p></div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4"><div className="mb-2 flex items-center gap-2 text-sm font-medium"><Gamepad2 className="h-4 w-4 text-blue-300" /> Runs on your device</div><p className="text-sm leading-5 text-white/55">The game client runs locally in your browser. Roblox game traffic does not pass through Synnical's cloud-gaming service.</p></div>
-        </section>
-        <p className="text-xs leading-5 text-white/40">Roblox is a third-party service. Its modified browser client may carry account-warning or compatibility risks. Only sign in on the dedicated player page.</p>
+
+        <footer className="flex flex-col gap-2 pt-5">
+          <p className="text-sm leading-6 text-muted-foreground">
+            Roblox sign-in and session data stay on the dedicated player site. Never share your Roblox session cookie with anyone.
+          </p>
+          <p className="text-xs leading-5 text-muted-foreground">
+            The player runs in your browser. This is not the official Roblox desktop app and may have compatibility or account-support limitations.
+          </p>
+        </footer>
       </div>
     </main>
   )

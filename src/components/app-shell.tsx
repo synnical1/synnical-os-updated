@@ -10,7 +10,7 @@ import { PresenceBridge } from "@/components/presence-bridge"
 import { AutomationBridge } from "@/components/automation-bridge"
 import { CommandPalette } from "@/components/command-palette"
 import { DesktopShell } from "@/components/desktop-shell"
-import { YouTubeIcon, GeForceNowIcon } from "@/components/brand-app-icons"
+import { YouTubeIcon, GeForceNowIcon, RobloxIcon } from "@/components/brand-app-icons"
 import { UnderConstructionPanel } from "@/components/under-construction-panel"
 import { TemporarilyDisabledPanel } from "@/components/temporarily-disabled-panel"
 import { isCoreOsApp } from "@/lib/app-registry"
@@ -52,7 +52,7 @@ const APP_NAV: { id: Panel; label: string; icon: ComponentType<{ className?: str
   { id: "discover", label: "Search", icon: Search, authOnly: true },
   { id: "browser", label: "Browser", icon: Globe },
   { id: "games", label: "Games", icon: Gamepad2 },
-  { id: "roblox", label: "Roblox", icon: Gamepad2 },
+  { id: "roblox", label: "Roblox", icon: RobloxIcon },
   { id: "friends", label: "Friends", icon: User, authOnly: true },
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "movies", label: "SynnFlix", icon: Clapperboard },

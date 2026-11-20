@@ -9,6 +9,14 @@ function RemoteBrandIcon({ src, fallback, className }: { src: string; fallback: 
   return <img aria-hidden="true" src={src} onError={() => setFailed(true)} className={cn("object-contain", className)} alt="" referrerPolicy="no-referrer" />
 }
 
+export function RobloxIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className={className}>
+      <path d="M18.926 23.998 0 18.892 5.075.002 24 5.108ZM15.348 10.09l-5.282-1.453-1.414 5.273 5.282 1.453z" />
+    </svg>
+  )
+}
+
 export function YouTubeIcon({ className }: { className?: string }) {
   return <RemoteBrandIcon src="https://cdn.simpleicons.org/youtube/FF0000" fallback="▶" className={className} />
 }
