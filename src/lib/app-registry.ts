@@ -3,6 +3,7 @@ export const SYNNICAL_APPS = [
   { id: "discover", label: "Search", aliases: ["find", "global search"], authOnly: true },
   { id: "browser", label: "Browser", aliases: ["web", "proxy"] },
   { id: "games", label: "Games", aliases: ["gaming", "cloud games"] },
+  { id: "roblox", label: "Roblox", aliases: ["roblox player", "roblox games", "experiences"] },
   { id: "friends", label: "Friends", aliases: ["contacts", "friend"], authOnly: true },
   { id: "chat", label: "Chat", aliases: ["messages", "dm"] },
   { id: "spaces", label: "Spaces", aliases: ["rooms", "hangout"], authOnly: true },

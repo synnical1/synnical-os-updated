@@ -26,6 +26,7 @@ const MusicPanel = lazy(() => import("@/components/music-panel").then(m => ({ de
 const AIPanel = lazy(() => import("@/components/ai-panel").then(m => ({ default: m.AIPanel })))
 const ShopPanel = lazy(() => import("@/components/shop-panel").then(m => ({ default: m.ShopPanel })))
 const GamesPanel = lazy(() => import("@/components/games-panel").then(m => ({ default: m.GamesPanel })))
+const RobloxPanel = lazy(() => import("@/components/roblox-panel").then(m => ({ default: m.RobloxPanel })))
 const StaffAccountsPanel = lazy(() => import("@/components/staff-accounts-panel").then(m => ({ default: m.StaffAccountsPanel })))
 const SynnFlixPanel = lazy(() => import("@/components/synnflix-unavailable-panel").then(m => ({ default: m.SynnFlixUnavailablePanel })))
 const SynnimePanel = lazy(() => import("@/components/synnime-panel").then(m => ({ default: m.SynnimePanel })))
@@ -43,7 +44,7 @@ const LinuxVmPanel = lazy(() => import("@/components/linux-vm-panel").then(m => 
 // BrowserPanel loaded directly (was causing issues with lazy loading)
 import { BrowserPanel } from "@/components/browser-panel"
 
-export type Panel = "discover" | "chat" | "friends" | "moderation" | "temp-mail" | "browser" | "music" | "ai" | "games" | "shop" | "profile" | "settings" | "movies" | "synnime" | "drive" | "lab" | "spaces" | "market" | "automations" | "creator" | "calls" | "developer" | "files" | "youtube" | "geforce-now" | "linux-vm" | "auth"
+export type Panel = "discover" | "chat" | "friends" | "moderation" | "temp-mail" | "browser" | "music" | "ai" | "games" | "shop" | "profile" | "settings" | "movies" | "synnime" | "drive" | "lab" | "spaces" | "market" | "automations" | "creator" | "calls" | "developer" | "files" | "youtube" | "geforce-now" | "roblox" | "linux-vm" | "auth"
 
 const SAFE_MODE_APPS = new Set<Panel>(["settings", "files", "profile", "auth"])
 
@@ -51,6 +52,7 @@ const APP_NAV: { id: Panel; label: string; icon: ComponentType<{ className?: str
   { id: "discover", label: "Search", icon: Search, authOnly: true },
   { id: "browser", label: "Browser", icon: Globe },
   { id: "games", label: "Games", icon: Gamepad2 },
+  { id: "roblox", label: "Roblox", icon: Gamepad2 },
   { id: "friends", label: "Friends", icon: User, authOnly: true },
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "movies", label: "SynnFlix", icon: Clapperboard },
@@ -215,6 +217,7 @@ export function AppShell() {
       {target === "ai" ? <ErrorBoundary name="AI"><AIPanel /></ErrorBoundary> : null}
       {target === "automations" ? <ErrorBoundary name="Automations"><AutomationsPanel /></ErrorBoundary> : null}
       {target === "games" ? <ErrorBoundary name="Games"><GamesPanel /></ErrorBoundary> : null}
+      {target === "roblox" ? <ErrorBoundary name="Roblox"><RobloxPanel /></ErrorBoundary> : null}
       {target === "market" ? <ErrorBoundary name="Marketplace"><MarketPanel /></ErrorBoundary> : null}
       {target === "creator" ? <ErrorBoundary name="Creator Studio"><CreatorStudioPanel /></ErrorBoundary> : null}
       {target === "calls" ? <ErrorBoundary name="Calls"><CallsPanel /></ErrorBoundary> : null}

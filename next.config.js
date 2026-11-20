@@ -34,6 +34,13 @@ const nextConfig = {
     return [
       { source: "/", headers: appShellNoStore },
       { source: "/games/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400" }] },
+      { source: "/roblox-player/:path*", headers: [
+        { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+        { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+        { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+      ] },
       { source: "/scramjet/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, immutable" }, { key: "Cross-Origin-Resource-Policy", value: "same-origin" }] },
       { source: "/controller/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, immutable" }, { key: "Cross-Origin-Resource-Policy", value: "same-origin" }] },
       { source: "/discord-assets/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, immutable" }, { key: "Cross-Origin-Resource-Policy", value: "same-origin" }] },

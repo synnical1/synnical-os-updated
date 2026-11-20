@@ -23,7 +23,9 @@
     "test:smoke": "node scripts/smoke-recovery.mjs",
     "check:env": "node scripts/check-env.mjs",
     "db:init": "node scripts/init-database.mjs",
-    "check:proxy": "node scripts/check-proxy-assets.mjs"
+    "check:proxy": "node scripts/check-proxy-assets.mjs",
+    "roblox:engine:ensure": "node scripts/fetch-webblox.mjs --if-missing",
+    "roblox:engine:update": "node scripts/fetch-webblox.mjs --force"
   },
   "engines": {
     "node": ">=22 <23",

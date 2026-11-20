@@ -181,6 +181,20 @@ sudo cp /var/www/synnical/deploy/logrotate-synnical.example /etc/logrotate.d/syn
 sudo logrotate --debug /etc/logrotate.d/synnical
 ```
 
+## 7a. Enable the Roblox player origin
+
+The Roblox app uses `https://roblox.synnical.co.uk/roblox-player/index.html` as a separate origin. Create an **A record** for `roblox.synnical.co.uk` pointing to the same public VPS address as Synnical. Add `roblox.synnical.co.uk` to the active Nginx `server_name` alongside the existing root and `www` names, then obtain a TLS certificate covering all three hosts. For the standard Synnical domain names, run:
+
+```bash
+sudo certbot --nginx -d synnical.co.uk -d www.synnical.co.uk -d roblox.synnical.co.uk
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+The player route is limited to its own static assets and `/wisp/` WebSocket. Its Wisp transport permits TCP port 443 only on `roblox.com`, `rbxcdn.com` and `robloxlabs.com`; it is not the Synnical general-purpose proxy. The WebClientApp binary and Epoxy browser transport are fetched into ignored `public/roblox-player/` assets on first deployment and are not committed to Git. To deliberately update the Roblox client, run `npm run roblox:engine:update` as the `synnical` user, then reload Synnical.
+
+Roblox sign-in stays on the dedicated subdomain. Keep Synnical session cookies host-only, and never ask users to paste `.ROBLOSECURITY` into Synnical chat or settings.
+
 ## 8. Verify the actual ARM64 deployment
 
 Use HTTPS in a real browser. Register your new account and verify OWNER access with your private owner password. Check login/logout; settings on a second account; two SynnFlix profiles, avatar upload and Continue Watching reset; chat from two browser sessions; Browser navigation, relative links and back/forward; Games Continue Playing and provider/mail errors; Music's generic labels; themes, profile effects and boot behavior; `/linux-vm` fallback or configured VM.

@@ -9,7 +9,7 @@ map $http_upgrade $synnical_connection_upgrade {
 server {
     listen 80;
     listen [::]:80;
-    server_name synnical.example.com;
+    server_name synnical.example.com roblox.synnical.co.uk;
     client_max_body_size 84m;
 
     location / {
