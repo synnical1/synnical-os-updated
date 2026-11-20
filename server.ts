@@ -18,6 +18,7 @@ import { validateEnv } from "./src/lib/env"
 import { existsSync } from "fs"
 import { resolve } from "path"
 import { createBlockedUdpSocketClass, createSocks5TcpSocketClass, parseSocks5Url } from "./src/lib/wisp-socks"
+import { RobloxOnlyTCPSocket } from "./src/lib/roblox-wisp-sockets"
 import { authenticatedProxyRequest, authenticatedServerSession, allowedSocketOrigin, stripProxyTicketFromRequest } from "./src/lib/server-request-auth"
 
 // Stratus + wisp ship as CommonJS. Load via createRequire so we keep
@@ -30,6 +31,7 @@ const env = validateEnv()
 const dev = process.env.NODE_ENV !== "production"
 const hostname = process.env.HOSTNAME || "127.0.0.1"
 const port = env.PORT
+const ROBLOX_PLAYER_HOST = "roblox.synnical.co.uk"
 const SYNNICAL_SVG_ALLOWED_ORIGINS = new Set([
   "https://cdn.jsdelivr.net",
   "https://jsdelivr.b-cdn.net",
@@ -176,6 +178,21 @@ async function main() {
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const requestOrigin = typeof req.headers.origin === "string" ? req.headers.origin : ""
     const requestUrl = req.url || "/"
+    const requestHost = (req.headers.host || "").split(":")[0].toLowerCase()
+    // The Roblox player is isolated on its own host and service-worker scope.
+    if (requestHost === ROBLOX_PLAYER_HOST) {
+      const playerPath = new URL(requestUrl, `http://${requestHost}`).pathname
+      if (playerPath === "/") {
+        res.writeHead(308, { Location: "/roblox-player/index.html", "Cache-Control": "no-store" })
+        res.end()
+        return
+      }
+      if (!playerPath.startsWith("/roblox-player/")) {
+        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" })
+        res.end("Not found")
+        return
+      }
+    }
     const svgApiRequest =
       SYNNICAL_SVG_ALLOWED_ORIGINS.has(requestOrigin) &&
       (requestUrl === "/api" || requestUrl.startsWith("/api/") || requestUrl.startsWith("/api?"))
@@ -244,6 +261,20 @@ async function main() {
   httpServer.on("upgrade", (req, socket, head) => {
     void (async () => {
     const url = req.url || ""
+    const requestHost = (req.headers.host || "").split(":")[0].toLowerCase()
+    // Dedicated Wisp origin; no access to the general Synnical proxy.
+    if (requestHost === ROBLOX_PLAYER_HOST) {
+      if (req.headers.origin !== `https://${ROBLOX_PLAYER_HOST}` || url !== "/wisp/") {
+        socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
+        return
+      }
+      if (!wispRouteRequest) {
+        socket.end("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n")
+        return
+      }
+      wispRouteRequest(req, socket, head, { TCPSocket: RobloxOnlyTCPSocket })
+      return
+    }
     if (!allowedSocketOrigin(req)) { socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"); return }
 
     // 1. Stratus signaling WS

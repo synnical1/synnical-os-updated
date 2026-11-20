@@ -77,7 +77,7 @@ jobs:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: verify
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       DEPLOY_HOST: 140.238.87.247
       DEPLOY_USER: ubuntu
@@ -129,6 +129,8 @@ jobs:
           npx prisma generate
           npm run db:init
           npm run build
+          # Keep the large Roblox WebClientApp out of Git; provision it only when absent.
+          node scripts/fetch-webblox.mjs --if-missing
           npm run test:smoke
 
           # Wallpaper uploads and saved preferences are persistent user data.
