@@ -211,8 +211,8 @@ export function AppShell() {
       {target === "moderation" && isOwner ? <ErrorBoundary name="User Management"><StaffAccountsPanel /></ErrorBoundary> : null}
       {target === "temp-mail" ? <ErrorBoundary name="Temp Mail"><TempMailPanel /></ErrorBoundary> : null}
       {target === "browser" ? <ErrorBoundary name="Browser"><BrowserPanel /></ErrorBoundary> : null}
-      {target === "movies" ? <ErrorBoundary name="SynnFlix"><SynnFlixPanel /></ErrorBoundary> : null}
-      {target === "synnime" ? <ErrorBoundary name="Synnime"><SynnimePanel /></ErrorBoundary> : null}
+      {target === "movies" ? <ErrorBoundary name="SynnFlix"><SynnFlixPanel onNavigate={openPanel} /></ErrorBoundary> : null}
+      {target === "synnime" ? <ErrorBoundary name="Synnime"><SynnimePanel onNavigate={openPanel} /></ErrorBoundary> : null}
       {target === "music" ? <ErrorBoundary name="Music"><MusicPanel key={user?.id || "guest"} /></ErrorBoundary> : null}
       {target === "ai" ? <ErrorBoundary name="AI"><AIPanel /></ErrorBoundary> : null}
       {target === "automations" ? <ErrorBoundary name="Automations"><AutomationsPanel /></ErrorBoundary> : null}
