@@ -133,8 +133,8 @@ if (WISP_ENABLED) {
       wispModule.server.options.port_whitelist = [80, 443]
       wispModule.server.options.stream_limit_total = 128
     }
-    wispRouteRequest = (req, socket, head) => {
-      wispModule.server.routeRequest(req as any, socket as any, head as any)
+    wispRouteRequest = (req, socket, head, options = {}) => {
+      wispModule.server.routeRequest(req as any, socket as any, head as any, options)
     }
 
     if (WISP_NL_SOCKS5_URL) {
