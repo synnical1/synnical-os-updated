@@ -380,7 +380,7 @@ function askForSession(expired) {
       error.textContent = "";
       input.removeAttribute("aria-invalid");
     });
-    back.addEventListener("click", () => location.assign(ROOT.href));
+    back.addEventListener("click", () => location.assign(new URL("index.html", ROOT).href));
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const pasted = input.value.trim().replace(/^\.ROBLOSECURITY=/, "");

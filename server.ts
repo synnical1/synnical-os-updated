@@ -80,7 +80,7 @@ interface StratusHandle {
 }
 
 let stratus: StratusHandle | null = null
-let wispRouteRequest: ((req: IncomingMessage, socket: Duplex, head: Buffer) => void) | null = null
+let wispRouteRequest: ((req: IncomingMessage, socket: Duplex, head: Buffer, options?: Record<string, unknown>) => void) | null = null
 let wispNlRouteRequest: ((req: IncomingMessage, socket: Duplex, head: Buffer) => void) | null = null
 
 // Initialise Stratus. Cloud Games is a core Synnical service, so production
