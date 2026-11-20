@@ -125,7 +125,7 @@ jobs:
             -o BatchMode=yes \
             -o ConnectTimeout=20 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "sudo -n -u synnical -H bash -s -- '$DEPLOY_SHA'" <<'REMOTE'
+            "sudo -n install -o synnical -g synnical -m 600 '/home/$DEPLOY_USER/.synnical-tmdb-token-${GITHUB_RUN_ID}' '/var/lib/synnical/.tmdb-token-${GITHUB_RUN_ID}' && rm -f '/home/$DEPLOY_USER/.synnical-tmdb-token-${GITHUB_RUN_ID}' && sudo -n -u synnical -H bash -s -- '$DEPLOY_SHA' '/var/lib/synnical/.tmdb-token-${GITHUB_RUN_ID}'" <<'REMOTE'
           set -Eeuo pipefail
 
           deploy_sha="$1"
@@ -140,14 +140,14 @@ jobs:
           import fs from 'node:fs'
           const secretPath = process.env.TMDB_SECRET_FILE
           const token = fs.readFileSync(secretPath, 'utf8').trim()
-          if (!token || /[\\r\\n]/.test(token)) throw new Error('TMDB secret is empty or malformed')
+          if (!token || /[\r\n]/.test(token)) throw new Error('TMDB secret is empty or malformed')
           const envPath = '/var/www/synnical/.env'
           let contents = fs.readFileSync(envPath, 'utf8')
           const line = 'TMDB_READ_ACCESS_TOKEN=' + JSON.stringify(token)
           if (/^TMDB_READ_ACCESS_TOKEN=.*$/m.test(contents)) {
             contents = contents.replace(/^TMDB_READ_ACCESS_TOKEN=.*$/m, line)
           } else {
-            contents = contents.replace(/\\s*$/, '') + '\\n' + line + '\\n'
+            contents = contents.replace(/\s*$/, '') + '\n' + line + '\n'
           }
           const temporaryPath = envPath + '.tmdb.tmp'
           fs.writeFileSync(temporaryPath, contents, { mode: 0o600 })
