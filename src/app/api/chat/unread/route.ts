@@ -5,6 +5,7 @@ import { canAccessPublicChannel } from "@/lib/channel-permissions"
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (user.role !== "OWNER") return NextResponse.json({ error: "Chat is available only to the owner" }, { status: 403 })
   const channels = await db.channel.findMany({ where: { OR: [{ isDM: false, isGroup: false }, { memberships: { some: { userId: user.id } } }] }, select: { id: true, isDM: true, isGroup: true, allowedRoles: true } })
   const prefs = await db.channelPreference.findMany({ where: { userId: user.id } })
   const byChannel = new Map(prefs.map(row => [row.channelId, row]))

@@ -107,6 +107,16 @@ Review every category in `.env.example`:
 
 ```bash
 cd /var/www/synnical
+
+# Install the stable Rust toolchain once for the synnical deploy user.
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+source "$HOME/.cargo/env"
+
+# Format, test and build the Rust chat sidecar before starting PM2.
+cargo fmt --manifest-path rust/synnical-chat/Cargo.toml -- --check
+cargo test --manifest-path rust/synnical-chat/Cargo.toml
+cargo build --release --manifest-path rust/synnical-chat/Cargo.toml
+
 npm ci --include=dev --include=optional
 npm run check:env
 npm run check:proxy
@@ -145,6 +155,8 @@ cd /var/www/synnical
 pm2 start ecosystem.config.cjs
 pm2 status
 pm2 logs synnical --lines 60 --nostream
+pm2 logs synnical-rust-chat --lines 60 --nostream
+curl -fsS http://127.0.0.1:4401/health
 curl -fsS http://127.0.0.1:3000/api
 pm2 save
 pm2 startup systemd -u synnical --hp /home/synnical
@@ -152,7 +164,7 @@ pm2 startup systemd -u synnical --hp /home/synnical
 
 Run the exact privileged startup command PM2 prints from the administrator account. It must reference the installed Node 22/PM2 path. Then verify `systemctl status pm2-synnical`. Run `pm2 save` again after changing the saved process list. PM2's [startup instructions](https://pm2.keymetrics.io/docs/usage/startup/) explain why its startup entry should be regenerated after a Node upgrade.
 
-The ecosystem file sets `/var/www/synnical`, loopback binding, one forked custom-server process, a 2 GB restart threshold and `/var/log/synnical/{out,error}.log`. It deliberately does not use cluster mode: Socket.IO/presence, Wisp and Stratus keep process-local state. `next start` bypasses those services; use the custom server. If the host cannot support the configured memory threshold, adjust it after measuring normal usage.
+The ecosystem file starts two forked processes: the Node/Next custom server and the Rust chat sidecar. Both are loopback-only; the Rust sidecar listens on `127.0.0.1:4401`, reads the same `.env` and SQLite database, and must not be exposed through Nginx/Caddy. The Node process remains single-instance because Socket.IO/presence, Wisp and Stratus keep process-local state. The Rust sidecar also stays single-instance while it shares the SQLite file. `next start` bypasses those services; use the custom server. If the host cannot support the configured memory threshold, adjust it after measuring normal usage.
 
 ## 7. Configure Nginx and TLS
 

@@ -1,4 +1,6 @@
 node_modules/
+/target/
+rust/**/target/
 .next/
 .next/cache/
 .next/trace

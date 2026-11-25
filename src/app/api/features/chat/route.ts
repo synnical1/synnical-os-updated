@@ -63,6 +63,7 @@ async function serializePoll(poll: any, viewerId: string) {
 export async function GET(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return jsonError("Unauthorized", 401)
+  if (me.role !== "OWNER") return jsonError("Chat is available only to the owner", 403)
   const url = new URL(req.url)
   const action = url.searchParams.get("action") || "preferences"
   const channelId = id(url.searchParams.get("channelId"))
@@ -208,6 +209,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return jsonError("Unauthorized", 401)
+  if (me.role !== "OWNER") return jsonError("Chat is available only to the owner", 403)
   const body = await req.json().catch(() => ({}))
   const action = s(body.action, 64)
 

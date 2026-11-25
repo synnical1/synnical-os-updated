@@ -1,0 +1,31 @@
+name: Rust chat service
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**"]
+    paths:
+      - "rust/synnical-chat/**"
+      - ".github/workflows/rust-chat.yml"
+  pull_request:
+    paths:
+      - "rust/synnical-chat/**"
+      - ".github/workflows/rust-chat.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-chat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --manifest-path rust/synnical-chat/Cargo.toml -- --check
+      - name: Run Rust tests
+        run: cargo test --manifest-path rust/synnical-chat/Cargo.toml
+      - name: Build release binary
+        run: cargo build --release --manifest-path rust/synnical-chat/Cargo.toml

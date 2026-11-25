@@ -12,7 +12,6 @@ import { CommandPalette } from "@/components/command-palette"
 import { DesktopShell } from "@/components/desktop-shell"
 import { YouTubeIcon, GeForceNowIcon, RobloxIcon } from "@/components/brand-app-icons"
 import { UnderConstructionPanel } from "@/components/under-construction-panel"
-import { TemporarilyDisabledPanel } from "@/components/temporarily-disabled-panel"
 import { isCoreOsApp } from "@/lib/app-registry"
 
 // Lazy load panels — only load what the user actually opens
@@ -41,6 +40,7 @@ const DeveloperPanel = lazy(() => import("@/components/developer-panel").then(m 
 const YouTubePanel = lazy(() => import("@/components/youtube-panel").then(m => ({ default: m.YouTubePanel })))
 const GeForceNowPanel = lazy(() => import("@/components/geforce-now-panel").then(m => ({ default: m.GeForceNowPanel })))
 const LinuxVmPanel = lazy(() => import("@/components/linux-vm-panel").then(m => ({ default: m.LinuxVmPanel })))
+const ChatPanel = lazy(() => import("@/components/chat-panel").then(m => ({ default: m.ChatPanel })))
 // BrowserPanel loaded directly (was causing issues with lazy loading)
 import { BrowserPanel } from "@/components/browser-panel"
 
@@ -48,13 +48,13 @@ export type Panel = "discover" | "chat" | "friends" | "moderation" | "temp-mail"
 
 const SAFE_MODE_APPS = new Set<Panel>(["settings", "files", "profile", "auth"])
 
-const APP_NAV: { id: Panel; label: string; icon: ComponentType<{ className?: string }>; ownerOnly?: boolean; authOnly?: boolean; labOnly?: boolean }[] = [
+const APP_NAV: { id: Panel; label: string; icon: ComponentType<{ className?: string }>; ownerOnly?: boolean; authOnly?: boolean; guestOnly?: boolean; labOnly?: boolean }[] = [
   { id: "discover", label: "Search", icon: Search, authOnly: true },
   { id: "browser", label: "Browser", icon: Globe },
   { id: "games", label: "Games", icon: Gamepad2 },
   { id: "roblox", label: "Roblox", icon: RobloxIcon },
   { id: "friends", label: "Friends", icon: User, authOnly: true },
-  { id: "chat", label: "Chat", icon: MessageSquare },
+  { id: "chat", label: "Chat", icon: MessageSquare, ownerOnly: true, authOnly: true },
   { id: "movies", label: "SynnFlix", icon: Clapperboard },
   { id: "synnime", label: "Synnime", icon: Tv },
   { id: "music", label: "Music", icon: Music },
@@ -74,6 +74,7 @@ const APP_NAV: { id: Panel; label: string; icon: ComponentType<{ className?: str
   { id: "developer", label: "Developer", icon: Code2, authOnly: true },
   { id: "moderation", label: "User Management", icon: Shield, ownerOnly: true },
   { id: "lab", label: "Synnical Lab", icon: FlaskConical, authOnly: true, labOnly: true },
+  { id: "auth", label: "Sign in", icon: User, guestOnly: true },
   { id: "profile", label: "Profile", icon: User, authOnly: true },
   { id: "settings", label: "Settings", icon: Settings, authOnly: true },
 ]
@@ -101,7 +102,7 @@ export function AppShell() {
     if (!control || !control.enabled) return !control
     return !control.allowedRoles.length || Boolean(user && (control.allowedRoles.includes(user.role) || (control.allowedRoles.includes("BETA_TESTER") && user.tags.includes("BETA TESTER"))))
   }
-  const visibleApps = APP_NAV.filter((item) => appAvailable(item.id) && (!safeMode || SAFE_MODE_APPS.has(item.id)) && (!item.ownerOnly || isOwner) && (!item.authOnly || Boolean(user)) && (!item.labOnly || labVisible))
+  const visibleApps = APP_NAV.filter((item) => appAvailable(item.id) && (!safeMode || SAFE_MODE_APPS.has(item.id)) && (!item.ownerOnly || isOwner) && (!item.authOnly || Boolean(user)) && (!item.guestOnly || !user) && (!item.labOnly || labVisible))
 
   useEffect(() => {
     if (!user || panel !== "auth") return
@@ -157,6 +158,7 @@ export function AppShell() {
       if (!appAvailable(target)) return
       if (targetNav.ownerOnly && !isOwner) return
       if (targetNav.authOnly && !user) return
+      if (targetNav.guestOnly && user) return
       if (targetNav.labOnly && !labVisible) return
 
       setPanel(target)
@@ -205,7 +207,7 @@ export function AppShell() {
     return (
     <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--synnical-accent)] border-t-transparent" /></div>}>
       {target === "discover" ? <ErrorBoundary name="Search"><DiscoveryPanel onPanel={openPanel} /></ErrorBoundary> : null}
-      {target === "chat" ? <ErrorBoundary name="Chat"><TemporarilyDisabledPanel title="Chat" /></ErrorBoundary> : null}
+      {target === "chat" && isOwner ? <ErrorBoundary name="Chat"><ChatPanel /></ErrorBoundary> : null}
       {target === "friends" ? <ErrorBoundary name="Friends"><FriendsPanel /></ErrorBoundary> : null}
       {target === "spaces" ? <ErrorBoundary name="Spaces"><SpacesPanel /></ErrorBoundary> : null}
       {target === "moderation" && isOwner ? <ErrorBoundary name="User Management"><StaffAccountsPanel /></ErrorBoundary> : null}

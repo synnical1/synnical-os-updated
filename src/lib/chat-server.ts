@@ -309,19 +309,19 @@ export function attachChat(httpServer: HTTPServer): IOServer {
     return { allowed: true, retryAfterMs: 0 }
   }
 
-  async function accessibleChannel(channelId: string, userId: string, userRole?: string) {
+  async function accessibleChannel(channelId: string, userId: string, _userRole?: string) {
+    // Chat is an owner-only surface. Always re-read the role so a stale
+    // Socket.IO handshake cannot retain access after an account is demoted.
+    const current = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
+    if (current?.role !== "OWNER") return null
+
     const channel = await db.channel.findUnique({ where: { id: channelId } })
     if (!channel) return null
     if (channel.isDM || channel.isGroup) {
       const membership = await db.membership.findFirst({ where: { channelId, userId } })
       if (!membership) return null
-    } else {
-      // Never rely only on the role captured at the Socket.IO handshake. A
-      // staff account can be demoted while its socket remains connected. Read
-      // the current DB role before granting access to a public channel.
-      const current = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
-      const role = current?.role || userRole
-      if (!role || !canAccessPublicChannel(channel.allowedRoles, role)) return null
+    } else if (!canAccessPublicChannel(channel.allowedRoles, current.role)) {
+      return null
     }
     return channel
   }
