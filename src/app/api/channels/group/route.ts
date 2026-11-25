@@ -10,6 +10,7 @@ import { enforceRejectedModeration, moderationHttpStatus, moderationPublicError 
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (me.role !== "OWNER") return NextResponse.json({ error: "Chat is available only to the owner" }, { status: 403 })
 
   let body: unknown
   try {

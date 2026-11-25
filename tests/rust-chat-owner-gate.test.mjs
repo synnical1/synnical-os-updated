@@ -24,6 +24,12 @@ test("chat REST feature routes reject non-owner accounts", () => {
     "../src/app/api/chat/users/route.ts",
     "../src/app/api/chat/unread/route.ts",
     "../src/app/api/chat/image/upload/route.ts",
+    "../src/app/api/dms/list/route.ts",
+    "../src/app/api/dms/safety/route.ts",
+    "../src/app/api/channels/group/route.ts",
+    "../src/app/api/messages/[id]/route.ts",
+    "../src/app/api/messages/edit/route.ts",
+    "../src/app/api/voice/upload/route.ts",
     "../src/app/api/features/chat/route.ts",
   ]) {
     assert.match(read(path), /role !== "OWNER"/, path)

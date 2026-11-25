@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: "Not logged in" }, { status: 401 })
+    if (user.role !== "OWNER") return NextResponse.json({ error: "Chat is available only to the owner" }, { status: 403 })
 
     const form = await req.formData()
     const file = form.get("file")

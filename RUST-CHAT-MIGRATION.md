@@ -9,7 +9,7 @@ This change starts a real Rust service against the existing production SQLite da
 - Rust validates the existing `stratus_session` cookie or supported Bearer session token against the live `Session` and `User` tables, checks expiry, and independently requires the live database role to be `OWNER`.
 - The Next.js route is a same-origin compatibility adapter. It forwards only the caller's session credentials to the loopback Rust service.
 - The existing ChatPanel is restored for the OWNER account only. The taskbar Start-menu account entry becomes **Sign in** for guests and **Profile** for signed-in users.
-- All remaining chat REST feature routes and Socket.IO channel access are owner-gated. Channel management is also owner-only.
+- All remaining chat REST feature routes, DM/group helpers, voice upload, message edit/delete and Socket.IO channel joins/broadcasts are owner-gated. Channel management is also owner-only.
 
 ## Deliberately not represented as migrated yet
 

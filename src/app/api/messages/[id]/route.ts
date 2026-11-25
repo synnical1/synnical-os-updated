@@ -11,6 +11,7 @@ export async function DELETE(
 ) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (me.role !== "OWNER") return NextResponse.json({ error: "Chat is available only to the owner" }, { status: 403 })
 
   const { id } = await params
   const message = await db.message.findUnique({

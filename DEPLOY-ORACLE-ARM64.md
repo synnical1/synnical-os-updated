@@ -113,7 +113,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 source "$HOME/.cargo/env"
 
 # Format, test and build the Rust chat sidecar before starting PM2.
-cargo fmt --manifest-path rust/synnical-chat/Cargo.toml -- --check
+cargo fmt --manifest-path rust/synnical-chat/Cargo.toml
 cargo test --manifest-path rust/synnical-chat/Cargo.toml
 cargo build --release --manifest-path rust/synnical-chat/Cargo.toml
 

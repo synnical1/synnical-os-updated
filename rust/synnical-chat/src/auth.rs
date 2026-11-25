@@ -25,7 +25,14 @@ fn valid_session_token(value: &str) -> bool {
 fn session_token(headers: &HeaderMap) -> Option<String> {
     if let Some(value) = headers.get(header::AUTHORIZATION) {
         let value = value.to_str().ok()?.trim();
-        let token = value.strip_prefix("Bearer ")?;
+        let mut parts = value.split_ascii_whitespace();
+        if !parts.next()?.eq_ignore_ascii_case("Bearer") {
+            return None;
+        }
+        let token = parts.next()?;
+        if parts.next().is_some() {
+            return None;
+        }
         return valid_session_token(token).then(|| token.to_ascii_lowercase());
     }
 

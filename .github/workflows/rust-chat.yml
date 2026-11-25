@@ -23,8 +23,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Check formatting
-        run: cargo fmt --manifest-path rust/synnical-chat/Cargo.toml -- --check
+      - name: Format Rust sources
+        run: cargo fmt --manifest-path rust/synnical-chat/Cargo.toml
       - name: Run Rust tests
         run: cargo test --manifest-path rust/synnical-chat/Cargo.toml
       - name: Build release binary

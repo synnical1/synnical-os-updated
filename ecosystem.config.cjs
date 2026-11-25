@@ -37,7 +37,6 @@ module.exports = {
       merge_logs: true,
       log_date_format: "YYYY-MM-DD HH:mm:ss",
     },
-    },
     {
       name: "synnical-rust-chat",
       script: "/var/www/synnical/rust/synnical-chat/target/release/synnical-chat",

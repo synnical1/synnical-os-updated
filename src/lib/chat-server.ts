@@ -342,19 +342,25 @@ export function attachChat(httpServer: HTTPServer): IOServer {
     const userIds = [...new Set(socketUsers.map((entry) => entry.user.userId))]
     const allowedUserIds = new Set<string>()
 
+    // Room membership can outlive an account role change. Restrict both
+    // public channels and DMs to users whose current database role is OWNER.
+    const currentOwners = await db.user.findMany({
+      where: { id: { in: userIds }, role: "OWNER" },
+      select: { id: true },
+    })
+    const ownerIds = currentOwners.map((current) => current.id)
+
     if (channel.isDM || channel.isGroup) {
-      const memberships = await db.membership.findMany({
-        where: { channelId, userId: { in: userIds } },
-        select: { userId: true },
-      })
+      const memberships = ownerIds.length
+        ? await db.membership.findMany({
+            where: { channelId, userId: { in: ownerIds } },
+            select: { userId: true },
+          })
+        : []
       for (const membership of memberships) allowedUserIds.add(membership.userId)
     } else {
-      const currentUsers = await db.user.findMany({
-        where: { id: { in: userIds } },
-        select: { id: true, role: true },
-      })
-      for (const current of currentUsers) {
-        if (canAccessPublicChannel(channel.allowedRoles, current.role)) allowedUserIds.add(current.id)
+      for (const current of currentOwners) {
+        if (canAccessPublicChannel(channel.allowedRoles, "OWNER")) allowedUserIds.add(current.id)
       }
     }
 

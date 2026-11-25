@@ -11,6 +11,7 @@ import { enforceRejectedModeration, moderationHttpStatus, moderationPublicError 
 export async function PATCH(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (me.role !== "OWNER") return NextResponse.json({ error: "Chat is available only to the owner" }, { status: 403 })
   const rate = consumeRequestLimit(req, "message-edit", 30, 60_000, me.id)
   if (!rate.allowed) return NextResponse.json({ error: "Too many edits" }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } })
   const { id, content } = await req.json().catch(() => ({}))
