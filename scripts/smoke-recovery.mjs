@@ -21,8 +21,14 @@ const reservation = createServer()
 await new Promise((resolve) => reservation.listen(0, "127.0.0.1", resolve))
 const port = reservation.address().port
 await new Promise((resolve) => reservation.close(resolve))
+const rustReservation = createServer()
+await new Promise((resolve) => rustReservation.listen(0, "127.0.0.1", resolve))
+const rustPort = rustReservation.address().port
+await new Promise((resolve) => rustReservation.close(resolve))
 const base = `http://127.0.0.1:${port}`
+const rustBase = `http://127.0.0.1:${rustPort}`
 const env = { ...process.env, NODE_ENV: "production", DATABASE_URL: databaseUrl, HOSTNAME: "127.0.0.1", PORT: String(port),
+  SYNNICAL_RUST_CHAT_BIND: `127.0.0.1:${rustPort}`, SYNNICAL_RUST_CHAT_URL: rustBase,
   OWNER_PASSWORD: randomBytes(32).toString("hex"), IDENTITY_HASH_SECRET: randomBytes(32).toString("hex"),
   UPLOAD_DIR: path.join(root, "uploads"), MEDIA_APPROVALS_DIR: path.join(root, "approvals"), STRATUS_DISABLE_ACCOUNT_POOL: "true", STRATUS_MALQ_URL: "https://unconfigured.invalid",
   STRATUS_API_KEY: randomBytes(32).toString("hex"), WISP_ENABLED: "true", WISP_PATH: "/wisp", WISP_NL_PATH: "/wisp-nl", NEXT_PUBLIC_SOCKET_URL: "/socket.io",
@@ -31,6 +37,9 @@ const env = { ...process.env, NODE_ENV: "production", DATABASE_URL: databaseUrl,
 const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
 const diagnostics = createSmokeDiagnostics(env)
 let child
+let rustChild
+let rustStartError = null
+let rustLog = ""
 let log = ""
 const sockets = []
 let checks = 0
@@ -72,6 +81,30 @@ try {
   execFileSync(process.execPath, ["node_modules/prisma/build/index.js", "db", "push", "--skip-generate"], { env, stdio: "pipe" })
   assert.equal(await db.user.count(), 0); assert.equal(await db.message.count(), 0)
   pass("fresh schema creates an empty database")
+
+  const rustBinary = path.join(process.cwd(), "rust", "synnical-chat", "target", "debug", "synnical-chat")
+  rustChild = spawn(rustBinary, [], { env, stdio: ["ignore", "pipe", "pipe"] })
+  rustChild.on("error", error => { rustStartError = error })
+  rustChild.stdout.on("data", chunk => { rustLog = (rustLog + chunk).slice(-6000) })
+  rustChild.stderr.on("data", chunk => { rustLog = (rustLog + chunk).slice(-6000) })
+  let rustReady = false
+  for (let attempt = 0; attempt < 120; attempt++) {
+    if (rustStartError) throw new Error(`Rust chat service could not start: ${rustStartError.message}`)
+    if (rustChild.exitCode !== null) throw new Error(`Rust chat service exited: ${rustLog.slice(-3000)}`)
+    try {
+      const response = await fetch(rustBase + "/health")
+      if (response.ok) {
+        const health = await response.json()
+        assert.equal(health.service, "synnical-rust-chat")
+        rustReady = true
+        break
+      }
+    } catch {}
+    await delay(250)
+  }
+  if (!rustReady) throw new Error(`Rust chat service did not become ready: ${rustLog.slice(-3000)}`)
+  pass("Rust chat sidecar connects to the disposable SQLite database")
+
   child = spawn(process.execPath, ["--import", "tsx", "server.ts"], { env, stdio: ["ignore", "pipe", "pipe"] })
   child.stdout.on("data", (chunk) => { log += chunk }); child.stderr.on("data", (chunk) => { log += chunk })
   for (let attempt = 0; attempt < 120; attempt++) {
@@ -323,17 +356,49 @@ try {
   await request("/api/uploads/secret.png", { status: 404 })
   await request("/api/uploads/game-screenshots-private/sample.png", { status: 404 })
   pass("image decode/resize/metadata stripping, inherited avatar preservation, unsafe file rejection")
+  // Chat smoke fixtures authenticate through the same owner-password flow as
+  // a real owner; the original two accounts remain ordinary members.
+  const ownerVerification = await request("/api/owner/verify", { cookie: a.cookie, data: { password: env.OWNER_PASSWORD } })
+  noSecrets(ownerVerification.json)
+  assert.equal(ownerVerification.json.user.role, "OWNER")
+  Object.assign(a, ownerVerification.json.user)
+
+  const owner2Registration = await request("/api/auth/register", { data: {
+    username: "recoveryowner2", password: testPassword,
+    securityQuestion: "What is the test phrase?", securityAnswer: "disposable sample",
+  } })
+  noSecrets(owner2Registration.json)
+  const owner2Cookie = owner2Registration.response.headers.getSetCookie().map(value => value.split(";")[0]).join("; ")
+  const owner2 = { ...owner2Registration.json.user, cookie: owner2Cookie }
+  const owner2Verification = await request("/api/owner/verify", { cookie: owner2.cookie, data: { password: env.OWNER_PASSWORD } })
+  noSecrets(owner2Verification.json)
+  assert.equal(owner2Verification.json.user.role, "OWNER")
+  Object.assign(owner2, owner2Verification.json.user)
+  pass("Chat smoke fixtures authenticate as OWNER through password verification")
+
   const channel = await db.channel.create({ data: { name: "recovery-public" } })
   const privateChannel = await db.channel.create({ data: { name: "recovery-private", isGroup: true } })
   await db.membership.create({ data: { channelId: privateChannel.id, userId: a.id } })
   await request(`/api/chat/messages?channelId=${privateChannel.id}`, { cookie: b.cookie, status: 403 })
+  await request("/api/chat/channels", { cookie: b.cookie, status: 403 })
+  await request("/api/chat/users", { cookie: b.cookie, status: 403 })
+  await request("/api/chat/unread", { cookie: b.cookie, status: 403 })
   const msg = await db.message.create({ data: { channelId: channel.id, userId: a.id, username: a.username, content: "Recovery sample" } })
-  for (const route of [`/api/features/chat?action=search&channelId=${channel.id}`, `/api/features/chat?action=thread&messageId=${msg.id}`]) noSecrets((await request(route, { cookie: b.cookie })).json)
-  await request("/api/features/chat", { cookie: b.cookie, data: { action: "toggle-save", messageId: msg.id } })
-  noSecrets((await request("/api/features/chat?action=saved", { cookie: b.cookie })).json)
+  const rustChannels = (await request("/api/chat/channels", { cookie: a.cookie })).json.channels
+  assert.ok(rustChannels.some(row => row.id === channel.id), "Rust channel read model returns the owner's channel")
+  const rustHistory = (await request(`/api/chat/messages?channelId=${channel.id}`, { cookie: a.cookie })).json.messages
+  assert.ok(rustHistory.some(row => row.id === msg.id), "Rust message-history read model returns the persisted message")
+  for (const route of [`/api/features/chat?action=search&channelId=${channel.id}`, `/api/features/chat?action=thread&messageId=${msg.id}`]) {
+    noSecrets((await request(route, { cookie: a.cookie })).json)
+    await request(route, { cookie: b.cookie, status: 403 })
+  }
+  await request("/api/features/chat", { cookie: a.cookie, data: { action: "toggle-save", messageId: msg.id } })
+  noSecrets((await request("/api/features/chat?action=saved", { cookie: a.cookie })).json)
+  await request("/api/features/chat?action=saved", { cookie: b.cookie, status: 403 })
   const poll = await db.poll.create({ data: { channelId: channel.id, messageId: msg.id, createdById: a.id, question: "Sample?" } })
-  assert.equal((await request(`/api/features/chat?action=poll-message&messageId=${msg.id}`, { cookie: b.cookie })).json.poll.id, poll.id)
-  pass("HTTP channel authorization, sanitized search/thread/saved responses and inline polls")
+  assert.equal((await request(`/api/features/chat?action=poll-message&messageId=${msg.id}`, { cookie: a.cookie })).json.poll.id, poll.id)
+  await request(`/api/features/chat?action=poll-message&messageId=${msg.id}`, { cookie: b.cookie, status: 403 })
+  pass("Rust channel/history reads work; all Chat feature routes reject non-owners")
 
   const edit = { id: msg.id, content: "An authorized edited recovery message" }
   await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit })
@@ -343,12 +408,13 @@ try {
   await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit, status: 403 })
   await db.user.update({ where: { id: a.id }, data: { muted: false, mutedUntil: null } })
   await db.channel.update({ where: { id: channel.id }, data: { isAnnouncement: true } })
-  await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit, status: 403 })
+  await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit })
+  await request("/api/messages/edit", { cookie: b.cookie, method: "PATCH", data: edit, status: 403 })
   await db.channel.update({ where: { id: channel.id }, data: { isAnnouncement: false } })
   await db.message.update({ where: { id: msg.id }, data: { deleted: true } })
   await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit, status: 404 })
   await db.message.update({ where: { id: msg.id }, data: { deleted: false } })
-  pass("HTTP edits preserve history and reject foreign authors, active mutes, announcements and deleted messages")
+  pass("HTTP edits preserve history; owners may edit announcements; non-owners, active mutes and deleted messages are rejected")
 
   await request("/api/features/security", { cookie: a.cookie, data: { action: "set-lockdown", enabled: true, password: testPassword } })
   await request("/api/messages/edit", { cookie: a.cookie, method: "PATCH", data: edit, status: 403 })
@@ -371,7 +437,7 @@ try {
   assert.equal(first.clientNonce, clientNonce)
   sent = event(socket, "message"); socket.emit("send-message", payload); assert.equal((await sent).id, first.id)
   assert.equal(await db.message.count({ where: { userId: a.id, clientNonce } }), 1)
-  const rapidSocket = io(base, { autoConnect: false, transports: ["websocket"], extraHeaders: { Cookie: b.cookie }, reconnection: false })
+  const rapidSocket = io(base, { autoConnect: false, transports: ["websocket"], extraHeaders: { Cookie: owner2.cookie }, reconnection: false })
   sockets.push(rapidSocket); const rapidConnected = event(rapidSocket, "connect"); rapidSocket.connect(); await rapidConnected
   const rapidHistory = event(rapidSocket, "message-history"); rapidSocket.emit("join-channel", { channelId: channel.id, history: true }); await rapidHistory
   // Keep the initial message's reward work in flight while rapidly sending
@@ -390,17 +456,17 @@ try {
   const rapidDuplicate = matchingEvent(rapidSocket, "message", (message) => message?.clientNonce === rapidPayloads[0].clientNonce)
   rapidSocket.emit("send-message", rapidPayloads[0])
   assert.equal((await rapidDuplicate).id, rapidMessages[0].id)
-  assert.equal(await db.message.count({ where: { userId: b.id, clientNonce: rapidPayloads[0].clientNonce } }), 1)
+  assert.equal(await db.message.count({ where: { userId: owner2.id, clientNonce: rapidPayloads[0].clientNonce } }), 1)
   const refreshed = event(socket, "message-history"); socket.emit("join-channel", { channelId: channel.id, history: true })
   assert.ok((await refreshed).messages.some((message) => message.clientNonce === clientNonce))
   pass("Socket.IO websocket rapid send, duplicate nonce idempotency, background rewards and reconnect history identity")
 
-  await db.user.update({ where: { id: b.id }, data: { muted: true, mutedUntil: new Date(Date.now() + 60000) } })
+  await db.user.update({ where: { id: owner2.id }, data: { muted: true, mutedUntil: new Date(Date.now() + 60000) } })
   const rejectedEdit = event(rapidSocket, "mute-error")
   rapidSocket.emit("edit-message", { messageId: rapidMessages[0].id, channelId: channel.id, content: "Muted edit must be rejected" })
   assert.equal((await rejectedEdit).code, "MESSAGE_EDIT_FORBIDDEN")
   assert.equal((await db.message.findUnique({ where: { id: rapidMessages[0].id } })).content, rapidPayloads[0].content)
-  await db.user.update({ where: { id: b.id }, data: { muted: false, mutedUntil: null } })
+  await db.user.update({ where: { id: owner2.id }, data: { muted: false, mutedUntil: null } })
   pass("Socket.IO revalidates active mutes before editing an existing message")
 
   const polling = io(base, { autoConnect: false, transports: ["polling", "websocket"], extraHeaders: { Cookie: b.cookie }, reconnection: false })
@@ -461,26 +527,27 @@ try {
   assert.equal((await request("/api/features/media/profiles", { cookie: a.cookie })).json.profiles.length, 1)
   pass("concurrent profile deletion always preserves one profile")
   const { smokeUpgrade } = await import("./smoke-upgrade.mjs")
-  await smokeUpgrade({ testPassword, request, db, a, b, channel, socket, event, pass, base, sockets })
+  await smokeUpgrade({ testPassword, request, db, a, b, owner2, channel, socket, event, pass, base, sockets })
   const browserModule = process.argv.find((arg) => arg.startsWith("--browser-module="))?.slice("--browser-module=".length)
   if (browserModule) {
     await db.message.createMany({ data: Array.from({ length: 80 }, (_, i) => ({ channelId: channel.id, userId: a.id, username: a.username, content: `History fixture ${i}` })) })
     await db.message.create({ data: { channelId: channel.id, userId: b.id, username: b.username, content: "Uploaded image fixture", imageUrl: uploaded } })
-    const dm = (await request("/api/dms/list", { cookie: b.cookie, data: { userId: a.id } })).json
-    const incomingSocket = io(base, { autoConnect: false, transports: ["websocket"], extraHeaders: { Cookie: b.cookie }, reconnection: false })
+    await request("/api/dms/list", { cookie: owner2.cookie, data: { userId: a.id }, status: 503 })
+    const incomingSocket = io(base, { autoConnect: false, transports: ["websocket"], extraHeaders: { Cookie: owner2.cookie }, reconnection: false })
     sockets.push(incomingSocket); const ready = event(incomingSocket, "connect"); incomingSocket.connect(); await ready
-    for (const channelId of [channel.id, dm.id]) { const joined = event(incomingSocket, "message-history"); incomingSocket.emit("join-channel", { channelId, history: true }); await joined }
-    const incoming = async kind => { const received = event(incomingSocket, "message"); incomingSocket.emit("send-message", { channelId: kind === "dm" ? dm.id : channel.id, content: kind === "mention" ? `Hello @${a.username}` : `Ordinary ${kind} message`, clientNonce: randomBytes(16).toString("hex") }); return received }
+    const joined = event(incomingSocket, "message-history"); incomingSocket.emit("join-channel", { channelId: channel.id, history: true }); await joined
+    const incoming = async kind => { const received = event(incomingSocket, "message"); incomingSocket.emit("send-message", { channelId: channel.id, content: kind === "mention" ? `Hello @${a.username}` : `Ordinary ${kind} message`, clientNonce: randomBytes(16).toString("hex") }); return received }
     const { smokeBrowser } = await import("./smoke-browser.mjs")
     await smokeBrowser({ base, accounts, browserModule, pass, incoming, channelName: channel.name })
   }
   console.log(`SMOKE PASSED: ${checks} groups; disposable data only.`)
 } finally {
   for (const socket of sockets) socket.disconnect()
-  if (child) {
-    child.kill("SIGTERM")
-    await Promise.race([new Promise((resolve) => child.once("exit", resolve)), delay(6000)])
-    if (child.exitCode === null) child.kill("SIGKILL")
+  for (const process of [child, rustChild]) {
+    if (!process) continue
+    process.kill("SIGTERM")
+    await Promise.race([new Promise(resolve => process.once("exit", resolve)), delay(6000)])
+    if (process.exitCode === null && process.signalCode === null) process.kill("SIGKILL")
   }
   await db.$disconnect()
   if (process.env.SYNNICAL_SMOKE_LOG) await writeFile(process.env.SYNNICAL_SMOKE_LOG, log)

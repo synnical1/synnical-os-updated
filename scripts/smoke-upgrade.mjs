@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { randomBytes } from "node:crypto"
 import { io } from "socket.io-client"
 
-export async function smokeUpgrade({ testPassword, request, db, a, b, channel, socket, event, pass, base, sockets }) {
+export async function smokeUpgrade({ testPassword, request, db, a, b, owner2, channel, socket, event, pass, base, sockets }) {
   const cookieOf = response => response.headers.getSetCookie().map(value => value.split(";")[0]).join("; ")
   const password = testPassword
   const signIn = async account => account.cookie.split("; ").filter(v => v.startsWith("synnical_device=")).join("; ") + "; " + cookieOf((await request("/api/auth/login", { cookie: account.cookie.split("; ").filter(v => v.startsWith("synnical_device=")).join("; "), data: { username: account.username, password } })).response)
@@ -19,14 +19,16 @@ export async function smokeUpgrade({ testPassword, request, db, a, b, channel, s
   const send = async content => { const received = event(socket, "message"); socket.emit("send-message", { channelId: channel.id, content, clientNonce: randomBytes(16).toString("hex") }); return received }
   const normal = await send("Ordinary unread message")
   assert.deepEqual(normal.mentionedUserIds, [])
-  const mentioned = await send(`Hello @${b.username}`)
-  assert.deepEqual(mentioned.mentionedUserIds, [b.id])
-  const unread = (await request("/api/chat/unread", { cookie: b.cookie })).json
+  const mentioned = await send(`Hello @${owner2.username}`)
+  assert.deepEqual(mentioned.mentionedUserIds, [owner2.id])
+  await request("/api/chat/unread", { cookie: b.cookie, status: 403 })
+  const unread = (await request("/api/chat/unread", { cookie: owner2.cookie })).json
   assert.ok(unread.unread[channel.id] >= 2); assert.equal(unread.mentions[channel.id], true)
-  await request("/api/features/chat", { cookie: b.cookie, data: { action: "set-preference", channelId: channel.id, lastReadMessageId: mentioned.id } })
-  assert.equal((await request("/api/chat/unread", { cookie: b.cookie })).json.unread[channel.id], 0)
-  assert.equal((await request("/api/chat/unread", { cookie: b.cookie })).json.mentions[channel.id], false)
-  pass("upgrade: resolved mention IDs and ordinary unread persist and clear through read API")
+  await request("/api/features/chat", { cookie: b.cookie, data: { action: "set-preference", channelId: channel.id, lastReadMessageId: mentioned.id }, status: 403 })
+  await request("/api/features/chat", { cookie: owner2.cookie, data: { action: "set-preference", channelId: channel.id, lastReadMessageId: mentioned.id } })
+  assert.equal((await request("/api/chat/unread", { cookie: owner2.cookie })).json.unread[channel.id], 0)
+  assert.equal((await request("/api/chat/unread", { cookie: owner2.cookie })).json.mentions[channel.id], false)
+  pass("upgrade: owner-only unread and read preferences preserve resolved mention state")
 
   const command = async text => { const received = event(socket, "bot-command-result"); socket.emit("send-message", { channelId: channel.id, content: text, clientNonce: randomBytes(16).toString("hex") }); return received }
   const result = await command(`@mute @${b.username} 15m smoke reason`)
