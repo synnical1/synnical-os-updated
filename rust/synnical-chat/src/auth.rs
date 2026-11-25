@@ -3,6 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde_json::json;
 use sqlx::{Row, SqlitePool};
 
@@ -20,6 +21,22 @@ fn api_error(status: StatusCode, message: &str) -> Response {
 
 fn valid_session_token(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn parse_session_expiry(value: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|value| value.with_timezone(&Utc))
+        .or_else(|| {
+            NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f")
+                .ok()
+                .map(|value| value.and_utc())
+        })
+        .or_else(|| {
+            NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S")
+                .ok()
+                .map(|value| value.and_utc())
+        })
 }
 
 fn session_token(headers: &HeaderMap) -> Option<String> {
@@ -51,13 +68,14 @@ pub async fn require_owner(headers: &HeaderMap, db: &SqlitePool) -> Result<Actor
     let token = session_token(headers)
         .ok_or_else(|| api_error(StatusCode::UNAUTHORIZED, "Unauthorized"))?;
 
-    // Query the live database role and expiry on every request. Never trust a
-    // role supplied by the browser or a role cached by a previous connection.
+    // First resolve the exact token against the live SQLite session table.
+    // Expiry is parsed in Rust because Prisma's SQLite DateTime text format
+    // varies between RFC3339 and SQLite's "YYYY-MM-DD HH:MM:SS.sss" form.
     let row = sqlx::query(
-        r#"SELECT u.id AS user_id, u.role AS role
+        r#"SELECT u.id AS user_id, u.role AS role, s.expiresAt AS expires_at
            FROM "Session" s
            INNER JOIN "User" u ON u.id = s.userId
-           WHERE s.token = ? AND julianday(s.expiresAt) > julianday('now')
+           WHERE s.token = ?
            LIMIT 1"#,
     )
     .bind(token)
@@ -66,8 +84,22 @@ pub async fn require_owner(headers: &HeaderMap, db: &SqlitePool) -> Result<Actor
     .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Session validation failed"))?;
 
     let Some(row) = row else {
+        let session_count = sqlx::query_scalar::<_, i64>(r#"SELECT COUNT(*) FROM "Session""#)
+            .fetch_one(db)
+            .await
+            .unwrap_or(-1);
+        tracing::warn!(sessions_in_database = session_count, "No database session matched the supplied Synnical token");
         return Err(api_error(StatusCode::UNAUTHORIZED, "Session expired or not found"));
     };
+
+    let expires_at: String = row
+        .try_get("expires_at")
+        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Session expiry is invalid"))?;
+    let expiry = parse_session_expiry(&expires_at)
+        .ok_or_else(|| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Session expiry is invalid"))?;
+    if expiry <= Utc::now() {
+        return Err(api_error(StatusCode::UNAUTHORIZED, "Session expired or not found"));
+    }
 
     let actor = Actor {
         user_id: row
@@ -88,6 +120,13 @@ pub async fn require_owner(headers: &HeaderMap, db: &SqlitePool) -> Result<Actor
 mod tests {
     use super::{session_token, valid_session_token};
     use axum::http::{header, HeaderMap, HeaderValue};
+
+    #[test]
+    fn parses_prisma_sqlite_and_rfc3339_expiry_values() {
+        assert!(parse_session_expiry("2026-11-25 10:23:09.123").is_some());
+        assert!(parse_session_expiry("2026-11-25T10:23:09.123Z").is_some());
+        assert!(parse_session_expiry("not-a-date").is_none());
+    }
 
     #[test]
     fn accepts_only_the_synnical_64_character_session_token() {
