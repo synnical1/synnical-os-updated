@@ -14,6 +14,11 @@ fn api_error(status: StatusCode, message: &str) -> Response {
     (status, Json(json!({ "error": message }))).into_response()
 }
 
+fn channel_decode_error(field: &'static str, error: sqlx::Error) -> Response {
+    tracing::warn!(field, error = %error, "Could not decode Rust chat channel row");
+    api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid")
+}
+
 fn parse_allowed_roles(stored: &str) -> Vec<String> {
     const PUBLIC_ROLES: [&str; 5] = ["OWNER", "HEAD_ADMIN", "ADMIN", "MOD", "MEMBER"];
     if stored.trim().is_empty() {
@@ -30,8 +35,14 @@ pub async fn channels(
 
     let rows = sqlx::query(
         r#"SELECT
-             c.id, c.name, c.isDM, c.isGroup, c.isAnnouncement,
-             c.allowedRoles, c.creatorId, c.slowModeSeconds, c.createdAt,
+             c.id, c.name,
+             CAST(c.isDM AS INTEGER) AS isDM,
+             CAST(c.isGroup AS INTEGER) AS isGroup,
+             CAST(c.isAnnouncement AS INTEGER) AS isAnnouncement,
+             CAST(c.allowedRoles AS TEXT) AS allowedRoles,
+             c.creatorId,
+             c.slowModeSeconds,
+             CAST(c.createdAt AS TEXT) AS createdAt,
              COUNT(m.id) AS messageCount
            FROM "Channel" c
            LEFT JOIN "Message" m ON m.channelId = c.id
@@ -47,7 +58,7 @@ pub async fn channels(
     for row in rows {
         let allowed_roles: String = row
             .try_get("allowedRoles")
-            .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))?;
+            .map_err(|error| channel_decode_error("allowedRoles", error))?;
         let audience = if parse_allowed_roles(&allowed_roles)
             .iter()
             .any(|role| role == "MEMBER")
@@ -58,19 +69,19 @@ pub async fn channels(
         };
         let message_count: i64 = row
             .try_get("messageCount")
-            .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))?;
+            .map_err(|error| channel_decode_error("messageCount", error))?;
 
         channels.push(json!({
-            "id": row.try_get::<String, _>("id").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))?,
-            "name": row.try_get::<String, _>("name").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))?,
-            "isDM": row.try_get::<i64, _>("isDM").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))? != 0,
-            "isGroup": row.try_get::<i64, _>("isGroup").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))? != 0,
-            "isAnnouncement": row.try_get::<i64, _>("isAnnouncement").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))? != 0,
+            "id": row.try_get::<String, _>("id").map_err(|error| channel_decode_error("id", error))?,
+            "name": row.try_get::<String, _>("name").map_err(|error| channel_decode_error("name", error))?,
+            "isDM": row.try_get::<i64, _>("isDM").map_err(|error| channel_decode_error("isDM", error))? != 0,
+            "isGroup": row.try_get::<i64, _>("isGroup").map_err(|error| channel_decode_error("isGroup", error))? != 0,
+            "isAnnouncement": row.try_get::<i64, _>("isAnnouncement").map_err(|error| channel_decode_error("isAnnouncement", error))? != 0,
             "allowedRoles": parse_allowed_roles(&allowed_roles),
             "audience": audience,
-            "creatorId": row.try_get::<Option<String>, _>("creatorId").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))?,
-            "slowModeSeconds": row.try_get::<i64, _>("slowModeSeconds").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))?,
-            "createdAt": row.try_get::<String, _>("createdAt").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid"))?,
+            "creatorId": row.try_get::<Option<String>, _>("creatorId").map_err(|error| channel_decode_error("creatorId", error))?,
+            "slowModeSeconds": row.try_get::<i64, _>("slowModeSeconds").map_err(|error| channel_decode_error("slowModeSeconds", error))?,
+            "createdAt": row.try_get::<String, _>("createdAt").map_err(|error| channel_decode_error("createdAt", error))?,
             "_count": { "messages": message_count }
         }));
     }
