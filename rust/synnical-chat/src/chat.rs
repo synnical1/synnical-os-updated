@@ -19,6 +19,11 @@ fn channel_decode_error(field: &'static str, error: sqlx::Error) -> Response {
     api_error(StatusCode::INTERNAL_SERVER_ERROR, "Channel data is invalid")
 }
 
+fn message_decode_error(field: &'static str, error: sqlx::Error) -> Response {
+    tracing::warn!(field, error = %error, "Could not decode Rust chat message row");
+    api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid")
+}
+
 fn parse_allowed_roles(stored: &str) -> Vec<String> {
     const PUBLIC_ROLES: [&str; 5] = ["OWNER", "HEAD_ADMIN", "ADMIN", "MOD", "MEMBER"];
     if stored.trim().is_empty() {
@@ -148,11 +153,16 @@ pub async fn messages(
     let rows = sqlx::query(
         r#"SELECT
              m.id, m.channelId, m.userId, m.username, m.content, m.clientNonce,
-             m.mentionedUserIds, m.deleted, m.edited, m.editedAt, m.gifUrl,
-             m.imageUrl, m.voiceUrl, m.voiceTranscript, m.messageType,
+             m.mentionedUserIds,
+             CAST(m.deleted AS INTEGER) AS deleted,
+             CAST(m.edited AS INTEGER) AS edited,
+             CAST(m.editedAt AS TEXT) AS editedAt,
+             m.gifUrl, m.imageUrl, m.voiceUrl, m.voiceTranscript, m.messageType,
              m.threadRootId, m.replyToId, m.replyToName, m.replyToContent,
              m.spoilerMediaType, m.spoilerMediaId, m.spoilerTitle,
-             m.spoilerSeason, m.spoilerEpisode, m.spoilerUntil, m.createdAt
+             m.spoilerSeason, m.spoilerEpisode,
+             CAST(m.spoilerUntil AS TEXT) AS spoilerUntil,
+             CAST(m.createdAt AS TEXT) AS createdAt
            FROM "Message" m
            WHERE m.channelId = ? AND m.deleted = 0
              AND (? IS NULL OR julianday(m.createdAt) < julianday(?))
@@ -169,32 +179,32 @@ pub async fn messages(
     let mut messages = Vec::with_capacity(rows.len());
     for row in rows {
         let message = json!({
-            "id": row.try_get::<String, _>("id").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "channelId": row.try_get::<String, _>("channelId").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "userId": row.try_get::<Option<String>, _>("userId").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "username": row.try_get::<String, _>("username").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "content": row.try_get::<String, _>("content").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "clientNonce": row.try_get::<Option<String>, _>("clientNonce").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "mentionedUserIds": row.try_get::<String, _>("mentionedUserIds").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "deleted": row.try_get::<i64, _>("deleted").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))? != 0,
-            "edited": row.try_get::<i64, _>("edited").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))? != 0,
-            "editedAt": row.try_get::<Option<String>, _>("editedAt").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "gifUrl": row.try_get::<Option<String>, _>("gifUrl").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "imageUrl": row.try_get::<Option<String>, _>("imageUrl").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "voiceUrl": row.try_get::<Option<String>, _>("voiceUrl").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "voiceTranscript": row.try_get::<Option<String>, _>("voiceTranscript").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "messageType": row.try_get::<String, _>("messageType").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "threadRootId": row.try_get::<Option<String>, _>("threadRootId").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "replyToId": row.try_get::<Option<String>, _>("replyToId").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "replyToName": row.try_get::<Option<String>, _>("replyToName").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "replyToContent": row.try_get::<Option<String>, _>("replyToContent").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "spoilerMediaType": row.try_get::<Option<String>, _>("spoilerMediaType").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "spoilerMediaId": row.try_get::<Option<String>, _>("spoilerMediaId").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "spoilerTitle": row.try_get::<Option<String>, _>("spoilerTitle").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "spoilerSeason": row.try_get::<Option<i64>, _>("spoilerSeason").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "spoilerEpisode": row.try_get::<Option<i64>, _>("spoilerEpisode").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "spoilerUntil": row.try_get::<Option<String>, _>("spoilerUntil").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?,
-            "createdAt": row.try_get::<String, _>("createdAt").map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Message data is invalid"))?
+            "id": row.try_get::<String, _>("id").map_err(|error| message_decode_error("id", error))?,
+            "channelId": row.try_get::<String, _>("channelId").map_err(|error| message_decode_error("channelId", error))?,
+            "userId": row.try_get::<Option<String>, _>("userId").map_err(|error| message_decode_error("userId", error))?,
+            "username": row.try_get::<String, _>("username").map_err(|error| message_decode_error("username", error))?,
+            "content": row.try_get::<String, _>("content").map_err(|error| message_decode_error("content", error))?,
+            "clientNonce": row.try_get::<Option<String>, _>("clientNonce").map_err(|error| message_decode_error("clientNonce", error))?,
+            "mentionedUserIds": row.try_get::<String, _>("mentionedUserIds").map_err(|error| message_decode_error("mentionedUserIds", error))?,
+            "deleted": row.try_get::<i64, _>("deleted").map_err(|error| message_decode_error("deleted", error))? != 0,
+            "edited": row.try_get::<i64, _>("edited").map_err(|error| message_decode_error("edited", error))? != 0,
+            "editedAt": row.try_get::<Option<String>, _>("editedAt").map_err(|error| message_decode_error("editedAt", error))?,
+            "gifUrl": row.try_get::<Option<String>, _>("gifUrl").map_err(|error| message_decode_error("gifUrl", error))?,
+            "imageUrl": row.try_get::<Option<String>, _>("imageUrl").map_err(|error| message_decode_error("imageUrl", error))?,
+            "voiceUrl": row.try_get::<Option<String>, _>("voiceUrl").map_err(|error| message_decode_error("voiceUrl", error))?,
+            "voiceTranscript": row.try_get::<Option<String>, _>("voiceTranscript").map_err(|error| message_decode_error("voiceTranscript", error))?,
+            "messageType": row.try_get::<String, _>("messageType").map_err(|error| message_decode_error("messageType", error))?,
+            "threadRootId": row.try_get::<Option<String>, _>("threadRootId").map_err(|error| message_decode_error("threadRootId", error))?,
+            "replyToId": row.try_get::<Option<String>, _>("replyToId").map_err(|error| message_decode_error("replyToId", error))?,
+            "replyToName": row.try_get::<Option<String>, _>("replyToName").map_err(|error| message_decode_error("replyToName", error))?,
+            "replyToContent": row.try_get::<Option<String>, _>("replyToContent").map_err(|error| message_decode_error("replyToContent", error))?,
+            "spoilerMediaType": row.try_get::<Option<String>, _>("spoilerMediaType").map_err(|error| message_decode_error("spoilerMediaType", error))?,
+            "spoilerMediaId": row.try_get::<Option<String>, _>("spoilerMediaId").map_err(|error| message_decode_error("spoilerMediaId", error))?,
+            "spoilerTitle": row.try_get::<Option<String>, _>("spoilerTitle").map_err(|error| message_decode_error("spoilerTitle", error))?,
+            "spoilerSeason": row.try_get::<Option<i64>, _>("spoilerSeason").map_err(|error| message_decode_error("spoilerSeason", error))?,
+            "spoilerEpisode": row.try_get::<Option<i64>, _>("spoilerEpisode").map_err(|error| message_decode_error("spoilerEpisode", error))?,
+            "spoilerUntil": row.try_get::<Option<String>, _>("spoilerUntil").map_err(|error| message_decode_error("spoilerUntil", error))?,
+            "createdAt": row.try_get::<String, _>("createdAt").map_err(|error| message_decode_error("createdAt", error))?
         });
         messages.push(message);
     }
