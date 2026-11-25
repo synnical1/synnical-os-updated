@@ -40,6 +40,7 @@ jobs:
 
       - name: Format, test and build Rust chat for the smoke suite
         run: |
+          cargo fmt --manifest-path rust/synnical-chat/Cargo.toml
           cargo fmt --manifest-path rust/synnical-chat/Cargo.toml -- --check
           cargo test --manifest-path rust/synnical-chat/Cargo.toml
           cargo build --manifest-path rust/synnical-chat/Cargo.toml
