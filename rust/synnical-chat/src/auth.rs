@@ -3,7 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use serde_json::json;
 use sqlx::{Row, SqlitePool};
 
@@ -24,6 +24,14 @@ fn valid_session_token(value: &str) -> bool {
 }
 
 fn parse_session_expiry(value: &str) -> Option<DateTime<Utc>> {
+    if let Ok(timestamp) = value.parse::<i64>() {
+        return if timestamp.unsigned_abs() >= 100_000_000_000 {
+            Utc.timestamp_millis_opt(timestamp).single()
+        } else {
+            Utc.timestamp_opt(timestamp, 0).single()
+        };
+    }
+
     DateTime::parse_from_rfc3339(value)
         .ok()
         .map(|value| value.with_timezone(&Utc))
@@ -87,7 +95,9 @@ pub async fn require_owner(headers: &HeaderMap, db: &SqlitePool) -> Result<Actor
     // Expiry is parsed in Rust because Prisma's SQLite DateTime text format
     // varies between RFC3339 and SQLite's "YYYY-MM-DD HH:MM:SS.sss" form.
     let row = sqlx::query(
-        r#"SELECT u.id AS user_id, u.role AS role, s.expiresAt AS expires_at
+        r#"SELECT u.id AS user_id, u.role AS role,
+                  CAST(s.expiresAt AS TEXT) AS expires_at,
+                  typeof(s.expiresAt) AS expires_at_storage_type
            FROM "Session" s
            INNER JOIN "User" u ON u.id = s.userId
            WHERE s.token = ?
@@ -107,11 +117,13 @@ pub async fn require_owner(headers: &HeaderMap, db: &SqlitePool) -> Result<Actor
         return Err(api_error(StatusCode::UNAUTHORIZED, "Session expired or not found"));
     };
 
-    let expires_at: String = row
-        .try_get("expires_at")
-        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Session expiry is invalid"))?;
+    let expires_at_storage_type: String = row.try_get("expires_at_storage_type").unwrap_or_else(|_| "unknown".to_owned());
+    let expires_at: String = row.try_get("expires_at").map_err(|error| {
+        tracing::warn!(storage_type = %expires_at_storage_type, error = %error, "Could not read session expiry as text");
+        api_error(StatusCode::INTERNAL_SERVER_ERROR, "Session expiry storage is invalid")
+    })?;
     let Some(expiry) = parse_session_expiry(&expires_at) else {
-        tracing::warn!(expires_at = %expires_at, "Unrecognized Prisma SQLite session expiry format");
+        tracing::warn!(storage_type = %expires_at_storage_type, expires_at = %expires_at, "Unrecognized Prisma SQLite session expiry format");
         return Err(api_error(StatusCode::INTERNAL_SERVER_ERROR, "Session expiry is invalid"));
     };
     if expiry <= Utc::now() {
@@ -144,6 +156,8 @@ mod tests {
         assert!(parse_session_expiry("2026-11-25T10:23:09.123Z").is_some());
         assert!(parse_session_expiry("2026-11-25 10:23:09.123+00:00").is_some());
         assert!(parse_session_expiry("2026-11-25 10:23:09+00:00").is_some());
+        assert!(parse_session_expiry("1795600000").is_some());
+        assert!(parse_session_expiry("1795600000000").is_some());
         assert!(parse_session_expiry("not-a-date").is_none());
     }
 
