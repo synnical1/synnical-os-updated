@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { forwardRustChat } from "@/lib/rust-chat"
 import { getCurrentUser } from "@/lib/auth-server"
 import { moderateTextContent } from "@/lib/content-moderation"
 import { enforceRejectedModeration, moderationHttpStatus, moderationPublicError } from "@/lib/moderation-enforcement"
 import {
-  canAccessPublicChannel,
-  canManageChannels,
   channelAudienceFromStoredRoles,
   channelRolesForAudience,
   normalizeChannelAudience,
@@ -20,23 +19,12 @@ function publicChannel<T extends { allowedRoles: string }>(channel: T) {
   }
 }
 
-// GET /api/chat/channels — return only channels the authenticated account may
-// know exist. Staff-only channels are removed before any metadata is serialized.
-export async function GET() {
+// GET /api/chat/channels — the Rust read model owns this endpoint.
+export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const channels = await db.channel.findMany({
-    where: { isDM: false, isGroup: false },
-    orderBy: [{ isAnnouncement: "desc" }, { createdAt: "asc" }],
-    include: { _count: { select: { messages: true } } },
-  })
-
-  return NextResponse.json({
-    channels: channels
-      .filter((channel) => canAccessPublicChannel(channel.allowedRoles, user.role))
-      .map(publicChannel),
-  })
+  if (user.role !== "OWNER") return NextResponse.json({ error: "Chat is available only to the owner" }, { status: 403 })
+  return forwardRustChat("/v1/chat/channels", req)
 }
 
 // POST /api/chat/channels — create a staff-managed public channel.
@@ -45,9 +33,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!canManageChannels(user.role)) {
-    return NextResponse.json({ error: "Only owners and administrators can create channels" }, { status: 403 })
-  }
+  if (user.role !== "OWNER") return NextResponse.json({ error: "Chat administration is owner-only" }, { status: 403 })
 
   let body: Record<string, unknown>
   try {
@@ -99,9 +85,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!canManageChannels(user.role)) {
-    return NextResponse.json({ error: "Only owners and administrators can delete channels" }, { status: 403 })
-  }
+  if (user.role !== "OWNER") return NextResponse.json({ error: "Chat administration is owner-only" }, { status: 403 })
 
   let id: unknown
   try { ({ id } = await req.json()) } catch {

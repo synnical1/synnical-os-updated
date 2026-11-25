@@ -11,9 +11,7 @@ import { auditData } from "@/lib/audit-log"
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (me.role !== "OWNER" && me.role !== "HEAD_ADMIN" && me.role !== "ADMIN") {
-    return NextResponse.json({ error: "Only admins can create announcement channels" }, { status: 403 })
-  }
+  if (me.role !== "OWNER") return NextResponse.json({ error: "Chat administration is owner-only" }, { status: 403 })
   const { name } = await req.json()
   if (typeof name !== "string" || name.trim().length < 1 || name.trim().length > 32) {
     return NextResponse.json({ error: "Invalid channel name" }, { status: 400 })

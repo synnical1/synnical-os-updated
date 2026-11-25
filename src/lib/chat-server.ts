@@ -309,19 +309,19 @@ export function attachChat(httpServer: HTTPServer): IOServer {
     return { allowed: true, retryAfterMs: 0 }
   }
 
-  async function accessibleChannel(channelId: string, userId: string, userRole?: string) {
+  async function accessibleChannel(channelId: string, userId: string, _userRole?: string) {
+    // Chat is an owner-only surface. Always re-read the role so a stale
+    // Socket.IO handshake cannot retain access after an account is demoted.
+    const current = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
+    if (current?.role !== "OWNER") return null
+
     const channel = await db.channel.findUnique({ where: { id: channelId } })
     if (!channel) return null
     if (channel.isDM || channel.isGroup) {
       const membership = await db.membership.findFirst({ where: { channelId, userId } })
       if (!membership) return null
-    } else {
-      // Never rely only on the role captured at the Socket.IO handshake. A
-      // staff account can be demoted while its socket remains connected. Read
-      // the current DB role before granting access to a public channel.
-      const current = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
-      const role = current?.role || userRole
-      if (!role || !canAccessPublicChannel(channel.allowedRoles, role)) return null
+    } else if (!canAccessPublicChannel(channel.allowedRoles, current.role)) {
+      return null
     }
     return channel
   }
@@ -342,19 +342,25 @@ export function attachChat(httpServer: HTTPServer): IOServer {
     const userIds = [...new Set(socketUsers.map((entry) => entry.user.userId))]
     const allowedUserIds = new Set<string>()
 
+    // Room membership can outlive an account role change. Restrict both
+    // public channels and DMs to users whose current database role is OWNER.
+    const currentOwners = await db.user.findMany({
+      where: { id: { in: userIds }, role: "OWNER" },
+      select: { id: true },
+    })
+    const ownerIds = currentOwners.map((current) => current.id)
+
     if (channel.isDM || channel.isGroup) {
-      const memberships = await db.membership.findMany({
-        where: { channelId, userId: { in: userIds } },
-        select: { userId: true },
-      })
+      const memberships = ownerIds.length
+        ? await db.membership.findMany({
+            where: { channelId, userId: { in: ownerIds } },
+            select: { userId: true },
+          })
+        : []
       for (const membership of memberships) allowedUserIds.add(membership.userId)
     } else {
-      const currentUsers = await db.user.findMany({
-        where: { id: { in: userIds } },
-        select: { id: true, role: true },
-      })
-      for (const current of currentUsers) {
-        if (canAccessPublicChannel(channel.allowedRoles, current.role)) allowedUserIds.add(current.id)
+      for (const current of currentOwners) {
+        if (canAccessPublicChannel(channel.allowedRoles, "OWNER")) allowedUserIds.add(current.id)
       }
     }
 

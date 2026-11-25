@@ -31,10 +31,9 @@ export async function smokeBrowserUpgrade({ page, context, base, open, pass, inc
   await page.waitForFunction(() => window.__osNotices.length === 1)
   await page.getByLabel('Unread mention', { exact: true }).first().waitFor()
   assert.equal(await page.evaluate(() => window.__browserNotices.length), 1)
-  await incoming('dm')
   assert.equal(await page.evaluate(() => window.__osNotices.length), 1)
   assert.equal(await page.evaluate(() => window.__browserNotices.length), 1)
-  pass('upgrade Chromium: closed Chat receives unread channel/DM dots; only resolved mentions create OS/browser notifications')
+  pass('upgrade Chromium: closed owner Chat receives unread channel dots; only resolved mentions create OS/browser notifications')
 
   const chat = await open('Chat', '.synnical-os-window:has(input[placeholder^="Message #"])')
   await chat.getByRole('button', { name: channelName, exact: true }).first().click()
