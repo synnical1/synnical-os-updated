@@ -57,6 +57,6 @@ test("Rust channel and history routes are session-authenticated", () => {
 test("deployment smoke uses the Rust release binary that the host actually built", () => {
   const smoke = read("../scripts/smoke-recovery.mjs")
   const workflow = read("../.github/workflows/deploy.yml")
-  assert.match(smoke, /process\\.env\\.SYNNICAL_RUST_CHAT_BINARY/)
-  assert.match(workflow, /SYNNICAL_RUST_CHAT_BINARY=.*target\\/release\\/synnical-chat/)
+  assert.ok(smoke.includes("process.env.SYNNICAL_RUST_CHAT_BINARY"))
+  assert.ok(workflow.includes('SYNNICAL_RUST_CHAT_BINARY="$app_dir/rust/synnical-chat/target/release/synnical-chat"'))
 })
