@@ -118,7 +118,7 @@ pub async fn require_owner(headers: &HeaderMap, db: &SqlitePool) -> Result<Actor
 
 #[cfg(test)]
 mod tests {
-    use super::{session_token, valid_session_token};
+    use super::{parse_session_expiry, session_token, valid_session_token};
     use axum::http::{header, HeaderMap, HeaderValue};
 
     #[test]
