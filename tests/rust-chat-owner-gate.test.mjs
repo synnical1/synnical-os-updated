@@ -27,6 +27,7 @@ test("chat REST feature routes reject non-owner accounts", () => {
     "../src/app/api/dms/list/route.ts",
     "../src/app/api/dms/safety/route.ts",
     "../src/app/api/channels/group/route.ts",
+    "../src/app/api/channels/announcement/route.ts",
     "../src/app/api/messages/[id]/route.ts",
     "../src/app/api/messages/edit/route.ts",
     "../src/app/api/voice/upload/route.ts",
