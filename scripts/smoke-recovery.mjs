@@ -52,7 +52,10 @@ async function request(route, { cookie, data, method, body, headers = {}, status
     body: data !== undefined ? JSON.stringify(data) : body })
   const text = await response.text()
   for (const cookie of response.headers.getSetCookie()) diagnostics.remember({ cookie })
-  if (response.status !== status) console.error("SMOKE server failure diagnostics (redacted):\n" + diagnostics.redact(log).slice(-12000))
+  if (response.status !== status) {
+    console.error("SMOKE server failure diagnostics (redacted):\n" + diagnostics.redact(log).slice(-12000))
+    console.error("SMOKE Rust diagnostics (no tokens):\n" + rustLog.slice(-4000))
+  }
   assert.equal(response.status, status, `${route}: ${text.slice(0, 300)}`)
   let json; try { json = JSON.parse(text) } catch {}
   return { response, json, text }

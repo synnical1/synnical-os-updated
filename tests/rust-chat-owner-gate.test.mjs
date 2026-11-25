@@ -45,6 +45,9 @@ test("Socket.IO channel access re-reads the live owner role", () => {
 test("Rust channel and history routes are session-authenticated", () => {
   const rust = read("../rust/synnical-chat/src/auth.rs")
   assert.match(rust, /"stratus_session"/)
-  assert.match(rust, /julianday\(s\.expiresAt\) > julianday\('now'\)/)
+  assert.match(rust, /WHERE s\.token = \?/)
+  assert.match(rust, /s\.expiresAt AS expires_at/)
+  assert.match(rust, /parse_session_expiry\(&expires_at\)/)
   assert.match(rust, /is_owner\(&actor\.role\)/)
+  assert.match(rust, /parses_prisma_sqlite_and_rfc3339_expiry_values/)
 })
