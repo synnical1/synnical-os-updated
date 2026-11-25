@@ -177,6 +177,7 @@ jobs:
           fi
           source "$HOME/.cargo/env"
           rustup toolchain install stable --profile minimal
+          rustup component add rustfmt --toolchain stable
           cargo fmt --manifest-path rust/synnical-chat/Cargo.toml
           cargo test --manifest-path rust/synnical-chat/Cargo.toml
           cargo build --release --manifest-path rust/synnical-chat/Cargo.toml

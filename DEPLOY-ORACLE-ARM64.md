@@ -111,6 +111,7 @@ cd /var/www/synnical
 # Install the stable Rust toolchain once for the synnical deploy user.
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 source "$HOME/.cargo/env"
+rustup component add rustfmt --toolchain stable
 
 # Format, test and build the Rust chat sidecar before starting PM2.
 cargo fmt --manifest-path rust/synnical-chat/Cargo.toml
