@@ -201,7 +201,7 @@ jobs:
           npm run build
           # Keep the large Roblox WebClientApp out of Git; provision it only when absent.
           node scripts/fetch-webblox.mjs --if-missing
-          npm run test:smoke
+          SYNNICAL_RUST_CHAT_BINARY="$app_dir/rust/synnical-chat/target/release/synnical-chat" npm run test:smoke
 
           # Wallpaper uploads and saved preferences are persistent user data.
           # Deployments must never delete wallpaper files or reset wallpaper selections.
