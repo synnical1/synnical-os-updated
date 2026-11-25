@@ -85,7 +85,9 @@ try {
   assert.equal(await db.user.count(), 0); assert.equal(await db.message.count(), 0)
   pass("fresh schema creates an empty database")
 
-  const rustBinary = path.join(process.cwd(), "rust", "synnical-chat", "target", "debug", "synnical-chat")
+  const rustBinary = process.env.SYNNICAL_RUST_CHAT_BINARY
+    ? path.resolve(process.cwd(), process.env.SYNNICAL_RUST_CHAT_BINARY)
+    : path.join(process.cwd(), "rust", "synnical-chat", "target", "debug", "synnical-chat")
   rustChild = spawn(rustBinary, [], { env, stdio: ["ignore", "pipe", "pipe"] })
   rustChild.on("error", error => { rustStartError = error })
   rustChild.stdout.on("data", chunk => { rustLog = (rustLog + chunk).slice(-6000) })

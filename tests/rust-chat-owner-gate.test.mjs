@@ -53,3 +53,10 @@ test("Rust channel and history routes are session-authenticated", () => {
   assert.match(rust, /is_owner\(&actor\.role\)/)
   assert.match(rust, /parses_prisma_sqlite_and_rfc3339_expiry_values/)
 })
+
+test("deployment smoke uses the Rust release binary that the host actually built", () => {
+  const smoke = read("../scripts/smoke-recovery.mjs")
+  const workflow = read("../.github/workflows/deploy.yml")
+  assert.match(smoke, /process\\.env\\.SYNNICAL_RUST_CHAT_BINARY/)
+  assert.match(workflow, /SYNNICAL_RUST_CHAT_BINARY=.*target\\/release\\/synnical-chat/)
+})
