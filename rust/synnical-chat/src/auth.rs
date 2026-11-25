@@ -28,6 +28,21 @@ fn parse_session_expiry(value: &str) -> Option<DateTime<Utc>> {
         .ok()
         .map(|value| value.with_timezone(&Utc))
         .or_else(|| {
+            DateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f%:z")
+                .ok()
+                .map(|value| value.with_timezone(&Utc))
+        })
+        .or_else(|| {
+            DateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%:z")
+                .ok()
+                .map(|value| value.with_timezone(&Utc))
+        })
+        .or_else(|| {
+            DateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.f%:z")
+                .ok()
+                .map(|value| value.with_timezone(&Utc))
+        })
+        .or_else(|| {
             NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f")
                 .ok()
                 .map(|value| value.and_utc())
@@ -95,8 +110,10 @@ pub async fn require_owner(headers: &HeaderMap, db: &SqlitePool) -> Result<Actor
     let expires_at: String = row
         .try_get("expires_at")
         .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Session expiry is invalid"))?;
-    let expiry = parse_session_expiry(&expires_at)
-        .ok_or_else(|| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Session expiry is invalid"))?;
+    let Some(expiry) = parse_session_expiry(&expires_at) else {
+        tracing::warn!(expires_at = %expires_at, "Unrecognized Prisma SQLite session expiry format");
+        return Err(api_error(StatusCode::INTERNAL_SERVER_ERROR, "Session expiry is invalid"));
+    };
     if expiry <= Utc::now() {
         return Err(api_error(StatusCode::UNAUTHORIZED, "Session expired or not found"));
     }
@@ -125,6 +142,8 @@ mod tests {
     fn parses_prisma_sqlite_and_rfc3339_expiry_values() {
         assert!(parse_session_expiry("2026-11-25 10:23:09.123").is_some());
         assert!(parse_session_expiry("2026-11-25T10:23:09.123Z").is_some());
+        assert!(parse_session_expiry("2026-11-25 10:23:09.123+00:00").is_some());
+        assert!(parse_session_expiry("2026-11-25 10:23:09+00:00").is_some());
         assert!(parse_session_expiry("not-a-date").is_none());
     }
 
