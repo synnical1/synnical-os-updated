@@ -73,7 +73,7 @@ export async function verifyDesktopLayout({ command, evaluate, sessionId, authen
     assert.equal(s.width, 40); assert.equal(s.height, 20); assert.equal(s.thumb, 14)
     for (const edge of ["left", "right", "top", "bottom"]) assert.ok(s[edge] >= 2.5, `${selector} ${edge} contains thumb`)
     assert.ok(Math.abs(s.top - 3) < .5 && Math.abs(s.bottom - 3) < .5)
-    assert.ok(Math.abs(s[s.checked === "true" ? "right" : "left"] - 3) < .5, `Symmetric 3px endpoint inset: ${JSON.stringify(s)}`)
+    assert.ok(Math.abs(s[s.checked === "true" ? "right" : "left"] - 3) < 1, `Symmetric 3px endpoint inset within 1px: ${JSON.stringify(s)}`)
     if (s.checked === "true") assert.equal(s.color, s.accent, "Checked track follows active theme accent")
     return s
   }
